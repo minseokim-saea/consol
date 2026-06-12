@@ -32,7 +32,7 @@ pipeline {
             steps {
                 // git이 추적하는 파일만 운영 서버의 디렉터리로 복사.
                 // rsync over SSH 사용.
-                sshagent(credentials: [operating-server-ssh]) {
+                sshagent(credentials: ['operating-server-ssh']) {
                     sh '''
                         git ls-files > .deploy_files
                         rsync -avz -e "ssh -o StrictHostKeyChecking=no" --files-from=.deploy_files ./ ${TARGET_USER}@${TARGET_HOST}:${APP_DIR}/
@@ -44,7 +44,7 @@ pipeline {
         stage('Build & Restart') {
             steps {
                 // 원격 서버에서 docker compose 빌드 및 재시작 실행
-                sshagent(credentials: [operating-server-ssh]) {
+                sshagent(credentials: ['operating-server-ssh']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${TARGET_USER}@${TARGET_HOST} "
                             cd ${APP_DIR}
@@ -60,7 +60,7 @@ pipeline {
         stage('Health Check') {
             steps {
                 // 원격 서버 자체에서 헬스체크를 수행하도록 명령 전송
-                sshagent(credentials: [operating-server-ssh]) {
+                sshagent(credentials: ['operating-server-ssh']) {
                     sh '''
                         ssh -o StrictHostKeyChecking=no ${TARGET_USER}@${TARGET_HOST} '
                             for i in $(seq 1 15); do
