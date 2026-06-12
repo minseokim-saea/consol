@@ -11,7 +11,7 @@ pipeline {
     }
 
     environment {
-        TARGET_HOST = '192.168.0.193'         // 운영 서버 IP (운영 환경에 맞게 변경 가능)
+        TARGET_HOST = '10.40.0.193'         // 운영 서버 IP (운영 환경에 맞게 변경 가능)
         TARGET_USER = 'saea'                // 운영 서버 접속 계정
         APP_DIR = '/opt/consol-app'           // 운영 서버 내 애플리케이션 경로
     }
