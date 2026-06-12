@@ -1,0 +1,4371 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주석 합산 - 연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background:#f0f4f8; font-family:'Pretendard','Malgun Gothic',Arial,sans-serif; }
+  .navbar { background:#1F3864 !important; }
+  .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(31,56,100,0.08); }
+  .card-header {
+    background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%);
+    color:#fff; border-radius:12px 12px 0 0 !important;
+    padding:0.85rem 1.25rem; font-weight:600;
+  }
+  .agg-card { cursor:pointer; transition: all .15s ease; border:1px solid #dde4ec; }
+  .agg-card:hover { box-shadow:0 6px 20px rgba(31,56,100,0.15); border-color:#2d5aa0; }
+  .agg-card.active { background:#EBF0FA; border-color:#1F3864; }
+  /* ── 그룹 사이드바 + 항목 카드 그리드 ───────────────── */
+  .agg-layout { display:flex; align-items:stretch; }
+  .sheet-tabs {
+    flex:0 0 212px; width:212px; display:flex; flex-direction:column;
+    gap:2px; padding:14px 10px; margin:0;
+    border-right:2px solid #e5ebf3; background:#fafcff;
+    border-radius:0 0 0 12px;
+  }
+  .sheet-tabs .nav-section {
+    list-style:none; font-size:.67rem; font-weight:700; letter-spacing:.05em;
+    color:#9aa9bd; text-transform:uppercase; padding:12px 12px 4px;
+  }
+  .sheet-tabs .nav-section:first-child { padding-top:2px; }
+  .sheet-tabs .nav-item { width:100%; }
+  .sheet-tabs .nav-link {
+    display:flex; align-items:center; width:100%; text-align:left;
+    border:none; border-radius:8px; color:#3d4a5c; font-weight:600;
+    padding:9px 12px; font-size:.85rem; background:none;
+  }
+  .sheet-tabs .nav-link i { width:1.1rem; flex-shrink:0; }
+  .sheet-tabs .nav-link:hover { background:#eef3fb; color:#1F3864; }
+  .sheet-tabs .nav-link.active { background:#1F3864; color:#fff; }
+  .sheet-tabs .nav-link .badge {
+    margin-left:auto; background:#e3e9f2; color:#1F3864;
+    font-size:.7rem; font-weight:700;
+  }
+  .sheet-tabs .nav-link.active .badge { background:rgba(255,255,255,.25); color:#fff; }
+
+  .sheet-tab-content { flex:1 1 auto; min-width:0; padding:16px 18px; }
+  .agg-list-group {
+    display:grid; gap:10px;
+    grid-template-columns:repeat(auto-fill, minmax(290px, 1fr));
+  }
+  .agg-item {
+    display:flex; align-items:flex-start; gap:12px; height:100%;
+    padding:12px 14px; border:1px solid #e1e8f1; border-radius:10px;
+    background:#fff; cursor:pointer; transition: all .12s ease;
+    text-align:left; width:100%;
+  }
+  .agg-item:hover { border-color:#2d5aa0; box-shadow:0 3px 12px rgba(31,56,100,.10); }
+  .agg-item.active { border-color:#1F3864; background:#EBF0FA; box-shadow:0 3px 12px rgba(31,56,100,.15); }
+  .agg-item .agg-key {
+    background:#1F3864; color:#fff; font-weight:700; font-family:monospace;
+    border-radius:6px; padding:3px 8px; font-size:.74rem; min-width:40px;
+    text-align:center; flex-shrink:0;
+  }
+  .agg-item.active .agg-key { background:#a05a00; }
+  .agg-item .agg-icon { display:none; }
+  .agg-item .agg-title { font-weight:600; color:#1F3864; font-size:.9rem; line-height:1.3; }
+  .agg-item .agg-desc  { color:#6c757d; font-size:.76rem; margin-top:3px; line-height:1.35; }
+
+  @media (max-width: 900px) {
+    .agg-layout { flex-direction:column; }
+    .sheet-tabs {
+      flex:0 0 auto; width:auto; flex-direction:row; flex-wrap:wrap;
+      gap:6px; border-right:none; border-bottom:2px solid #e5ebf3;
+      border-radius:0;
+    }
+    .sheet-tabs .nav-section { width:100%; padding:6px 4px 2px; }
+    .sheet-tabs .nav-item { width:auto; }
+    .sheet-tabs .nav-link .badge { margin-left:6px; }
+  }
+  .summary-strip { background:#fff; padding:12px 18px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .category-block {
+    background:#fff; border-radius:10px; margin-bottom:18px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06); border-left:5px solid #1F3864;
+  }
+  .category-head {
+    padding:12px 18px; display:flex; align-items:center; gap:12px;
+    border-bottom:1px solid #eef2f7;
+  }
+  .category-key { background:#1F3864; color:#fff; font-weight:700; border-radius:6px; padding:3px 10px; font-family:monospace; }
+  .category-name { font-weight:700; color:#1F3864; font-size:1.05rem; }
+  .badge-code { background:#fff3cd; color:#856404; font-family:monospace; font-size:.72rem; padding:2px 6px; border-radius:3px; }
+  .total-strip {
+    margin-left:auto; display:flex; gap:10px; align-items:center;
+    font-size:.85rem;
+  }
+  .total-krw { font-weight:700; color:#a05a00; }
+  .rows-table { font-size:.84rem; margin:0; }
+  .rows-table th { background:#f5f8ff; color:#1F3864; font-weight:600; padding:8px 10px; }
+  .rows-table td { padding:6px 10px; vertical-align:middle; }
+  .num { text-align:right; font-family:'Courier New',monospace; }
+  .num-krw { color:#1F3864; font-weight:600; }
+  .badge-cur { background:#fff3cd; color:#856404; font-family:monospace; font-size:.72rem; padding:2px 6px; border-radius:3px; }
+  .empty-state { text-align:center; padding:48px 24px; color:#6c757d; }
+  .empty-state .bi { font-size:3rem; color:#9aa9bd; }
+  .errors-block { background:#fff8e1; border:1px solid #ffe082; border-radius:10px; padding:14px 18px; margin-bottom:14px; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'note_aggregate' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid px-4 pb-5">
+
+  <!-- 결산기간 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-calendar3"></i><span>결산기간</span>
+      <span class="badge bg-light text-dark ms-2 fw-normal" style="font-size:.72rem;">주석은 4분기에만 작성</span>
+    </div>
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <select id="yearSelect" class="form-select" style="max-width:240px;">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+        <span class="text-muted small">선택한 분기의 업로드된 모든 패키지를 합산합니다.</span>
+        <button id="downloadAllBtn" class="btn btn-success btn-sm" onclick="downloadAll()">
+          <i class="bi bi-file-earmark-excel me-1"></i>전체 합산 다운로드 (시트별 통합)
+        </button>
+        <span class="badge bg-light text-dark border ms-auto">
+          <i class="bi bi-archive me-1"></i><span id="fileCount">-</span>개 패키지
+        </span>
+      </div>
+      <div id="downloadAllStatus" class="small text-muted mt-2"></div>
+    </div>
+  </div>
+
+  <!-- 합산 항목 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-list-check"></i><span>합산 항목</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="agg-layout">
+      <ul class="nav sheet-tabs" id="sheetTabs" role="tablist">
+        <li class="nav-section">부채 · 퇴직급여 · 약정</li>
+        <li class="nav-item">
+          <button class="nav-link active" data-sheet="L1" type="button"
+                  onclick="selectSheet('L1')">
+            <i class="bi bi-bank me-1"></i>L1 단기차입금<span class="badge">1</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="L2" type="button"
+                  onclick="selectSheet('L2')">
+            <i class="bi bi-calendar-range me-1"></i>L2 만기별 금융부채<span class="badge">3</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="L3" type="button"
+                  onclick="selectSheet('L3')">
+            <i class="bi bi-people-fill me-1"></i>L3 퇴직급여<span class="badge">4</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="L31" type="button"
+                  onclick="selectSheet('L31')">
+            <i class="bi bi-person-vcard me-1"></i>L3-1 확정급여부채<span class="badge">6</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="L4" type="button"
+                  onclick="selectSheet('L4')">
+            <i class="bi bi-journal-text me-1"></i>L4 약정·보증·소송<span class="badge">12</span>
+          </button>
+        </li>
+        <li class="nav-section">자산 · 손익</li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="A2" type="button"
+                  onclick="selectSheet('A2')">
+            <i class="bi bi-graph-up me-1"></i>A2 유가증권<span class="badge">1</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="A3" type="button"
+                  onclick="selectSheet('A3')">
+            <i class="bi bi-building me-1"></i>A3 투자부동산<span class="badge">3</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="A4" type="button"
+                  onclick="selectSheet('A4')">
+            <i class="bi bi-bricks me-1"></i>A4 건설계약<span class="badge">3</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="A5" type="button"
+                  onclick="selectSheet('A5')">
+            <i class="bi bi-key me-1"></i>A5 리스<span class="badge">2</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="A6" type="button"
+                  onclick="selectSheet('A6')">
+            <i class="bi bi-diagram-3 me-1"></i>A6 파생상품<span class="badge">1</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="A7" type="button"
+                  onclick="selectSheet('A7')">
+            <i class="bi bi-people me-1"></i>A7 지분법투자<span class="badge">1</span>
+          </button>
+        </li>
+        <li class="nav-section">법인세</li>
+        <li class="nav-item">
+          <button class="nav-link" data-sheet="TX" type="button"
+                  onclick="selectSheet('TX')">
+            <i class="bi bi-receipt me-1"></i>TX 법인세<span class="badge">6</span>
+          </button>
+        </li>
+      </ul>
+
+      <!-- L1 탭 -->
+      <div class="sheet-tab-content">
+        <div class="sheet-pane" id="tabL1">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggL1B"
+                    onclick="selectAgg('l1-borrowings')">
+              <span class="agg-key">L1</span>
+              <i class="bi bi-bank agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">단기차입금 명세</div>
+                <div class="agg-desc">차입금 종류별 회사 명세 합산 (로컬통화 + KRW 환산).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- L2 탭 -->
+        <div class="sheet-pane" id="tabL2" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggL2LTB"
+                    onclick="selectAgg('l2-long-term-borrowings')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-bank2 agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">장기차입금 (유동성 포함)</div>
+                <div class="agg-desc">대주구분·대주명·이자율·유동/비유동·합계 명세 (행 추가 안전).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL2DEB"
+                    onclick="selectAgg('l2-debentures')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-file-earmark-text agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">사채 (유동성 사채 포함)</div>
+                <div class="agg-desc">종류·주관사·이자율·유동/비유동·합계 명세 (행 추가 안전).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL2MAT"
+                    onclick="selectAgg('l2-maturity-analysis')">
+              <span class="agg-key">3</span>
+              <i class="bi bi-hourglass-split agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">부채성 금융상품 만기 분석</div>
+                <div class="agg-desc">계정명·대주구분 × 1년 미만 / 1~2년 / 2~5년 / 5년 초과 / 합계.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- L3 탭 -->
+        <div class="sheet-pane" id="tabL3" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggL3SV"
+                    onclick="selectAgg('l3-severance')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-person-walking-arrow-right agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">퇴직급여충당부채의 변동</div>
+                <div class="agg-desc">기초·설정액·지급액·전출입·사업결합·기타·기말 항목별 합산 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL3PM"
+                    onclick="selectAgg('l3-pension-movement')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-arrow-repeat agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">퇴직연금운용자산의 변동</div>
+                <div class="agg-desc">기초·적립액·지급액·이자수익·전출입·사업결합·기타·기말 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL3PB"
+                    onclick="selectAgg('l3-pension-breakdown')">
+              <span class="agg-key">3</span>
+              <i class="bi bi-pie-chart agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">퇴직연금운용자산의 구성내역</div>
+                <div class="agg-desc">현금·예금·주식·채권·기타 자산종류별 합산 (Spot 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL3MG"
+                    onclick="selectAgg('l3-pension-managers')">
+              <span class="agg-key">4</span>
+              <i class="bi bi-building agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">퇴직연금운용자산의 운용사</div>
+                <div class="agg-desc">운용사명별 금액 명세 (행 추가 안전, Spot 환율).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- L3-1 탭 -->
+        <div class="sheet-pane" id="tabL31" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggL31DBO"
+                    onclick="selectAgg('l31-dbo')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-arrow-down-up agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">확정급여채무의 변동</div>
+                <div class="agg-desc">기초·근무원가·이자비용·재측정·가정변동·경험조정·지급·기말 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL31PA"
+                    onclick="selectAgg('l31-plan-asset')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-arrow-repeat agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">사외적립자산의 공정가치 변동</div>
+                <div class="agg-desc">기초·이자수익·제도자산 손익·기여금·지급·기말 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL31AS"
+                    onclick="selectAgg('l31-assumptions')">
+              <span class="agg-key">3</span>
+              <i class="bi bi-bullseye agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">보험수리적 평가 가정치 (최저/최고)</div>
+                <div class="agg-desc">합산 안 함. 기대임금상승률·할인율 각각 최저 / 최고 입력 회사 표시.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL31SEN"
+                    onclick="selectAgg('l31-sensitivity')">
+              <span class="agg-key">4</span>
+              <i class="bi bi-sliders agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">보험수리적 가정의 변동 영향</div>
+                <div class="agg-desc">기대임금상승율·할인율 × 1% 상승/하락 영향 (Spot 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL31PB"
+                    onclick="selectAgg('l31-plan-breakdown')">
+              <span class="agg-key">5</span>
+              <i class="bi bi-pie-chart-fill agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">사외적립자산의 구성내역</div>
+                <div class="agg-desc">현금·예금·주식·채권·기타 자산종류별 합산 (Spot 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL31MG"
+                    onclick="selectAgg('l31-plan-managers')">
+              <span class="agg-key">6</span>
+              <i class="bi bi-building-fill agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">사외적립자산의 운용사</div>
+                <div class="agg-desc">운용사명별 금액 명세 (행 추가 안전, Spot 환율).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- L4 탭 -->
+        <div class="sheet-pane" id="tabL4" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggL4LF"
+                    onclick="selectAgg('l4-loan-facility')">
+              <span class="agg-key">1-1</span>
+              <i class="bi bi-shield-check agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">대출한도 약정</div>
+                <div class="agg-desc">금융기관별 약정 한도 명세 (행 추가 안전).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4LC"
+                    onclick="selectAgg('l4-lc')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-receipt agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">수입신용장 / 미확정 지급보증</div>
+                <div class="agg-desc">2번(L/C 오픈) + 2-1번(미확정 지급보증) 회사별 한 줄.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4EXP"
+                    onclick="selectAgg('l4-export')">
+              <span class="agg-key">3</span>
+              <i class="bi bi-cash-stack agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">수출채권 할인</div>
+                <div class="agg-desc">3번(할인 여부) + 3-1번(만기 미도래 할인금액) 회사별 한 줄.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4GR"
+                    onclick="selectAgg('l4-guarantees-received')">
+              <span class="agg-key">4-1</span>
+              <i class="bi bi-shield-shaded agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">제공받은 보증</div>
+                <div class="agg-desc">받은 보증 내용 명세 (제공자·종류·관련계정·설명).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4GP"
+                    onclick="selectAgg('l4-guarantees-provided')">
+              <span class="agg-key">5-2</span>
+              <i class="bi bi-shield-lock agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">제공한 보증</div>
+                <div class="agg-desc">제공한 보증 내용 명세 (제공받는자·종류·채권자·설명).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4LAW"
+                    onclick="selectAgg('l4-lawsuits')">
+              <span class="agg-key">6-1</span>
+              <i class="bi bi-gavel agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">소송중인 사건</div>
+                <div class="agg-desc">피고·원고 구분별 소송건수 / 소송금액 / 충당부채.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4RF"
+                    onclick="selectAgg('l4-restricted-financial')">
+              <span class="agg-key">7-1</span>
+              <i class="bi bi-piggy-bank agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">사용제한 금융상품</div>
+                <div class="agg-desc">계정과목·통화·금액·제한내용 명세.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4IP"
+                    onclick="selectAgg('l4-insured-ppe')">
+              <span class="agg-key">8-1</span>
+              <i class="bi bi-building-shield agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">보험가입 유형자산</div>
+                <div class="agg-desc">자산종류·보험사·부보금액 명세.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4PP"
+                    onclick="selectAgg('l4-pledged-proceeds')">
+              <span class="agg-key">8-2</span>
+              <i class="bi bi-lock agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">보험수익금 질권설정</div>
+                <div class="agg-desc">질권자별 보험수익금 질권 명세.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4PA"
+                    onclick="selectAgg('l4-pledged-assets')">
+              <span class="agg-key">9-1</span>
+              <i class="bi bi-shield-fill-check agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">담보제공자산</div>
+                <div class="agg-desc">채권자·담보자산·관련부채 명세.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4SE"
+                    onclick="selectAgg('l4-subsequent-events')">
+              <span class="agg-key">10</span>
+              <i class="bi bi-calendar-event agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">보고기간일 이후 사건</div>
+                <div class="agg-desc">합산 없이 YES 응답 회사만 자유 내용과 함께 표시.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggL4OC"
+                    onclick="selectAgg('l4-other-commitments')">
+              <span class="agg-key">11</span>
+              <i class="bi bi-card-text agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">그외 우발부채 및 약정사항</div>
+                <div class="agg-desc">자유 텍스트가 입력된 회사만 내용과 함께 표시.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- A2 탭 -->
+        <div class="sheet-pane" id="tabA2" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggA2SEC"
+                    onclick="selectAgg('a2-securities')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-graph-up agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">유가증권 명세</div>
+                <div class="agg-desc">계정·피투자회사·주식수·지분율·취득원가·장부가액 (행 추가 안전).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- A3 탭 -->
+        <div class="sheet-pane" id="tabA3" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggA3IP"
+                    onclick="selectAgg('a3-investment-pl')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-bar-chart agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">투자부동산 관련 손익</div>
+                <div class="agg-desc">임대수익·운영비용·감가상각비·공정가치 변동·기타 항목별 합산.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggA3LI"
+                    onclick="selectAgg('a3-land-investment')">
+              <span class="agg-key">2-1</span>
+              <i class="bi bi-map agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">투자부동산(토지) 공시지가</div>
+                <div class="agg-desc">금액이 입력된 회사만 합산 (해당여부 YES/NO 표시).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggA3LP"
+                    onclick="selectAgg('a3-land-ppe')">
+              <span class="agg-key">3-1</span>
+              <i class="bi bi-pin-map agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">유형자산(토지) 공시지가</div>
+                <div class="agg-desc">금액이 입력된 회사만 합산 (해당여부 YES/NO 표시).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- A4 탭 -->
+        <div class="sheet-pane" id="tabA4" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggA4CB"
+                    onclick="selectAgg('a4-construction-balance')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-arrow-left-right agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">공사계약 잔액의 변동내역</div>
+                <div class="agg-desc">공사 종류별 기초·증감·공사수익·기타·기말 합산 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggA4CP"
+                    onclick="selectAgg('a4-construction-profit')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-bar-chart-line agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">진행중인 건설계약 공사손익</div>
+                <div class="agg-desc">누적공사수익·원가·손익 × 공사 종류 별 합산 Pivot (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggA4CT"
+                    onclick="selectAgg('a4-contract-balance')">
+              <span class="agg-key">3</span>
+              <i class="bi bi-file-earmark-ruled agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">계약자산 및 계약부채 내역</div>
+                <div class="agg-desc">미청구공사·초과청구공사·선수금 × 공사 종류 별 합산 (Spot 환율).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- A5 탭 -->
+        <div class="sheet-pane" id="tabA5" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggA5ROU"
+                    onclick="selectAgg('a5-rou-changes')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-arrow-repeat agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">사용권자산의 변동내역</div>
+                <div class="agg-desc">자산종류별 기초·취득·처분·상각·기타·기말 합산.</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggA5PL"
+                    onclick="selectAgg('a5-lease-pl')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-graph-down-arrow agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">리스계약 관련 손익</div>
+                <div class="agg-desc">감가상각비·이자비용·단기리스·소액자산·변동리스·처분이익 항목별 합산.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- A6 탭 -->
+        <div class="sheet-pane" id="tabA6" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggA6DV"
+                    onclick="selectAgg('a6-derivatives')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-diagram-3 agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">파생상품평가손익 내역</div>
+                <div class="agg-desc">회사별 파생상품 종류·평가이익·평가손실 합산 (행 추가 안전).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- A7 탭 -->
+        <div class="sheet-pane" id="tabA7" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggA7EM"
+                    onclick="selectAgg('a7-equity-method')">
+              <span class="agg-key">1</span>
+              <i class="bi bi-people agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">지분법투자주식 명세</div>
+                <div class="agg-desc">종속회사·기타지분법 구분, 회사명·지분율·취득원가·순자산·장부가액 합산.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- TX 탭 -->
+        <div class="sheet-pane" id="tabTX" style="display:none;">
+          <div class="agg-list-group">
+            <button type="button" class="agg-item" id="aggTXDTC"
+                    onclick="selectAgg('tx-deferred-tax-changes')">
+              <span class="agg-key">1</span>
+              <div class="flex-grow-1">
+                <div class="agg-title">이연법인세자산(부채) 증감내용</div>
+                <div class="agg-desc">계정명 × Current/Non-Current 카테고리별 기초·기말·증감 합산 (기초=전기말 Spot / 기말=당기말 Spot).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggTXBR"
+                    onclick="selectAgg('tx-income-tax-breakdown')">
+              <span class="agg-key">3</span>
+              <div class="flex-grow-1">
+                <div class="agg-title">법인세비용의 구성내역</div>
+                <div class="agg-desc">당기·일시적차이·자본직접·추납환급·합계 5개 항목 합산 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggTXEQ"
+                    onclick="selectAgg('tx-equity-deferred-tax')">
+              <span class="agg-key">3-1</span>
+              <div class="flex-grow-1">
+                <div class="agg-title">자본 직접 부과 이연법인세 변동액</div>
+                <div class="agg-desc">재평가·보험수리·매도가능·FVOCI·지분법·환산·파생·기타 8개 항목 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggTXRC"
+                    onclick="selectAgg('tx-reconciliation')">
+              <span class="agg-key">4</span>
+              <div class="flex-grow-1">
+                <div class="agg-title">법인세 Reconciliation</div>
+                <div class="agg-desc">세전순이익·산출세액·가감조정·법인세비용 합산 + 회사별 유효세율 표시 (Avg 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggTXUR"
+                    onclick="selectAgg('tx-unrecognized')">
+              <span class="agg-key">5</span>
+              <div class="flex-grow-1">
+                <div class="agg-title">미인식 일시적차이</div>
+                <div class="agg-desc">이월결손금·기타 2개 항목 합산 (Spot 환율).</div>
+              </div>
+            </button>
+            <button type="button" class="agg-item" id="aggTXLM"
+                    onclick="selectAgg('tx-loss-maturity')">
+              <span class="agg-key">5-1</span>
+              <div class="flex-grow-1">
+                <div class="agg-title">이월결손금 만기</div>
+                <div class="agg-desc">연도별 만기 구간(N+1 ~ After N+5) 합산 (Spot 환율).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="px-3 py-3 border-top d-flex align-items-center gap-2">
+        <button id="runBtn" class="btn btn-primary" onclick="runAgg()" disabled>
+          <i class="bi bi-play-circle me-1"></i>합산 실행
+        </button>
+        <span class="text-muted small" id="runHint">먼저 합산 항목을 선택하세요.</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="resultArea"></div>
+</div>
+
+<script>
+let selected = null;
+let __fileCount = 0;
+
+function estimatedSeconds(n) {
+  if (!n) return 0;
+  return Math.max(3, Math.ceil(n / 8 * 1.5));
+}
+
+async function downloadAll() {
+  const year = document.getElementById('yearSelect').value;
+  const btn = document.getElementById('downloadAllBtn');
+  const status = document.getElementById('downloadAllStatus');
+  if (!confirm(`${year} 결산기간의 모든 주석합산을 단일 엑셀로 생성합니다.\n` +
+               '24개 합산을 순차 실행하므로 시간이 소요됩니다 (약 1-3분).\n계속할까요?')) {
+    return;
+  }
+  btn.disabled = true;
+  const orig = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>전체 합산 생성 중...';
+  status.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>모든 합산 항목을 순차 실행 중입니다. 페이지를 닫지 마세요.';
+
+  try {
+    const res = await fetch(`/admin/note-aggregate/all-in-one?year=${encodeURIComponent(year)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '생성 실패');
+    const sheetN = data.sheets_count || data.sections_count;
+    status.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>완료 — ${sheetN}개 시트 (표지 포함) / ${data.elapsed_seconds}초 소요.${data.excel_filename ? ` 파일명: <code>${escHtml(data.excel_filename)}</code>` : ''}`;
+    // 자동 다운로드
+    if (data.download_url) {
+      const a = document.createElement('a');
+      a.href = data.download_url;
+      a.download = data.excel_filename || '주석합산_전체.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  } catch (e) {
+    status.innerHTML = `<i class="bi bi-exclamation-triangle text-danger me-1"></i>실패: ${escHtml(e.message)}`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+async function refreshFileCount() {
+  const year = document.getElementById('yearSelect').value;
+  try {
+    const res = await fetch('/files?year=' + encodeURIComponent(year));
+    const arr = await res.json();
+    __fileCount = Array.isArray(arr) ? arr.length : 0;
+  } catch (e) { __fileCount = 0; }
+  document.getElementById('fileCount').textContent = __fileCount || '?';
+}
+
+// 합산 종류 → DOM 식별자 매핑
+const AGG_ITEM_ID = {
+  'l1-borrowings':           'aggL1B',
+  'l2-long-term-borrowings': 'aggL2LTB',
+  'l2-debentures':           'aggL2DEB',
+  'l2-maturity-analysis':    'aggL2MAT',
+  'l3-severance':            'aggL3SV',
+  'l3-pension-movement':     'aggL3PM',
+  'l3-pension-breakdown':    'aggL3PB',
+  'l3-pension-managers':     'aggL3MG',
+  'l31-dbo':                 'aggL31DBO',
+  'l31-plan-asset':          'aggL31PA',
+  'l31-assumptions':         'aggL31AS',
+  'l31-sensitivity':         'aggL31SEN',
+  'l31-plan-breakdown':      'aggL31PB',
+  'l31-plan-managers':       'aggL31MG',
+  'l4-loan-facility':        'aggL4LF',
+  'l4-lc':                   'aggL4LC',
+  'l4-export':               'aggL4EXP',
+  'l4-guarantees-received':  'aggL4GR',
+  'l4-guarantees-provided':  'aggL4GP',
+  'l4-lawsuits':             'aggL4LAW',
+  'l4-restricted-financial': 'aggL4RF',
+  'l4-insured-ppe':          'aggL4IP',
+  'l4-pledged-proceeds':     'aggL4PP',
+  'l4-pledged-assets':       'aggL4PA',
+  'l4-subsequent-events':    'aggL4SE',
+  'l4-other-commitments':    'aggL4OC',
+  'a2-securities':           'aggA2SEC',
+  'a3-investment-pl':        'aggA3IP',
+  'a3-land-investment':      'aggA3LI',
+  'a3-land-ppe':             'aggA3LP',
+  'a4-construction-balance': 'aggA4CB',
+  'a4-construction-profit':  'aggA4CP',
+  'a4-contract-balance':     'aggA4CT',
+  'a5-rou-changes':          'aggA5ROU',
+  'a5-lease-pl':             'aggA5PL',
+  'a6-derivatives':          'aggA6DV',
+  'a7-equity-method':        'aggA7EM',
+  'tx-deferred-tax-changes': 'aggTXDTC',
+  'tx-income-tax-breakdown': 'aggTXBR',
+  'tx-equity-deferred-tax':  'aggTXEQ',
+  'tx-reconciliation':       'aggTXRC',
+  'tx-unrecognized':         'aggTXUR',
+  'tx-loss-maturity':        'aggTXLM',
+};
+
+function selectSheet(sheet) {
+  document.querySelectorAll('.sheet-tabs .nav-link').forEach(el => {
+    el.classList.toggle('active', el.dataset.sheet === sheet);
+  });
+  document.querySelectorAll('.sheet-pane').forEach(el => {
+    el.style.display = 'none';
+  });
+  const target = document.getElementById('tab' + sheet);
+  if (target) target.style.display = 'block';
+}
+
+function selectAgg(kind) {
+  selected = kind;
+  document.querySelectorAll('.agg-item').forEach(el => el.classList.remove('active'));
+  const id = AGG_ITEM_ID[kind];
+  if (id) document.getElementById(id).classList.add('active');
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runHint').textContent = '결산기간을 확인하고 [합산 실행]을 누르세요.';
+}
+
+function fmtNum(v, digits) {
+  if (v == null || v === '' || isNaN(v)) return '';
+  return Number(v).toLocaleString('en-US', { maximumFractionDigits: digits ?? 2 });
+}
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+async function runAgg() {
+  if (!selected) return;
+  const year = document.getElementById('yearSelect').value;
+  const btn = document.getElementById('runBtn');
+  const area = document.getElementById('resultArea');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>합산 중...';
+  const est = estimatedSeconds(__fileCount);
+  area.innerHTML = `
+    <div class="text-center py-5 text-muted">
+      <div class="spinner-border text-primary mb-2"></div>
+      <div>패키지 파일 스캔 중...</div>
+      ${__fileCount ? `<div class="text-muted small mt-2">${__fileCount}개 패키지 · 병렬 8개씩 · 약 ${est}초 예상</div>` : ''}
+    </div>`;
+
+  try {
+    const res = await fetch(`/admin/note-aggregate/${selected}?year=${encodeURIComponent(year)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '합산 실패');
+    if (selected === 'l1-borrowings') renderL1(data);
+    else if (selected === 'l2-long-term-borrowings') renderL2LongTermBorrowings(data);
+    else if (selected === 'l2-debentures') renderL2Debentures(data);
+    else if (selected === 'l2-maturity-analysis') renderL2Maturity(data);
+    else if (selected === 'l3-severance') renderL3Severance(data);
+    else if (selected === 'l3-pension-movement') renderL3PensionMovement(data);
+    else if (selected === 'l3-pension-breakdown') renderL3PensionBreakdown(data);
+    else if (selected === 'l3-pension-managers') renderL3PensionManagers(data);
+    else if (selected === 'l31-dbo') renderL31DBO(data);
+    else if (selected === 'l31-plan-asset') renderL31PlanAsset(data);
+    else if (selected === 'l31-assumptions') renderL31Assumptions(data);
+    else if (selected === 'l31-sensitivity') renderL31Sensitivity(data);
+    else if (selected === 'l31-plan-breakdown') renderL31PlanBreakdown(data);
+    else if (selected === 'l31-plan-managers') renderL31PlanManagers(data);
+    else if (selected === 'l4-loan-facility') renderL4(data);
+    else if (selected === 'l4-lc') renderL4LC(data);
+    else if (selected === 'l4-export') renderL4Export(data);
+    else if (selected === 'l4-guarantees-received') renderL4Guarantees(data);
+    else if (selected === 'l4-guarantees-provided') renderL4GuaranteesProvided(data);
+    else if (selected === 'l4-lawsuits') renderL4Lawsuits(data);
+    else if (selected === 'l4-restricted-financial') renderL4Restricted(data);
+    else if (selected === 'l4-insured-ppe') renderL4InsuredPpe(data);
+    else if (selected === 'l4-pledged-proceeds') renderL4PledgedProceeds(data);
+    else if (selected === 'l4-pledged-assets') renderL4PledgedAssets(data);
+    else if (selected === 'l4-subsequent-events') renderL4SubsequentEvents(data);
+    else if (selected === 'l4-other-commitments') renderL4OtherCommitments(data);
+    else if (selected === 'a2-securities') renderA2Securities(data);
+    else if (selected === 'a3-investment-pl') renderA3InvestmentPL(data);
+    else if (selected === 'a3-land-investment') renderA3LandInvestment(data);
+    else if (selected === 'a3-land-ppe') renderA3LandPpe(data);
+    else if (selected === 'a4-construction-balance') renderA4ConstructionBalance(data);
+    else if (selected === 'a4-construction-profit') renderA4ConstructionProfit(data);
+    else if (selected === 'a4-contract-balance') renderA4ContractBalance(data);
+    else if (selected === 'a5-rou-changes') renderA5RouChanges(data);
+    else if (selected === 'a5-lease-pl') renderA5LeasePL(data);
+    else if (selected === 'a6-derivatives') renderA6Derivatives(data);
+    else if (selected === 'a7-equity-method') renderA7EquityMethod(data);
+    else if (selected === 'tx-deferred-tax-changes') renderTXDeferredChanges(data);
+    else if (selected === 'tx-income-tax-breakdown') renderTXIncomeBreakdown(data);
+    else if (selected === 'tx-equity-deferred-tax') renderTXEquityDeferred(data);
+    else if (selected === 'tx-reconciliation') renderTXReconciliation(data);
+    else if (selected === 'tx-unrecognized') renderTXUnrecognized(data);
+    else if (selected === 'tx-loss-maturity') renderTXLossMaturity(data);
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger">${escHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>합산 실행';
+  }
+}
+
+// ── L2 1번/2번 다행 명세 공통 렌더 ──────────────────
+function renderL2Balance(data, opts) {
+  // opts: { sectionKey, sectionName, label1, label2, emptyMsg }
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L2 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>유동 KRW <strong>${fmtNum(data.grand_current_krw, 0)}</strong></span>
+      <span><i class="bi bi-coin me-1"></i>비유동 KRW <strong>${fmtNum(data.grand_non_current_krw, 0)}</strong></span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>전체 KRW <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 통화별 합계
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계 (로컬 / KRW)</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">유동(로컬)</th>
+               <th class="num">비유동(로컬)</th>
+               <th class="num">합계(로컬)</th>
+               <th class="num">유동(KRW)</th>
+               <th class="num">비유동(KRW)</th>
+               <th class="num">합계(KRW)</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].current, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].non_current, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].total, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_current, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_non_current, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_total, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">${escHtml(opts.emptyMsg)}</p>
+      </div></div>`;
+    return;
+  }
+
+  const fmtPct = v => (v == null ? '' : (Number(v) * 100).toFixed(4) + '%');
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">${escHtml(opts.sectionKey)}</span>
+        <span class="category-name">${escHtml(opts.sectionName)}</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>${escHtml(opts.label1)}</th>
+            <th>${escHtml(opts.label2)}</th>
+            <th class="num">이자율</th>
+            <th>통화</th>
+            <th class="num">유동(로컬)</th>
+            <th class="num">비유동(로컬)</th>
+            <th class="num">합계(로컬)</th>
+            <th class="num">Spot</th>
+            <th class="num">유동(KRW)</th>
+            <th class="num">비유동(KRW)</th>
+            <th class="num">합계(KRW)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.type1)}</td>
+              <td>${escHtml(r.type2)}</td>
+              <td class="num text-muted">${fmtPct(r.rate)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local_current, 0)}</td>
+              <td class="num">${fmtNum(r.local_non_current, 0)}</td>
+              <td class="num">${fmtNum(r.local_total, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num">${fmtNum(r.krw_current, 0)}</td>
+              <td class="num">${fmtNum(r.krw_non_current, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_total, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderL2LongTermBorrowings(data) {
+  renderL2Balance(data, {
+    sectionKey: '1',
+    sectionName: '장기차입금 (Long-term Borrowings, 유동성 포함)',
+    label1: '대주구분', label2: '대주명',
+    emptyMsg: 'L2 시트 1번 장기차입금 명세에 데이터를 입력한 회사가 없습니다.',
+  });
+}
+
+function renderL2Debentures(data) {
+  renderL2Balance(data, {
+    sectionKey: '2',
+    sectionName: '사채 (Debentures, 유동성 사채 포함)',
+    label1: '종류', label2: '주관사',
+    emptyMsg: 'L2 시트 2번 사채 명세에 데이터를 입력한 회사가 없습니다.',
+  });
+}
+
+// ── L3-1 1번 (확정급여채무 변동) ────────────────────────────
+function renderL31DBO(data) {
+  renderL3Pivot(data, {
+    sectionKey: '1',
+    sectionName: '확정급여채무의 변동 (Avg 환율 환산)',
+    itemPairs: [
+      ['beginning','기초금액'], ['current_service_cost','근무원가'],
+      ['interest_cost','이자비용'], ['remeasurement','재측정요소'],
+      ['demographic_gain_loss','인구통계 손익'],
+      ['financial_gain_loss','재무적가정 손익'],
+      ['experience_adjustment','경험적 조정'],
+      ['payment','급여지급액'],
+      ['business_combination','사업결합 증가'], ['others','기타증감'],
+      ['ending','기말금액'],
+    ],
+    totalKey: 'ending',
+    grandLabel: '기말 KRW',
+    emptyMsg: 'L3-1 시트 1번 확정급여채무 변동에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderL31PlanAsset(data) {
+  renderL3Pivot(data, {
+    sectionKey: '2',
+    sectionName: '사외적립자산의 공정가치 변동 (Avg 환율 환산)',
+    itemPairs: [
+      ['beginning','기초금액'], ['interest_income','이자수익'],
+      ['return_excluding_interest','제도자산 손익(이자제외)'],
+      ['employer_contribution','고용인 기여금'], ['payment','급여지급액'],
+      ['business_combination','사업결합 증가'], ['others','기타증감'],
+      ['ending','기말금액'],
+    ],
+    totalKey: 'ending',
+    grandLabel: '기말 KRW',
+    emptyMsg: 'L3-1 시트 2번 사외적립자산 변동에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderL31Assumptions(data) {
+  // L3-1 3번: 합산 X, 최저/최고 입력 회사 표시
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const ex = data.extremes || {};
+  const fmtPct = (v) => (typeof v === 'number')
+    ? (v * 100).toFixed(2) + '%' : '—';
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L3-1 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const policy = `
+    <div class="alert alert-info py-2 px-3 mb-3 small">
+      <i class="bi bi-info-circle me-1"></i>
+      <strong>안내:</strong> 이 항목은 합산하지 않고, 각 가정에 대해
+      <strong>가장 낮은 / 가장 높은 수치를 입력한 회사</strong>를 표시합니다.
+      범위 입력(예: <code>2.27%~2.97%</code>)은 최저값으로 최저 후보, 최고값으로 최고 후보 비교에 사용됩니다.
+      <code>NO</code>, <code>0</code>, <code>Error!</code>, 빈 값은 미입력으로 처리됩니다.
+    </div>`;
+
+  const extremesCard = (key, label) => {
+    const e = ex[key] || {};
+    const lo = e.min || {};
+    const hi = e.max || {};
+    return `
+      <div class="category-block">
+        <div class="category-head">
+          <span class="category-key">${escHtml(label.charAt(0))}</span>
+          <span class="category-name">${escHtml(label)} — 최저 / 최고 입력 회사</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th>구분</th><th>회사</th><th>입력값(원문)</th><th class="num">정규화 값</th>
+            </tr></thead>
+            <tbody>
+              <tr>
+                <td><span class="badge bg-primary">최저</span></td>
+                <td>${escHtml(lo.company || '—')}</td>
+                <td><code>${escHtml(lo.raw || '—')}</code></td>
+                <td class="num">${fmtPct(lo.value)}</td>
+              </tr>
+              <tr>
+                <td><span class="badge bg-danger">최고</span></td>
+                <td>${escHtml(hi.company || '—')}</td>
+                <td><code>${escHtml(hi.raw || '—')}</code></td>
+                <td class="num">${fmtPct(hi.value)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  };
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + policy + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">L3-1 시트 3번 보험수리적 가정치에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">전체</span>
+        <span class="category-name">회사별 입력값 — 정렬 가능</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>기대임금상승률 (원문)</th>
+            <th class="num">기대임금상승률 (값)</th>
+            <th>할인율 (원문)</th>
+            <th class="num">할인율 (값)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><code>${escHtml(r.wage_growth_raw || '—')}</code></td>
+              <td class="num">${fmtPct(r.wage_growth_value)}</td>
+              <td><code>${escHtml(r.discount_rate_raw || '—')}</code></td>
+              <td class="num">${fmtPct(r.discount_rate_value)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + policy
+    + extremesCard('wage_growth', '기대임금상승률')
+    + extremesCard('discount_rate', '할인율')
+    + detailBlock;
+}
+
+function renderL31Sensitivity(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L3-1 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const t = data.totals_by_item_krw || {};
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 가정 × 방향 합계
+  const summaryBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">KRW 환산 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>가정</th>
+            <th class="num">1% 상승 (KRW)</th>
+            <th class="num">1% 하락 (KRW)</th>
+          </tr></thead>
+          <tbody>
+            <tr><td><strong>기대임금상승율</strong></td>
+              <td class="num">${fmtNum(t.wage_growth_up || 0, 0)}</td>
+              <td class="num">${fmtNum(t.wage_growth_down || 0, 0)}</td></tr>
+            <tr><td><strong>할인율</strong></td>
+              <td class="num">${fmtNum(t.discount_rate_up || 0, 0)}</td>
+              <td class="num">${fmtNum(t.discount_rate_down || 0, 0)}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">L3-1 시트 4번 민감도 분석에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">4</span>
+        <span class="category-name">보험수리적 가정의 변동 영향 (Spot 환율 환산)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">통화</th>
+              <th class="num" colspan="2">기대임금상승율<br><small>(로컬)</small></th>
+              <th class="num" colspan="2">할인율<br><small>(로컬)</small></th>
+              <th class="num" rowspan="2">Spot</th>
+              <th class="num" colspan="2">기대임금상승율<br><small>(KRW)</small></th>
+              <th class="num" colspan="2">할인율<br><small>(KRW)</small></th>
+            </tr>
+            <tr>
+              <th class="num">1%↑</th><th class="num">1%↓</th>
+              <th class="num">1%↑</th><th class="num">1%↓</th>
+              <th class="num">1%↑</th><th class="num">1%↓</th>
+              <th class="num">1%↑</th><th class="num">1%↓</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local_wage_growth_up || 0, 0)}</td>
+              <td class="num">${fmtNum(r.local_wage_growth_down || 0, 0)}</td>
+              <td class="num">${fmtNum(r.local_discount_rate_up || 0, 0)}</td>
+              <td class="num">${fmtNum(r.local_discount_rate_down || 0, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw_wage_growth_up || 0, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_wage_growth_down || 0, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_discount_rate_up || 0, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_discount_rate_down || 0, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + summaryBlock + detailBlock;
+}
+
+function renderL31PlanBreakdown(data) {
+  // L3 3번과 동일 구조 — 기존 함수 재사용 (sectionKey/name만 다름)
+  renderL3PensionBreakdown(data);
+}
+
+function renderL31PlanManagers(data) {
+  // L3 4번과 동일 구조
+  renderL3PensionManagers(data);
+}
+
+// ── L3 1/2/3번 공통 — 회사 × 항목별 피벗 ────────────────────
+function renderL3Pivot(data, opts) {
+  // opts: { sectionKey, sectionName, itemPairs:[[k,lbl]], emptyMsg, totalKey }
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const totals = data.totals_by_item_krw || {};
+  const grandKrw = opts.totalKey ? (totals[opts.totalKey] || 0)
+                                  : (data.grand_total_krw || 0);
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>${escHtml(opts.grandLabel || '기말 KRW')} <strong class="text-warning">${fmtNum(grandKrw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${opts.itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody><tr>
+            ${opts.itemPairs.map(([k, _]) => `<td class="num ${k===opts.totalKey?'num-krw':''}">${fmtNum(totals[k] || 0, 0)}</td>`).join('')}
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  const gs = data.group_subtotals || [];
+  const groupBlock = gs.length ? `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key"><i class="bi bi-diagram-3"></i></span>
+        <span class="category-name">연결그룹별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>연결그룹</th><th class="num">회사수</th>
+            ${opts.itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${gs.map(g => `<tr>
+              <td><strong>${escHtml(g.group)}</strong></td>
+              <td class="num">${fmtNum(g.company_count, 0)}</td>
+              ${opts.itemPairs.map(([k, _]) => `<td class="num ${k===opts.totalKey?'num-krw':''}">${fmtNum((g.krw||{})[k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">${escHtml(opts.emptyMsg)}</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">${escHtml(opts.sectionKey)}</span>
+        <span class="category-name">${escHtml(opts.sectionName)}</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">통화</th>
+              ${opts.itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${opts.itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${opts.itemPairs.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${opts.itemPairs.map(([k, _]) => `<td class="num ${k===opts.totalKey?'num-krw':''}">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + groupBlock + detailBlock;
+}
+
+// ── L3 1번/2번 공통 렌더 (항목별 환율 + 환율변동효과) ─────────
+function renderL3WithFxEffect(data, opts) {
+  // opts: { sectionKey, sectionName, varPairs:[[k,lbl]], emptyMsg }
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const varKeys = opts.varPairs.map(([k, _]) => k);
+  const varLbls = opts.varPairs.map(([_, lbl]) => lbl);
+  const itemKeys = ['beginning'].concat(varKeys).concat(['ending']);
+  const itemLbls = ['기초금액'].concat(varLbls).concat(['기말금액']);
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const totals = data.totals_by_item_krw || {};
+  const varSum = varKeys.reduce((s, k) => s + (totals[k] || 0), 0);
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-arrow-right me-1"></i>기초 KRW <strong>${fmtNum(totals.beginning, 0)}</strong></span>
+      <span><i class="bi bi-plus-circle me-1"></i>변동 KRW <strong>${fmtNum(varSum, 0)}</strong></span>
+      <span><i class="bi bi-currency-exchange me-1 text-info"></i>환율변동효과 <strong class="text-info">${fmtNum(totals.fx_effect, 0)}</strong></span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>기말 KRW <strong class="text-warning">${fmtNum(totals.ending, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 환율 정책 안내
+  const policy = data.rate_policy || {};
+  const policyBlock = `
+    <div class="alert alert-info py-2 px-3 mb-3 small">
+      <i class="bi bi-info-circle me-1"></i>
+      <strong>환율 정책:</strong>
+      기초금액 = <code>${escHtml(policy.beginning || '전기말 spot')}</code>,
+      변동 항목 = <code>${escHtml(policy.variance || '당기 avg')}</code>,
+      기말금액 = <code>${escHtml(policy.ending || '당기말 spot')}</code>,
+      환율변동효과 = <code>${escHtml(policy.fx_effect || '기말 - (기초 + 변동분)')}</code>
+    </div>`;
+
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th class="num">기초<br><small>[전기말 Spot]</small></th>
+            ${varLbls.map(lbl => `<th class="num">${escHtml(lbl)}<br><small>[Avg]</small></th>`).join('')}
+            <th class="num">환율변동효과</th>
+            <th class="num">기말<br><small>[당기말 Spot]</small></th>
+          </tr></thead>
+          <tbody><tr>
+            <td class="num">${fmtNum(totals.beginning || 0, 0)}</td>
+            ${varKeys.map(k => `<td class="num">${fmtNum(totals[k] || 0, 0)}</td>`).join('')}
+            <td class="num text-info"><strong>${fmtNum(totals.fx_effect || 0, 0)}</strong></td>
+            <td class="num num-krw">${fmtNum(totals.ending || 0, 0)}</td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + policyBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">${escHtml(opts.emptyMsg)}</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">${escHtml(opts.sectionKey)}</span>
+        <span class="category-name">${escHtml(opts.sectionName)} — 회사별 명세</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">통화</th>
+              ${itemLbls.map(lbl => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">전기말<br>Spot</th>
+              <th class="num" rowspan="2">당기<br>Avg</th>
+              <th class="num" rowspan="2">당기말<br>Spot</th>
+              <th class="num">기초<br><small>(KRW)</small></th>
+              ${varLbls.map(lbl => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+              <th class="num">환율변동효과<br><small>(KRW)</small></th>
+              <th class="num">기말<br><small>(KRW)</small></th>
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemKeys.map(k => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.prior_spot ? fmtNum(r.prior_spot, 4) : ''}</td>
+              <td class="num text-muted">${r.avg_rate ? fmtNum(r.avg_rate, 4) : ''}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num">${fmtNum(r.krw_beginning || 0, 0)}</td>
+              ${varKeys.map(k => `<td class="num">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-info"><strong>${fmtNum(r.krw_fx_effect || 0, 0)}</strong></td>
+              <td class="num num-krw">${fmtNum(r.krw_ending || 0, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + policyBlock + totalsBlock + detailBlock;
+}
+
+function renderL3Severance(data) {
+  renderL3WithFxEffect(data, {
+    sectionKey: '1',
+    sectionName: '퇴직급여충당부채의 변동',
+    varPairs: [
+      ['provision','설정액'], ['payment','지급액'],
+      ['transfer','전출입'], ['business_combination','사업결합'],
+      ['others','기타증감'],
+    ],
+    emptyMsg: 'L3 시트 1번 퇴직급여충당부채에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderL3PensionMovement(data) {
+  renderL3WithFxEffect(data, {
+    sectionKey: '2',
+    sectionName: '퇴직연금운용자산의 변동',
+    varPairs: [
+      ['contribution','적립액'], ['payment','급여지급액'],
+      ['interest_income','이자수익'], ['transfer','관계사전출입액'],
+      ['business_combination','사업결합 증가'], ['others','기타증감'],
+    ],
+    emptyMsg: 'L3 시트 2번 퇴직연금운용자산 변동에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderL3PensionBreakdown(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const assetPairs = [
+    ['cash','현금'], ['deposit','예금'], ['securities','주식'],
+    ['bond','채권'], ['others','기타'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>전체 KRW <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const totals = data.totals_by_item_krw || {};
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">자산종류별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${assetPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+            <th class="num">합계</th>
+          </tr></thead>
+          <tbody><tr>
+            ${assetPairs.map(([k, _]) => `<td class="num">${fmtNum(totals[k] || 0, 0)}</td>`).join('')}
+            <td class="num num-krw">${fmtNum(data.grand_total_krw, 0)}</td>
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">L3 시트 3번 구성내역에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">3</span>
+        <span class="category-name">퇴직연금운용자산의 구성내역 (Spot 환율 환산)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">통화</th>
+              ${assetPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${assetPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${assetPairs.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${assetPairs.map(([k, _]) => `<td class="num">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + detailBlock;
+}
+
+function renderL3PensionManagers(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>전체 KRW <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 통화별 합계
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th><th class="num">로컬 합계</th><th class="num">KRW 합계</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].local, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">L3 시트 4번 운용사 명세에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">4</span>
+        <span class="category-name">퇴직연금운용자산의 운용사 (Spot 환율 환산)</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>운용사</th>
+            <th>통화</th>
+            <th class="num">로컬 금액</th>
+            <th class="num">Spot</th>
+            <th class="num">KRW 환산</th>
+            <th>비고</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.name)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw, 0)}</td>
+              <td class="small text-muted">${escHtml(r.remarks || '')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderL2Maturity(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const intervals = [
+    ['within_1y', '1년 미만'],
+    ['within_2y', '1~2년'],
+    ['within_5y', '2~5년'],
+    ['over_5y',   '5년 초과'],
+    ['total',     '합계'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L2 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>전체 KRW <strong class="text-warning">${fmtNum(data.krw_total, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 만기 구간별 KRW 합계
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">만기 구간별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${intervals.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody><tr>
+            ${intervals.map(([k, _]) => `<td class="num ${k==='total'?'num-krw':''}">${fmtNum(data['krw_'+k] || 0, 0)}</td>`).join('')}
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">L2 시트 3번 만기 분석 테이블이 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">3</span>
+        <span class="category-name">부채성 금융상품 만기 분석 — 회사 × 계정·대주구분</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.krw_total, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">계정명</th>
+              <th rowspan="2">대주구분</th>
+              <th rowspan="2">통화</th>
+              ${intervals.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${intervals.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.account)}</td>
+              <td>${escHtml(r.creditor_type)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${intervals.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${intervals.map(([k, _]) => `<td class="num ${k==='total'?'num-krw':''}">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + detailBlock;
+}
+
+function renderL1(data) {
+  const area = document.getElementById('resultArea');
+  const cats = data.categories || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L1 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드
+       </a>`
+    : '';
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>전체 KRW 합계 <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  if (!cats.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">L1 시트의 4종류 섹션이 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = cats.map(c => {
+    const localTotals = Object.entries(c.total_local_by_currency || {})
+      .map(([cur, amt]) => `${escHtml(cur)} ${fmtNum(amt, 0)}`)
+      .join(' · ');
+    const rowsTbl = (c.rows && c.rows.length)
+      ? `<div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th>회사</th>
+              <th>대주구분</th>
+              <th>대주명</th>
+              <th class="num">이자율</th>
+              <th>통화</th>
+              <th class="num">로컬 금액</th>
+              <th class="num">Spot</th>
+              <th class="num">KRW 환산</th>
+            </tr></thead>
+            <tbody>
+              ${c.rows.map(r => `<tr>
+                <td>${escHtml(r.company)}</td>
+                <td>${escHtml(r.creditor_type)}</td>
+                <td>${escHtml(r.creditor)}</td>
+                <td class="num">${typeof r.rate === 'number' ? fmtNum(r.rate, 4) : escHtml(r.rate ?? '')}</td>
+                <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+                <td class="num">${fmtNum(r.local, 2)}</td>
+                <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+                <td class="num num-krw">${fmtNum(r.krw, 0)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+         </div>`
+      : '<div class="px-3 py-3 text-muted small">명세 행 없음</div>';
+
+    return `
+      <div class="category-block">
+        <div class="category-head">
+          <span class="category-key">${escHtml(c.key)}</span>
+          <span class="category-name">${escHtml(c.name)}</span>
+          ${c.code ? `<span class="badge-code">${escHtml(c.code)}</span>` : ''}
+          <span class="total-strip ms-auto">
+            <span class="text-muted small">${localTotals || ''}</span>
+            <span class="ms-3">KRW</span>
+            <span class="total-krw">${fmtNum(c.total_krw, 0)}</span>
+          </span>
+        </div>
+        ${rowsTbl}
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + errBlock + blocks;
+}
+
+function renderL4(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드
+       </a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_rows || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>전체 KRW 합계 <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 통화별 요약
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 로컬/KRW 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">로컬 합계</th>
+               <th class="num">KRW 합계</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].local, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">L4 시트 1-1 (대출한도 약정 내용) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1-1</span>
+        <span class="category-name">대출한도 약정 내용 (loan facility agreement details)</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>종류</th>
+            <th>금융기관</th>
+            <th>통화</th>
+            <th class="num">로컬 금액</th>
+            <th class="num">Spot</th>
+            <th class="num">KRW 환산</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.type)}</td>
+              <td>${escHtml(r.institution)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local, 2)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderL4Guarantees(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드
+       </a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_rows || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>전체 KRW 합계 <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 로컬/KRW 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">로컬 합계</th>
+               <th class="num">KRW 합계</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].local, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">L4 시트 4-1 (제공받은 보증 내용) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">4-1</span>
+        <span class="category-name">제공받은 보증 내용 (Details of guarantees received)</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>제공자</th>
+            <th>보증종류</th>
+            <th>통화</th>
+            <th class="num">로컬 금액</th>
+            <th class="num">Spot</th>
+            <th class="num">KRW 환산</th>
+            <th>관련계정</th>
+            <th>Description</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.guarantor)}</td>
+              <td>${escHtml(r.type)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local, 2)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw, 0)}</td>
+              <td>${escHtml(r.account)}</td>
+              <td class="small text-muted">${escHtml(r.description)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+// ── 다행 명세 공통 렌더 (5-2/7-1/8-1/8-2/9-1) ────────────────────
+// opts: { sectionKey, sectionName, emptyMsg, columns: [{label, key, type}] }
+// type: 'text' | 'num' | 'currency' | 'spot' | 'krw'
+function renderL4TableSection(data, opts) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드
+       </a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_rows || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>전체 KRW 합계 <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 로컬/KRW 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th><th class="num">로컬 합계</th><th class="num">KRW 합계</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].local, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">${escHtml(opts.emptyMsg)}</p>
+      </div></div>`;
+    return;
+  }
+
+  const renderCell = (col, r) => {
+    const v = r[col.key];
+    if (col.type === 'currency') {
+      return `<td>${v ? `<span class="badge-cur">${escHtml(v)}</span>` : ''}</td>`;
+    }
+    if (col.type === 'num') {
+      return `<td class="num">${v == null ? '' : fmtNum(v, 2)}</td>`;
+    }
+    if (col.type === 'spot') {
+      return `<td class="num text-muted">${v ? fmtNum(v, 4) : ''}</td>`;
+    }
+    if (col.type === 'krw') {
+      return `<td class="num num-krw">${v == null ? '' : fmtNum(v, 0)}</td>`;
+    }
+    return `<td>${escHtml(v ?? '')}</td>`;
+  };
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">${escHtml(opts.sectionKey)}</span>
+        <span class="category-name">${escHtml(opts.sectionName)}</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${opts.columns.map(c => `<th${c.type === 'num' || c.type === 'spot' || c.type === 'krw' ? ' class="num"' : ''}>${escHtml(c.label)}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>${opts.columns.map(c => renderCell(c, r)).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderL4GuaranteesProvided(data) {
+  renderL4TableSection(data, {
+    sectionKey: '5-2',
+    sectionName: '제공한 보증 내용 (Details of guarantees provided)',
+    emptyMsg: 'L4 시트 5-2 (제공한 보증) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.',
+    columns: [
+      { label:'회사',         key:'company',             type:'text' },
+      { label:'제공받는자',   key:'beneficiary',         type:'text' },
+      { label:'보증종류',     key:'type',                type:'text' },
+      { label:'통화',         key:'currency',            type:'currency' },
+      { label:'로컬 금액',    key:'local',               type:'num' },
+      { label:'Spot',         key:'spot',                type:'spot' },
+      { label:'KRW 환산',    key:'krw',                 type:'krw' },
+      { label:'채권자',       key:'guaranteed_creditor', type:'text' },
+      { label:'Description',  key:'description',         type:'text' },
+    ],
+  });
+}
+
+function renderL4Restricted(data) {
+  renderL4TableSection(data, {
+    sectionKey: '7-1',
+    sectionName: '사용제한 금융상품 (Restricted financial instruments)',
+    emptyMsg: 'L4 시트 7-1 (사용제한 금융상품) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.',
+    columns: [
+      { label:'회사',      key:'company',     type:'text' },
+      { label:'계정과목',  key:'account',     type:'text' },
+      { label:'통화',      key:'currency',    type:'currency' },
+      { label:'로컬 금액', key:'local',       type:'num' },
+      { label:'Spot',      key:'spot',        type:'spot' },
+      { label:'KRW 환산',  key:'krw',         type:'krw' },
+      { label:'제한내용',  key:'description', type:'text' },
+    ],
+  });
+}
+
+function renderL4InsuredPpe(data) {
+  renderL4TableSection(data, {
+    sectionKey: '8-1',
+    sectionName: '보험가입 유형자산 (PPE covered by insurance)',
+    emptyMsg: 'L4 시트 8-1 (보험가입 유형자산) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.',
+    columns: [
+      { label:'회사',          key:'company',     type:'text' },
+      { label:'자산종류',      key:'asset_type',  type:'text' },
+      { label:'보험사',        key:'insurer',     type:'text' },
+      { label:'통화',          key:'currency',    type:'currency' },
+      { label:'부보금액(로컬)', key:'local',      type:'num' },
+      { label:'Spot',          key:'spot',        type:'spot' },
+      { label:'KRW 환산',      key:'krw',         type:'krw' },
+      { label:'Description',   key:'description', type:'text' },
+    ],
+  });
+}
+
+function renderL4PledgedProceeds(data) {
+  renderL4TableSection(data, {
+    sectionKey: '8-2',
+    sectionName: '보험수익금 질권설정 (Amount pledged as collateral)',
+    emptyMsg: 'L4 시트 8-2 (보험수익금 질권설정) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.',
+    columns: [
+      { label:'회사',          key:'company',     type:'text' },
+      { label:'질권자',        key:'pledgee',     type:'text' },
+      { label:'통화',          key:'currency',    type:'currency' },
+      { label:'질권금액(로컬)', key:'local',      type:'num' },
+      { label:'Spot',          key:'spot',        type:'spot' },
+      { label:'KRW 환산',      key:'krw',         type:'krw' },
+      { label:'Description',   key:'description', type:'text' },
+    ],
+  });
+}
+
+function renderL4PledgedAssets(data) {
+  renderL4TableSection(data, {
+    sectionKey: '9-1',
+    sectionName: '담보제공자산 (Assets pledged as collateral)',
+    emptyMsg: 'L4 시트 9-1 (담보제공자산) 테이블이 비어있거나 패키지가 업로드되지 않았습니다.',
+    columns: [
+      { label:'회사',           key:'company',           type:'text' },
+      { label:'채권자/저당권자', key:'creditor',         type:'text' },
+      { label:'담보자산',       key:'asset_account',     type:'text' },
+      { label:'통화',           key:'currency',          type:'currency' },
+      { label:'담보금액(로컬)',  key:'local',            type:'num' },
+      { label:'Spot',           key:'spot',              type:'spot' },
+      { label:'KRW 환산',       key:'krw',               type:'krw' },
+      { label:'관련부채',       key:'liability_account', type:'text' },
+      { label:'Description',    key:'description',       type:'text' },
+    ],
+  });
+}
+
+function renderA7EquityMethod(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A7 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-diagram-2 me-1"></i>종속회사 <strong>${data.subsidiary_count || 0}</strong>건</span>
+      <span><i class="bi bi-three-dots me-1"></i>기타지분법 <strong>${data.other_count || 0}</strong>건</span>
+      <span><i class="bi bi-coin me-1"></i>장부가액 KRW <strong class="text-warning">${fmtNum(data.grand_book_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계 (로컬 / KRW)</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">취득원가(로컬)</th>
+               <th class="num">순자산(로컬)</th>
+               <th class="num">장부가(로컬)</th>
+               <th class="num">취득원가(KRW)</th>
+               <th class="num">순자산(KRW)</th>
+               <th class="num">장부가(KRW)</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].cost, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].net_asset, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].book, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_cost, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_net_asset, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_book, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A7 시트 1번 지분법투자주식 명세가 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const fmtPct = v => (v == null ? '' : (Number(v) * 100).toFixed(4) + '%');
+  const typeBadge = r => {
+    if (r.type === 'subsidiary')
+      return `<span class="badge bg-primary">${escHtml(r.type_label || '종속회사')}</span>`;
+    if (r.type === 'other')
+      return `<span class="badge bg-secondary">${escHtml(r.type_label || '기타지분법')}</span>`;
+    return escHtml(r.type_label || '');
+  };
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">지분법투자주식 명세 (Equity Method Investments)</span>
+        <span class="total-strip ms-auto">
+          <span class="text-muted small">취득 ${fmtNum(data.grand_cost_krw, 0)}</span>
+          <span class="text-muted small ms-2">순자산 ${fmtNum(data.grand_net_asset_krw, 0)}</span>
+          <span class="ms-2">장부가 KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_book_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>종류</th>
+            <th>회사명</th>
+            <th class="num">지분율</th>
+            <th>통화</th>
+            <th class="num">취득원가(로컬)</th>
+            <th class="num">순자산(로컬)</th>
+            <th class="num">장부가(로컬)</th>
+            <th class="num">Spot</th>
+            <th class="num">취득원가(KRW)</th>
+            <th class="num">순자산(KRW)</th>
+            <th class="num">장부가(KRW)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${typeBadge(r)}</td>
+              <td>${escHtml(r.investee)}</td>
+              <td class="num text-muted">${fmtPct(r.ownership_pct)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local_cost, 0)}</td>
+              <td class="num">${fmtNum(r.local_net_asset, 0)}</td>
+              <td class="num">${fmtNum(r.local_book, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num">${fmtNum(r.krw_cost, 0)}</td>
+              <td class="num">${fmtNum(r.krw_net_asset, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_book, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderA6Derivatives(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A6 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-arrow-up-circle me-1 text-success"></i>평가이익 KRW <strong class="text-success">${fmtNum(data.grand_gain_krw, 0)}</strong></span>
+      <span><i class="bi bi-arrow-down-circle me-1 text-danger"></i>평가손실 KRW <strong class="text-danger">${fmtNum(data.grand_loss_krw, 0)}</strong></span>
+      <span><i class="bi bi-coin me-1"></i>순손익 KRW <strong class="text-warning">${fmtNum(data.grand_net_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 통화별 합계
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계 (로컬 / KRW)</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">평가이익(로컬)</th>
+               <th class="num">평가손실(로컬)</th>
+               <th class="num">평가이익(KRW)</th>
+               <th class="num">평가손실(KRW)</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].gain, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].loss, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].gain_krw, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].loss_krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A6 시트 파생상품평가손익 테이블이 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">파생상품평가손익 내역 (Details of gain/loss on valuation of derivatives)</span>
+        <span class="total-strip ms-auto">
+          <span class="text-success">이익 ${fmtNum(data.grand_gain_krw, 0)}</span>
+          <span class="text-danger ms-2">손실 ${fmtNum(data.grand_loss_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>파생상품 종류</th>
+            <th>통화</th>
+            <th class="num">평가이익(로컬)</th>
+            <th class="num">평가손실(로컬)</th>
+            <th class="num">Spot</th>
+            <th class="num">평가이익(KRW)</th>
+            <th class="num">평가손실(KRW)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.type)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local_gain, 0)}</td>
+              <td class="num">${fmtNum(r.local_loss, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw_gain, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_loss, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+// ── A5 헬퍼 ───────────────────────────────────
+const A5_ASSET_LABELS = {
+  property: '부동산', vehicle: '차량운반구',
+  equipment: '건설장비', others: '기타',
+};
+
+function renderA5RouChanges(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const itemLabels = [
+    ['beginning',    '기초잔액'],
+    ['acquisition',  '취득'],
+    ['disposal',     '처분'],
+    ['depreciation', '상각'],
+    ['others',       '기타'],
+    ['ending',       '기말잔액'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A5 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>기말잔액 KRW <strong class="text-warning">${fmtNum(data.krw_ending, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody><tr>
+            ${itemLabels.map(([k, _]) => `<td class="num ${k==='ending'?'num-krw':''}">${fmtNum(data['krw_'+k] || 0, 0)}</td>`).join('')}
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A5 시트 1번 사용권자산 변동에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">사용권자산 변동 — 회사 × 자산종류 명세</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">자산 종류</th>
+              <th rowspan="2">통화</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge bg-secondary">${escHtml(r.asset_label)}</span></td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemLabels.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${itemLabels.map(([k, _]) => `<td class="num ${k==='ending'?'num-krw':''}">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + detailBlock;
+}
+
+function renderA5LeasePL(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const itemLabels = [
+    ['depreciation',  '사용권자산 감가상각비'],
+    ['interest',      '리스부채 이자비용'],
+    ['short_term',    '단기리스'],
+    ['low_value',     '소액자산리스'],
+    ['variable',      '변동리스료'],
+    ['disposal_gain', '리스처분이익'],
+    ['total',         '합계'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A5 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>합계 KRW <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const totals = data.totals_by_item_krw || {};
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody><tr>
+            ${itemLabels.map(([k, _]) => `<td class="num ${k==='total'?'num-krw':''}">${fmtNum(k==='total' ? data.grand_total_krw : (totals[k]||0), 0)}</td>`).join('')}
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A5 시트 2번 리스 손익에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">2</span>
+        <span class="category-name">리스계약 관련 손익 — 회사별 명세</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">통화</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemLabels.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${itemLabels.map(([k, _]) => `<td class="num ${k==='total'?'num-krw':''}">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + detailBlock;
+}
+
+// ── A4 헬퍼: 공사종류 라벨 ───────────────────────────────────
+const A4_TYPE_LABELS = {
+  architecture: '건축', civil: '토목', plant: '플랜트',
+  hydrogen: '수소충전소', others: 'Others',
+};
+
+function renderA4ConstructionBalance(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const itemLabels = [
+    ['beginning', '기초잔액'],
+    ['variance',  '증감액'],
+    ['profit',    '공사수익'],
+    ['others',    '기타'],
+    ['ending',    '기말잔액'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>기말잔액 KRW <strong class="text-warning">${fmtNum(data.krw_ending, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // KRW 항목별 합계
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody><tr>
+            ${itemLabels.map(([k, _]) => `<td class="num ${k==='ending'?'num-krw':''}">${fmtNum(data['krw_'+k] || 0, 0)}</td>`).join('')}
+          </tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A4 시트 1번 공사계약 잔액에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">공사계약 잔액 변동 — 회사 × 공사종류별 명세 (Avg 환율 환산)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">공사 종류</th>
+              <th rowspan="2">통화</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">환율<br><small>(Avg)</small></th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge bg-secondary">${escHtml(r.type_label)}</span></td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemLabels.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${itemLabels.map(([k, _]) => `<td class="num ${k==='ending'?'num-krw':''}">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + detailBlock;
+}
+
+function renderA4ConstructionProfit(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const typeKeys = ['architecture','civil','plant','hydrogen','others','total'];
+  const typeLabels = {...A4_TYPE_LABELS, total: 'Total'};
+  const itemLabels = [
+    ['accumulated_revenue', '누적공사수익'],
+    ['accumulated_cost',    '누적공사원가'],
+    ['accumulated_income',  '누적공사손익'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const totalsKrw = data.totals_krw || {};
+  const incomeTotal = (totalsKrw.accumulated_income || {}).total || 0;
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>누적공사손익 Total KRW <strong class="text-warning">${fmtNum(incomeTotal, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // Pivot 합계 표
+  const pivotBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목 × 공사종류 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>항목</th>
+            ${typeKeys.map(tk => `<th class="num">${escHtml(typeLabels[tk])}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${itemLabels.map(([ik, lbl]) => `<tr>
+              <td><strong>${escHtml(lbl)}</strong></td>
+              ${typeKeys.map(tk => {
+                const v = ((totalsKrw[ik] || {})[tk]) || 0;
+                return `<td class="num ${tk==='total'?'num-krw':''}">${fmtNum(v, 0)}</td>`;
+              }).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A4 시트 2번 공사손익에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">2</span>
+        <span class="category-name">공사손익 — 회사 × 항목별 명세 (Avg 환율 환산)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>항목</th>
+            <th>통화</th>
+            ${typeKeys.map(tk => `<th class="num">${escHtml(typeLabels[tk])}<br><small>(로컬)</small></th>`).join('')}
+            <th class="num">환율<br><small>(Avg)</small></th>
+            ${typeKeys.map(tk => `<th class="num">${escHtml(typeLabels[tk])}<br><small>(KRW)</small></th>`).join('')}
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.item_label)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${typeKeys.map(tk => `<td class="num">${fmtNum(r['local_'+tk] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${typeKeys.map(tk => `<td class="num ${tk==='total'?'num-krw':''}">${fmtNum(r['krw_'+tk] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + pivotBlock + detailBlock;
+}
+
+function renderA4ContractBalance(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const itemLabels = [
+    ['receivable', '미청구공사'],
+    ['payable',    '초과청구공사'],
+    ['advance',    '선수금'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>미청구공사 KRW <strong class="text-warning">${fmtNum(data.krw_receivable, 0)}</strong></span>
+      <span><i class="bi bi-coin me-1"></i>초과청구공사 KRW <strong>${fmtNum(data.krw_payable, 0)}</strong></span>
+      <span><i class="bi bi-coin me-1"></i>선수금 KRW <strong>${fmtNum(data.krw_advance, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A4 시트 3번 계약자산·부채에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">3</span>
+        <span class="category-name">계약자산 및 계약부채 — 회사 × 공사종류 명세 (Spot 환율 환산)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">공사 종류</th>
+              <th rowspan="2">통화</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge bg-secondary">${escHtml(r.type_label)}</span></td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemLabels.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${itemLabels.map(([k, _]) => `<td class="num num-krw">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + detailBlock;
+}
+
+function renderA3InvestmentPL(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const itemLabels = [
+    ['rental_revenue',     '임대수익'],
+    ['operating_expenses', '운영비용'],
+    ['depreciation',       '감가상각비'],
+    ['fv_change',          '공정가치 변동'],
+    ['others',             '기타'],
+    ['total',              '합계'],
+  ];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>합계 KRW <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 항목별 KRW 합계 요약
+  const itemTotals = data.totals_by_item_krw || {};
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+          </tr></thead>
+          <tbody>
+            <tr>
+              ${itemLabels.map(([k, _]) => `<td class="num ${k==='total'?'num-krw':''}">${fmtNum(itemTotals[k] || 0, 0)}</td>`).join('')}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">A3 시트 1번 투자부동산 관련 손익에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">투자부동산 관련 손익 (회사별)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead>
+            <tr>
+              <th rowspan="2">회사</th>
+              <th rowspan="2">통화</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+              <th class="num" rowspan="2">Spot</th>
+              ${itemLabels.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(KRW)</small></th>`).join('')}
+            </tr>
+            <tr></tr>
+          </thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemLabels.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              ${itemLabels.map(([k, _]) => `<td class="num ${k==='total'?'num-krw':''}">${fmtNum(r['krw_'+k] || 0, 0)}</td>`).join('')}
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + totalsBlock + detailBlock;
+}
+
+function renderA3LandValue(data, opts) {
+  // opts: { sectionKey, sectionName, amountLabel, emptyMsg }
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-check-circle me-1"></i>YES <strong>${data.yes_count || 0}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>금액 입력 <strong>${data.with_amount_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>전체 KRW 합계 <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">로컬 합계</th>
+               <th class="num">KRW 합계</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].local, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">금액이 입력된 회사가 없습니다</h5>
+        <p class="mb-0">${escHtml(opts.emptyMsg)}</p>
+      </div></div>`;
+    return;
+  }
+
+  const ynBadge = v => {
+    const u = String(v || '').toUpperCase();
+    if (u === 'YES') return `<span class="badge bg-success">${escHtml(u)}</span>`;
+    if (u === 'NO')  return `<span class="badge bg-secondary">${escHtml(u)}</span>`;
+    return escHtml(v || '');
+  };
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">${escHtml(opts.sectionKey)}</span>
+        <span class="category-name">${escHtml(opts.sectionName)}</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>해당여부</th>
+            <th>통화</th>
+            <th class="num">${escHtml(opts.amountLabel)}(로컬)</th>
+            <th class="num">Spot</th>
+            <th class="num">${escHtml(opts.amountLabel)}(KRW)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${ynBadge(r.yn)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderA3LandInvestment(data) {
+  renderA3LandValue(data, {
+    sectionKey: '2-1',
+    sectionName: '투자부동산(토지) 공시지가',
+    amountLabel: '공시지가',
+    emptyMsg: 'A3 시트 2-1번에 금액을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderA3LandPpe(data) {
+  renderA3LandValue(data, {
+    sectionKey: '3-1',
+    sectionName: '유형자산(토지) 공시지가',
+    amountLabel: '공시지가',
+    emptyMsg: 'A3 시트 3-1번에 금액을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderA2Securities(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">A2 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_rows || 0}</strong>개사</span>
+      <span><i class="bi bi-cash-coin me-1"></i>취득원가 KRW <strong class="text-warning">${fmtNum(data.grand_cost_krw, 0)}</strong></span>
+      <span><i class="bi bi-coin me-1"></i>장부가액 KRW <strong class="text-warning">${fmtNum(data.grand_book_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 통화별 합계
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">취득원가 로컬</th>
+               <th class="num">장부가액 로컬</th>
+               <th class="num">취득원가 KRW</th>
+               <th class="num">장부가액 KRW</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].cost, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].book, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_cost, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw_book, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">A2 시트 1. 유가증권 명세가 비어있거나 패키지가 업로드되지 않았습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const fmtPct = v => (v == null ? '' : (Number(v) * 100).toFixed(4) + '%');
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">유가증권 명세 (Securities Details)</span>
+        <span class="total-strip ms-auto">
+          <span class="text-muted small">취득원가 KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_cost_krw, 0)}</span>
+          <span class="text-muted small ms-2">장부가액 KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_book_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>계정</th>
+            <th>피투자회사명</th>
+            <th class="num">주식수</th>
+            <th class="num">지분율</th>
+            <th>통화</th>
+            <th class="num">취득원가(로컬)</th>
+            <th class="num">장부가액(로컬)</th>
+            <th class="num">Spot</th>
+            <th class="num">취득원가(KRW)</th>
+            <th class="num">장부가액(KRW)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${escHtml(r.account)}</td>
+              <td>${escHtml(r.investee)}</td>
+              <td class="num">${r.shares == null ? '' : fmtNum(r.shares, 0)}</td>
+              <td class="num text-muted">${fmtPct(r.ownership_pct)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.local_cost, 0)}</td>
+              <td class="num">${fmtNum(r.local_book, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw_cost, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.krw_book, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderL4OtherCommitments(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1 text-warning"></i>내용 있음 <strong class="text-warning">${data.with_content_count || 0}</strong></span>
+      <span><i class="bi bi-dash-circle me-1 text-muted"></i>내용 없음 <strong>${data.no_content_count || 0}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">자유 텍스트를 입력한 회사가 없습니다</h5>
+        <p class="mb-0">L4 시트 11번에 자유 텍스트를 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">11</span>
+        <span class="category-name">그외 우발부채 및 약정사항 — 내용 있는 회사만</span>
+        <span class="total-strip ms-auto">
+          <span class="text-warning fw-bold">${rows.length}개사</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th style="width:28%;">회사</th>
+            <th>약정·우발부채 내용</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td class="fw-bold">${escHtml(r.company)}</td>
+              <td style="white-space:pre-wrap; line-height:1.5;">${escHtml(r.content || '')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + detailBlock;
+}
+
+function renderL4SubsequentEvents(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-check-circle me-1 text-warning"></i>YES <strong class="text-warning">${data.yes_count || 0}</strong></span>
+      <span><i class="bi bi-x-circle me-1 text-muted"></i>NO <strong>${data.no_count || 0}</strong></span>
+      <span><i class="bi bi-dash-circle me-1 text-muted"></i>미입력 <strong>${data.empty_count || 0}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">YES로 응답한 회사가 없습니다</h5>
+        <p class="mb-0">L4 시트 10번에 YES로 응답한 회사가 없거나, 모든 회사가 미입력입니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">10</span>
+        <span class="category-name">보고기간일 이후 발생한 중요 사건 — YES 회사 목록</span>
+        <span class="total-strip ms-auto">
+          <span class="text-warning fw-bold">${rows.length}개사</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th style="width:28%;">회사</th>
+            <th style="width:8%;">응답</th>
+            <th>사건 내용</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td class="fw-bold">${escHtml(r.company)}</td>
+              <td><span class="badge bg-warning text-dark">${escHtml(r.yn)}</span></td>
+              <td style="white-space:pre-wrap; line-height:1.5;">${escHtml(r.content || '(자유 텍스트 없음)')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + detailBlock;
+}
+
+function renderL4Lawsuits(data) {
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_rows || 0}</strong>개사</span>
+      <span><i class="bi bi-hash me-1"></i>총 건수 <strong>${fmtNum(data.total_count, 0)}</strong></span>
+      <span><i class="bi bi-coin me-1"></i>총 소송금액 KRW <strong class="text-muted">${fmtNum(data.total_claim_krw, 0)}</strong></span>
+      <span><i class="bi bi-shield-exclamation me-1"></i>총 충당부채 KRW <strong class="text-warning">${fmtNum(data.total_provision_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  // 구분별 합계 (원고/피고)
+  const summaryByTypeBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">구분</span>
+        <span class="category-name">원고 / 피고 별 합계 (KRW 환산)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>구분</th>
+            <th class="num">소송건수</th>
+            <th class="num">소송금액 (KRW)</th>
+            <th class="num">인식한 충당부채 (KRW)</th>
+          </tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="badge bg-info text-dark">원고 (Defendant)</span></td>
+              <td class="num">${fmtNum(data.defendant_count, 0)}</td>
+              <td class="num">${fmtNum(data.defendant_claim_krw, 0)}</td>
+              <td class="num text-muted">-</td>
+            </tr>
+            <tr>
+              <td><span class="badge bg-danger">피고 (Plaintiff)</span></td>
+              <td class="num">${fmtNum(data.plaintiff_count, 0)}</td>
+              <td class="num">${fmtNum(data.plaintiff_claim_krw, 0)}</td>
+              <td class="num num-krw">${fmtNum(data.plaintiff_provision_krw, 0)}</td>
+            </tr>
+            <tr style="background:#fff3cd;">
+              <td><strong>전체 합계</strong></td>
+              <td class="num"><strong>${fmtNum(data.total_count, 0)}</strong></td>
+              <td class="num"><strong>${fmtNum(data.total_claim_krw, 0)}</strong></td>
+              <td class="num num-krw"><strong>${fmtNum(data.total_provision_krw, 0)}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // 통화별 합계
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 합계 (로컬 / KRW)</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">소송건수</th>
+               <th class="num">소송금액 (로컬)</th>
+               <th class="num">충당부채 (로컬)</th>
+               <th class="num">소송금액 (KRW)</th>
+               <th class="num">충당부채 (KRW)</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].count, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].claim, 0)}</td>
+                 <td class="num">${fmtNum(byCur[cur].provision, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].claim_krw, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].provision_krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 소송이 없습니다</h5>
+        <p class="mb-0">L4 시트 6-1 테이블이 비어있거나 모든 회사가 미입력입니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const typeBadge = v => {
+    const s = String(v || '');
+    if (s.includes('피고')) return `<span class="badge bg-danger">${escHtml(s)}</span>`;
+    if (s.includes('원고')) return `<span class="badge bg-info text-dark">${escHtml(s)}</span>`;
+    return escHtml(s);
+  };
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">6-1</span>
+        <span class="category-name">소송중인 사건 내용 — 회사별 상세 (로컬 + KRW)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>구분</th>
+            <th class="num">소송건수</th>
+            <th>통화</th>
+            <th class="num">소송금액(로컬)</th>
+            <th class="num">충당부채(로컬)</th>
+            <th class="num">Spot</th>
+            <th class="num">소송금액(KRW)</th>
+            <th class="num">충당부채(KRW)</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${typeBadge(r.type)}</td>
+              <td class="num">${fmtNum(r.count, 0)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              <td class="num">${fmtNum(r.claim_amount, 0)}</td>
+              <td class="num">${fmtNum(r.provision_amount, 0)}</td>
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.claim_amount_krw, 0)}</td>
+              <td class="num num-krw">${fmtNum(r.provision_amount_krw, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + summaryByTypeBlock + curBlock + detailBlock;
+}
+
+function renderL4Qna(data, opts) {
+  // opts: { sectionKey, sectionName, ynColLabel, amountColLabel, ynKey, emptyMsg }
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+
+  const errBlock = (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">L4 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+
+  const dlBtn = data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드
+       </a>`
+    : '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-check-circle me-1"></i>YES <strong>${data.yes_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin me-1"></i>전체 KRW 합계 <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${dlBtn}
+      </span>
+    </div>`;
+
+  const byCur = data.total_by_currency || {};
+  const curKeys = Object.keys(byCur).sort();
+  const curBlock = curKeys.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">통화</span>
+           <span class="category-name">통화별 로컬/KRW 합계</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>통화</th>
+               <th class="num">로컬 합계</th>
+               <th class="num">KRW 합계</th>
+             </tr></thead>
+             <tbody>
+               ${curKeys.map(cur => `<tr>
+                 <td><span class="badge-cur">${escHtml(cur)}</span></td>
+                 <td class="num">${fmtNum(byCur[cur].local, 0)}</td>
+                 <td class="num num-krw">${fmtNum(byCur[cur].krw, 0)}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  if (!rows.length) {
+    area.innerHTML = summary + errBlock + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">합산할 데이터가 없습니다</h5>
+        <p class="mb-0">${escHtml(opts.emptyMsg)}</p>
+      </div></div>`;
+    return;
+  }
+
+  const yesBadge = v => {
+    const u = String(v || '').toUpperCase();
+    if (u === 'YES') return `<span class="badge bg-success">${escHtml(u)}</span>`;
+    if (u === 'NO')  return `<span class="badge bg-secondary">${escHtml(u)}</span>`;
+    return v ? escHtml(v) : '<span class="text-muted">-</span>';
+  };
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">${escHtml(opts.sectionKey)}</span>
+        <span class="category-name">${escHtml(opts.sectionName)}</span>
+        <span class="total-strip ms-auto">
+          <span class="ms-3">KRW</span>
+          <span class="total-krw">${fmtNum(data.grand_total_krw, 0)}</span>
+        </span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th>
+            <th>${escHtml(opts.ynColLabel)}</th>
+            <th class="num">${escHtml(opts.amountColLabel)}</th>
+            <th>통화</th>
+            <th class="num">Spot</th>
+            <th class="num">KRW 환산</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td>${yesBadge(r[opts.ynKey])}</td>
+              <td class="num">${r.amount == null ? '<span class="text-muted">-</span>' : fmtNum(r.amount, 2)}</td>
+              <td>${r.currency ? `<span class="badge-cur">${escHtml(r.currency)}</span>` : ''}</td>
+              <td class="num text-muted">${r.spot == null ? '' : fmtNum(r.spot, 4)}</td>
+              <td class="num num-krw">${r.krw == null ? '' : fmtNum(r.krw, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + errBlock + curBlock + detailBlock;
+}
+
+function renderL4LC(data) {
+  renderL4Qna(data, {
+    sectionKey: '2',
+    sectionName: '수입신용장 오픈 여부 + 미확정 지급보증 실행금액',
+    ynColLabel: '수입신용장 오픈',
+    amountColLabel: '미확정 지급보증 실행금액',
+    ynKey: 'lc_open',
+    emptyMsg: 'L4 시트 2번 답변이 비어있거나 패키지가 업로드되지 않았습니다.',
+  });
+}
+
+function renderL4Export(data) {
+  renderL4Qna(data, {
+    sectionKey: '3',
+    sectionName: '수출채권 할인 여부 + 만기 미도래 할인금액',
+    ynColLabel: '수출채권 할인',
+    amountColLabel: '만기 미도래 할인금액',
+    ynKey: 'discount_done',
+    emptyMsg: 'L4 시트 3번 답변이 비어있거나 패키지가 업로드되지 않았습니다.',
+  });
+}
+
+// ── TX 시트 (법인세) 렌더러 ────────────────────────────────
+
+function _txDlBtn(data) {
+  return data.download_url
+    ? `<a class="btn btn-sm btn-success ms-2" href="${escHtml(data.download_url)}">
+         <i class="bi bi-file-earmark-excel me-1"></i>엑셀 다운로드</a>`
+    : '';
+}
+
+function _txErrBlock(data) {
+  return (data.errors && data.errors.length)
+    ? `<div class="errors-block">
+         <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
+         <span class="small text-muted ms-2">TX 시트 없음/오류 ${data.errors.length}건</span>
+         <ul class="mb-0 mt-1 small">
+           ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
+         </ul>
+       </div>`
+    : '';
+}
+
+function renderTXIncomeBreakdown(data) {
+  renderL3Pivot(data, {
+    sectionKey: '3',
+    sectionName: '법인세비용의 구성내역 (Avg 환율)',
+    itemPairs: [
+      ['current_tax',        '당기법인세부담액'],
+      ['deferred_temp_diff', '일시적차이 이연법인세'],
+      ['deferred_equity',    '자본 직접부과 이연법인세'],
+      ['additional_refund',  '추납액(환급액)'],
+      ['total_expense',      '법인세비용 (합계)'],
+    ],
+    totalKey: 'total_expense',
+    grandLabel: '법인세비용 KRW',
+    emptyMsg: 'TX 시트 3번 법인세비용 구성에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderTXEquityDeferred(data) {
+  renderL3Pivot(data, {
+    sectionKey: '3-1',
+    sectionName: '자본 직접 부과 이연법인세 변동액 (Avg 환율)',
+    itemPairs: [
+      ['revaluation',    '재평가이익'],
+      ['actuarial',      '보험수리적손익'],
+      ['afs_securities', '매도가능증권'],
+      ['fvoci',          'FVOCI 금융상품'],
+      ['equity_method',  '지분법투자주식'],
+      ['fx_translation', '해외사업환산손익'],
+      ['derivatives',    '파생상품평가손익'],
+      ['others',         '기타'],
+      ['total',          '합계'],
+    ],
+    totalKey: 'total',
+    grandLabel: '합계 KRW',
+    emptyMsg: 'TX 시트 3-1번 자본 직접 부과 이연법인세에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderTXUnrecognized(data) {
+  renderL3Pivot(data, {
+    sectionKey: '5',
+    sectionName: '이연법인세로 인식되지 않은 일시적차이 (Spot 환율)',
+    itemPairs: [
+      ['loss_carryforward', '이월결손금'],
+      ['others',            '기타'],
+    ],
+    grandLabel: '잔액 KRW',
+    emptyMsg: 'TX 시트 5번 미인식 일시적차이에 값을 입력한 회사가 없습니다.',
+  });
+}
+
+function renderTXDeferredChanges(data) {
+  // TX 1번 — (kor_label, current_flag) pivot 합산
+  const area = document.getElementById('resultArea');
+  const totals = data.totals_krw || {};
+  const cats = data.categories || [];
+  const companyRows = data.company_rows || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-arrow-right me-1"></i>기초 KRW <strong>${fmtNum(totals.beginning, 0)}</strong></span>
+      <span><i class="bi bi-arrow-up-right me-1"></i>증감 KRW <strong>${fmtNum(totals.change, 0)}</strong></span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>기말 KRW <strong class="text-warning">${fmtNum(totals.ending, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${_txDlBtn(data)}
+      </span>
+    </div>`;
+
+  if (!cats.length) {
+    area.innerHTML = summary + _txErrBlock(data) + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">TX 시트 1번 이연법인세 증감내용에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const catBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">1</span>
+        <span class="category-name">카테고리별 합계 (계정명 × Current/Non-Current, 기초=전기말 Spot / 기말=당기말 Spot)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>계정명</th><th>유동/비유동</th>
+            <th class="num">회사수</th>
+            <th class="num">기초 KRW</th><th class="num">기말 KRW</th>
+            <th class="num">증감 KRW</th>
+          </tr></thead>
+          <tbody>
+            ${cats.map(c => `<tr>
+              <td>${escHtml(c.kor_label)}</td>
+              <td><span class="badge ${c.current_flag === 'Current' ? 'bg-info' : 'bg-secondary'}">${escHtml(c.current_flag || '-')}</span></td>
+              <td class="num">${fmtNum(c.company_count, 0)}</td>
+              <td class="num">${fmtNum(c.beginning_krw, 0)}</td>
+              <td class="num num-krw">${fmtNum(c.ending_krw, 0)}</td>
+              <td class="num">${fmtNum(c.change_krw, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  const detailBlock = companyRows.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">상세</span>
+           <span class="category-name">회사별 항목 명세</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>회사</th><th>통화</th>
+               <th>계정명</th><th>유동/비유동</th>
+               <th class="num">기초(로컬)</th><th class="num">기말(로컬)</th>
+               <th class="num">증감(로컬)</th>
+               <th class="num">전기말 Spot</th><th class="num">당기말 Spot</th>
+               <th class="num">기초(KRW)</th><th class="num">기말(KRW)</th>
+               <th class="num">증감(KRW)</th>
+               <th class="num">법정세율</th>
+               <th class="num">기초 일시적차이</th><th class="num">기말 일시적차이</th>
+             </tr></thead>
+             <tbody>
+               ${companyRows.map(r => `<tr>
+                 <td>${escHtml(r.company)}</td>
+                 <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+                 <td>${escHtml(r.kor_label)}</td>
+                 <td>${escHtml(r.current_flag || '-')}</td>
+                 <td class="num">${fmtNum(r.local_beginning, 0)}</td>
+                 <td class="num">${fmtNum(r.local_ending, 0)}</td>
+                 <td class="num">${fmtNum(r.local_change, 0)}</td>
+                 <td class="num text-muted">${r.prior_spot ? fmtNum(r.prior_spot, 4) : ''}</td>
+                 <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+                 <td class="num">${fmtNum(r.krw_beginning, 0)}</td>
+                 <td class="num num-krw">${fmtNum(r.krw_ending, 0)}</td>
+                 <td class="num">${fmtNum(r.krw_change, 0)}</td>
+                 <td class="num text-muted">${(r.statutory_rate || r.statutory_rate === 0) ? (r.statutory_rate * 100).toFixed(2) + '%' : ''}</td>
+                 <td class="num">${(r.beginning_temp_diff || r.beginning_temp_diff === 0) ? fmtNum(r.beginning_temp_diff, 0) : ''}</td>
+                 <td class="num">${(r.ending_temp_diff || r.ending_temp_diff === 0) ? fmtNum(r.ending_temp_diff, 0) : ''}</td>
+               </tr>`).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  area.innerHTML = summary + _txErrBlock(data) + catBlock + detailBlock;
+}
+
+function renderTXReconciliation(data) {
+  // TX 4 — pivot + 회사별 유효세율 표시
+  const area = document.getElementById('resultArea');
+  const rows = data.rows || [];
+  const totals = data.totals_by_item_krw || {};
+  const itemPairs = [
+    ['pretax_income',       '세전순이익'],
+    ['tax_at_statutory',    '적용세율 산출세액'],
+    ['permanent_diff',      '영구적차이'],
+    ['tax_credit',          '세액공제'],
+    ['additional_refund',   '추납액/환급액'],
+    ['unrecognized_change', '미인식 일시적차이 변동'],
+    ['total_expense',       '법인세비용'],
+  ];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>법인세비용 KRW <strong class="text-warning">${fmtNum(totals.total_expense, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${_txDlBtn(data)}
+      </span>
+    </div>`;
+
+  const totalsBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">합계</span>
+        <span class="category-name">항목별 KRW 합계 (Avg 환율)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>${itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}</tr></thead>
+          <tbody><tr>${itemPairs.map(([k, _]) => `<td class="num ${k === 'total_expense' ? 'num-krw' : ''}">${fmtNum(totals[k] || 0, 0)}</td>`).join('')}</tr></tbody>
+        </table>
+      </div>
+    </div>`;
+
+  if (!rows.length) {
+    area.innerHTML = summary + _txErrBlock(data) + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">TX 시트 4번 reconciliation에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const fmtPct = v => (v == null ? '—' : (Number(v) * 100).toFixed(2) + '%');
+
+  const gs = data.group_subtotals || [];
+  const groupBlock = gs.length ? `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key"><i class="bi bi-diagram-3"></i></span>
+        <span class="category-name">연결그룹별 KRW 합계</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>연결그룹</th><th class="num">회사수</th>
+            ${itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}</th>`).join('')}
+            <th class="num">유효세율</th>
+          </tr></thead>
+          <tbody>
+            ${gs.map(g => {
+              const k = g.krw || {};
+              const eff = k.pretax_income ? (k.total_expense / k.pretax_income) : null;
+              return `<tr>
+                <td><strong>${escHtml(g.group)}</strong></td>
+                <td class="num">${fmtNum(g.company_count, 0)}</td>
+                ${itemPairs.map(([key, _]) => `<td class="num ${key==='total_expense'?'num-krw':''}">${fmtNum(k[key] || 0, 0)}</td>`).join('')}
+                <td class="num"><strong>${fmtPct(eff)}</strong></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>` : '';
+
+  const detailBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">4</span>
+        <span class="category-name">회사별 명세 — 유효세율 포함</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr>
+            <th>회사</th><th>통화</th>
+            ${itemPairs.map(([_, lbl]) => `<th class="num">${escHtml(lbl)}<br><small>(로컬)</small></th>`).join('')}
+            <th class="num">Avg</th>
+            <th class="num">법인세비용<br><small>(KRW)</small></th>
+            <th class="num">유효세율</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td>${escHtml(r.company)}</td>
+              <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+              ${itemPairs.map(([k, _]) => `<td class="num">${fmtNum(r['local_'+k] || 0, 0)}</td>`).join('')}
+              <td class="num text-muted">${r.spot ? fmtNum(r.spot, 4) : ''}</td>
+              <td class="num num-krw">${fmtNum(r.krw_total_expense || 0, 0)}</td>
+              <td class="num"><strong>${fmtPct(r.effective_rate)}</strong></td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  area.innerHTML = summary + _txErrBlock(data) + totalsBlock + groupBlock + detailBlock;
+}
+
+function renderTXLossMaturity(data) {
+  // TX 5-1 — 만기 buckets
+  const area = document.getElementById('resultArea');
+  const buckets = data.buckets || [];
+  const companyRows = data.company_rows || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i>스캔 <strong>${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-pencil-square me-1"></i>입력 <strong>${data.with_data_count || 0}</strong>개사</span>
+      <span><i class="bi bi-coin-fill me-1 text-warning"></i>전체 KRW <strong class="text-warning">${fmtNum(data.grand_total_krw, 0)}</strong></span>
+      <span class="ms-auto d-flex align-items-center gap-2">
+        <span class="text-muted small">결산기간: ${escHtml(data.year)}</span>
+        ${_txDlBtn(data)}
+      </span>
+    </div>`;
+
+  if (!buckets.length) {
+    area.innerHTML = summary + _txErrBlock(data) + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-inbox"></i>
+        <h5 class="mt-2 mb-1">입력된 데이터가 없습니다</h5>
+        <p class="mb-0">TX 시트 5-1번 이월결손금 만기에 값을 입력한 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const bucketBlock = `
+    <div class="category-block">
+      <div class="category-head">
+        <span class="category-key">5-1</span>
+        <span class="category-name">만기별 합계 (Spot 환율)</span>
+      </div>
+      <div class="table-responsive">
+        <table class="table rows-table table-hover mb-0">
+          <thead><tr><th>만기</th><th class="num">회사수</th><th class="num">KRW 합계</th></tr></thead>
+          <tbody>
+            ${buckets.map(b => `<tr>
+              <td>${escHtml(b.label)}</td>
+              <td class="num">${fmtNum(b.company_count, 0)}</td>
+              <td class="num num-krw">${fmtNum(b.total_krw, 0)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+
+  // 회사별 명세 - bucket label은 회사마다 다를 수 있어 union of labels 사용
+  const labelSet = new Set();
+  companyRows.forEach(r => (r.buckets || []).forEach(b => labelSet.add(b.label)));
+  const labels = buckets.map(b => b.label)
+    .concat([...labelSet].filter(l => !buckets.find(b => b.label === l)));
+
+  const detailBlock = companyRows.length
+    ? `<div class="category-block">
+         <div class="category-head">
+           <span class="category-key">상세</span>
+           <span class="category-name">회사별 만기 명세</span>
+         </div>
+         <div class="table-responsive">
+           <table class="table rows-table table-hover mb-0">
+             <thead><tr>
+               <th>회사</th><th>통화</th>
+               ${labels.map(l => `<th class="num">${escHtml(l)}<br><small>(KRW)</small></th>`).join('')}
+             </tr></thead>
+             <tbody>
+               ${companyRows.map(r => {
+                 const bd = {};
+                 (r.buckets || []).forEach(b => bd[b.label] = b);
+                 return `<tr>
+                   <td>${escHtml(r.company)}</td>
+                   <td><span class="badge-cur">${escHtml(r.currency)}</span></td>
+                   ${labels.map(l => `<td class="num">${fmtNum((bd[l] || {}).krw || 0, 0)}</td>`).join('')}
+                 </tr>`;
+               }).join('')}
+             </tbody>
+           </table>
+         </div>
+       </div>`
+    : '';
+
+  area.innerHTML = summary + _txErrBlock(data) + bucketBlock + detailBlock;
+}
+
+document.getElementById('yearSelect').addEventListener('change', () => {
+  document.getElementById('resultArea').innerHTML = '';
+  refreshFileCount();
+});
+
+refreshFileCount();
+</script>
+
+</body>
+</html>

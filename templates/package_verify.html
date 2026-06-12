@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>패키지 검증 - 연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background:#f0f4f8; font-family:'Pretendard','Malgun Gothic',Arial,sans-serif; }
+  .navbar { background:#1F3864 !important; }
+  .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(31,56,100,0.08); }
+  .card-header {
+    background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%);
+    color:#fff; border-radius:12px 12px 0 0 !important;
+    padding:0.85rem 1.25rem; font-weight:600;
+  }
+  .verify-card {
+    cursor:pointer; transition: all .15s ease;
+    border:1px solid #dde4ec;
+  }
+  .verify-card:hover { box-shadow:0 6px 20px rgba(31,56,100,0.15); border-color:#2d5aa0; }
+  .verify-card.active { background:#EBF0FA; border-color:#1F3864; }
+  .company-block {
+    background:#fff; border-radius:10px; margin-bottom:14px;
+    border-left:5px solid #ffc107;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06);
+  }
+  .company-block.status-error      { border-left-color:#dc3545; }
+  .company-block.status-no_sheet   { border-left-color:#6c757d; }
+  .company-block.status-diff_no_reason { border-left-color:#fd7e14; }
+  .company-block.status-diff       { border-left-color:#ffc107; }
+  .company-block.status-account_misplaced { border-left-color:#dc3545; }
+  .company-block.status-sign_negative { border-left-color:#dc3545; }
+  .company-block.status-sign_positive { border-left-color:#dc3545; }
+  .company-block.status-new_borrow_positive { border-left-color:#dc3545; }
+  .company-block.status-has_other_transfer { border-left-color:#ffc107; }
+  .company-block.status-has_cf4_transfer { border-left-color:#ffc107; }
+  .company-header {
+    padding:10px 16px; display:flex; align-items:center; gap:10px;
+    cursor:pointer;
+  }
+  .company-name { font-weight:600; color:#1F3864; }
+  .badge-cur { background:#fff3cd; color:#856404; font-family:monospace; font-size:.72rem; padding:2px 6px; border-radius:3px; }
+  .badge-status { font-size:.72rem; padding:3px 8px; border-radius:3px; font-weight:600; }
+  .badge-error      { background:#f8d7da; color:#842029; }
+  .badge-no_sheet   { background:#e2e3e5; color:#495057; }
+  .badge-diff_no_reason { background:#ffe5d0; color:#b54200; }
+  .badge-diff       { background:#fff3cd; color:#856404; }
+  .badge-account_misplaced { background:#f8d7da; color:#842029; }
+  .badge-sign_negative { background:#f8d7da; color:#842029; }
+  .badge-sign_positive { background:#f8d7da; color:#842029; }
+  .col-tag {
+    display:inline-block; font-family:'Courier New',monospace;
+    padding:2px 7px; border-radius:3px; font-size:.72rem; font-weight:700;
+    background:#e3edf9; color:#1e4a8a;
+  }
+  .col-tag.col-U  { background:#d4edda; color:#155724; }
+  .col-tag.col-X  { background:#fde2e2; color:#842029; }
+  .col-tag.col-AB { background:#d1ecf1; color:#0c5460; }
+  .col-tag.col-AE { background:#fff3cd; color:#856404; }
+  .neg-rows-cell { font-size:.78rem; color:#666; }
+  .neg-rows-cell .neg { color:#c82333; font-weight:600; }
+  .side-tag {
+    display:inline-block; font-family:'Courier New',monospace;
+    padding:2px 7px; border-radius:3px; font-size:.72rem; font-weight:700;
+  }
+  .side-J { background:#fde2e2; color:#842029; }
+  .side-M { background:#dce9fc; color:#1e4a8a; }
+  .rows-table { font-size:.84rem; margin:0; }
+  .rows-table th { background:#f5f8ff; color:#1F3864; font-weight:600; padding:7px 8px; }
+  .rows-table td { padding:6px 8px; vertical-align:middle; }
+  .num { text-align:right; font-family:'Courier New',monospace; }
+  .reason-missing { color:#b54200; font-style:italic; }
+  .summary-strip { background:#fff; padding:12px 18px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .empty-state { text-align:center; padding:48px 24px; color:#6c757d; }
+  .empty-state .bi { font-size:3rem; color:#28a745; }
+  /* ── 검증 그룹 탭 + 컴팩트 리스트 ───────────────────────── */
+  .verify-tabs { border-bottom:2px solid #dde4ec; margin-bottom:0; }
+  .verify-tabs .nav-link {
+    border:none; border-bottom:3px solid transparent;
+    color:#6c757d; font-weight:600; padding:10px 18px;
+    border-radius:0; background:none;
+  }
+  .verify-tabs .nav-link:hover { color:#1F3864; background:#f5f8ff; }
+  .verify-tabs .nav-link.active {
+    color:#1F3864; border-bottom-color:#1F3864; background:#fff;
+  }
+  .verify-tabs .nav-link .badge {
+    background:#e9ecef; color:#1F3864; font-size:.7rem; margin-left:6px;
+    font-weight:600;
+  }
+  .verify-tabs .nav-link.active .badge { background:#1F3864; color:#fff; }
+  .verify-list-group { border-radius:0 0 10px 10px; overflow:hidden; }
+  .verify-item {
+    display:flex; align-items:center; gap:14px;
+    padding:12px 18px; border:none; border-bottom:1px solid #eef2f7;
+    background:#fff; cursor:pointer; transition: background .12s ease;
+    text-align:left; width:100%;
+  }
+  .verify-item:last-child { border-bottom:none; }
+  .verify-item:hover { background:#f5f8ff; }
+  .verify-item.active { background:#EBF0FA; border-left:4px solid #1F3864; padding-left:14px; }
+  .verify-item .v-key {
+    background:#1F3864; color:#fff; font-weight:700; font-family:monospace;
+    border-radius:5px; padding:3px 9px; font-size:.78rem; min-width:50px;
+    text-align:center;
+  }
+  .verify-item.active .v-key { background:#a05a00; }
+  .verify-item .v-title { font-weight:600; color:#1F3864; font-size:.95rem; }
+  .verify-item .v-desc  { color:#6c757d; font-size:.78rem; margin-top:2px; }
+  .badge-reason_missing { background:#ffe5d0; color:#b54200; }
+  .badge-has_alert      { background:#fff3cd; color:#856404; }
+  .company-block.status-reason_missing { border-left-color:#fd7e14; }
+  .company-block.status-has_alert      { border-left-color:#ffc107; }
+  .company-block.status-misplaced      { border-left-color:#dc3545; }
+  .company-block.status-unknown_standard { border-left-color:#6c757d; }
+  .std-tag {
+    display:inline-block; font-family:'Courier New',monospace;
+    padding:2px 7px; border-radius:3px; font-size:.72rem; font-weight:700;
+    background:#dce9fc; color:#1e4a8a;
+  }
+  .std-tag.std-gaap { background:#fff3cd; color:#856404; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'package_verify' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid px-4 pb-5">
+
+  <!-- 결산기간 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-calendar3"></i><span>결산기간</span>
+    </div>
+    <div class="card-body">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <select id="yearSelect" class="form-select" style="max-width:240px;">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+        <span class="text-muted small">선택한 분기의 업로드된 모든 패키지를 대상으로 검증합니다.</span>
+        <span class="badge bg-light text-dark border ms-auto" id="fileCountBadge">
+          <i class="bi bi-archive me-1"></i><span id="fileCount">-</span>개 패키지
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 검증 항목 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-list-check"></i><span>검증 항목</span>
+    </div>
+    <div class="card-body p-0">
+      <ul class="nav verify-tabs px-3 pt-2" role="tablist">
+        <li class="nav-item">
+          <button class="nav-link active" data-group="wcf" type="button"
+                  onclick="selectGroup('wcf')">
+            <i class="bi bi-cash-stack me-1"></i>현금흐름표 검증<span class="badge">6</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-group="note" type="button"
+                  onclick="selectGroup('note')">
+            <i class="bi bi-journal-text me-1"></i>주석 검증<span class="badge">2</span>
+          </button>
+        </li>
+        <li class="nav-item">
+          <button class="nav-link" data-group="asset" type="button"
+                  onclick="selectGroup('asset')">
+            <i class="bi bi-building me-1"></i>유무형자산검증<span class="badge">2</span>
+          </button>
+        </li>
+      </ul>
+
+      <div class="verify-tab-content">
+        <!-- 현금흐름표 검증 -->
+        <div class="verify-pane" id="groupWcf">
+          <div class="verify-list-group">
+            <button type="button" class="verify-item" id="itemWcfDiff"
+                    onclick="selectVerify('wcf-diff')">
+              <span class="v-key">Diff</span>
+              <div class="flex-grow-1">
+                <div class="v-title">WCF Diff 검증</div>
+                <div class="v-desc">현금흐름표의 손익계정이 PL/MF와 불일치하는 경우 원인을 함께 표시 (원인 미기재행도 별도 표기).</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemWcfAccounts"
+                    onclick="selectVerify('wcf-accounts')">
+              <span class="v-key">계정</span>
+              <div class="flex-grow-1">
+                <div class="v-title">WCF 계정 검증</div>
+                <div class="v-desc">비용 컬럼에 수익계정 입력 또는 수익 컬럼에 비용계정 입력된 행 표시.</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemWcfSigns"
+                    onclick="selectVerify('wcf-signs')">
+              <span class="v-key">부호</span>
+              <div class="flex-grow-1">
+                <div class="v-title">WCF 부호 검증</div>
+                <div class="v-desc">투자·재무활동 금액 컬럼에서 동일 CF 코드 합계가 음수인 항목 표시.</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemWcfSeverance"
+                    onclick="selectVerify('wcf-severance')">
+              <span class="v-key">퇴직</span>
+              <div class="flex-grow-1">
+                <div class="v-title">퇴직금 부호 검증</div>
+                <div class="v-desc">WCF CF2200401(퇴직금의 지급) 행들의 합계가 양수인 회사 표시 (Cash-out이라 음수가 정상).</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemCf3Liquidity"
+                    onclick="selectVerify('cf3-liquidity')">
+              <span class="v-key">유동성</span>
+              <div class="flex-grow-1">
+                <div class="v-title">유동성장기차입금 신규차입 검증</div>
+                <div class="v-desc">CF3 시트 유동성장기차입금(2100201) 블록의 '신규차입' Total 금액이 0이 아닌 회사 표시 (유동성대체분이라 신규차입은 비정상).</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemCfOtherTransfer"
+                    onclick="selectVerify('cf-other-transfer')">
+              <span class="v-key">기타증감</span>
+              <div class="flex-grow-1">
+                <div class="v-title">기타증감 내용 검증</div>
+                <div class="v-desc">CF1/CF2/CF3 시트 "2. 기타증감 내용" 표에 상대계정·금액·상세내용 등이 기재된 회사 표시 (시트별 입력행 함께 표시).</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 주석 검증 -->
+        <div class="verify-pane" id="groupNote" style="display:none;">
+          <div class="verify-list-group">
+            <button type="button" class="verify-item" id="itemL2Verify"
+                    onclick="selectVerify('l2-verification')">
+              <span class="v-key">L2</span>
+              <div class="flex-grow-1">
+                <div class="v-title">L2 단기차입금 verification</div>
+                <div class="v-desc">만기분석테이블에서 오류부분이 Y인 회사를 표시. Y인 경우 사유도 함께 보여주며, 사유 미입력 회사는 강조.</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemRetirementBenefit"
+                    onclick="selectVerify('retirement-benefit')">
+              <span class="v-key">퇴직</span>
+              <div class="flex-grow-1">
+                <div class="v-title">퇴직급여 검증</div>
+                <div class="v-desc">IFRS(K-IFRS) 회사가 L3(퇴직급여충당부채)에, K-GAAP 회사가 L3-1(확정급여채무)에 입력값이 있으면 표시.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 유무형자산검증 -->
+        <div class="verify-pane" id="groupAsset" style="display:none;">
+          <div class="verify-list-group">
+            <button type="button" class="verify-item" id="itemCf4OtherTransfer"
+                    onclick="selectVerify('cf4-other-transfer')">
+              <span class="v-key">유형자산</span>
+              <div class="flex-grow-1">
+                <div class="v-title">유형자산 검증</div>
+                <div class="v-desc">CF4 시트 "6. 기타변동 내용" 표에 계정·금액·상대계정 등이 기재된 회사 표시.</div>
+              </div>
+            </button>
+            <button type="button" class="verify-item" id="itemCf41OtherTransfer"
+                    onclick="selectVerify('cf41-other-transfer')">
+              <span class="v-key">무형자산</span>
+              <div class="flex-grow-1">
+                <div class="v-title">무형자산 검증</div>
+                <div class="v-desc">CF4-1 시트 "3. 기타변동 내용" 표에 계정·금액·상대계정 등이 기재된 회사 표시.</div>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-3 py-3 border-top d-flex align-items-center gap-2">
+        <button id="runBtn" class="btn btn-primary" onclick="runVerify()" disabled>
+          <i class="bi bi-play-circle me-1"></i>검증 실행
+        </button>
+        <span class="text-muted small" id="runHint">먼저 검증 항목을 선택하세요.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 -->
+  <div id="resultArea"></div>
+</div>
+
+<script>
+let selectedVerify = null;
+let __fileCount = 0;
+
+// 시트 XML 직접 stream 파싱. 파일당 ~1~2초, 병렬 8개.
+function estimatedSeconds(n) {
+  if (!n) return 0;
+  // 60개 → ~10초
+  return Math.max(3, Math.ceil(n / 8 * 1.5));
+}
+
+async function refreshFileCount() {
+  const year = document.getElementById('yearSelect').value;
+  const badge = document.getElementById('fileCount');
+  try {
+    const res = await fetch('/files?year=' + encodeURIComponent(year));
+    const arr = await res.json();
+    __fileCount = Array.isArray(arr) ? arr.length : 0;
+    badge.textContent = __fileCount;
+  } catch (e) {
+    badge.textContent = '?';
+    __fileCount = 0;
+  }
+}
+
+// 검증 항목 → DOM ID 매핑
+const VERIFY_ITEM_ID = {
+  'wcf-diff':           'itemWcfDiff',
+  'wcf-accounts':       'itemWcfAccounts',
+  'wcf-signs':          'itemWcfSigns',
+  'wcf-severance':      'itemWcfSeverance',
+  'cf3-liquidity':      'itemCf3Liquidity',
+  'cf-other-transfer':  'itemCfOtherTransfer',
+  'l2-verification':    'itemL2Verify',
+  'retirement-benefit': 'itemRetirementBenefit',
+  'cf4-other-transfer': 'itemCf4OtherTransfer',
+  'cf41-other-transfer':'itemCf41OtherTransfer',
+};
+
+// 주석 검증 항목 (4분기에만 실행 가능)
+const NOTE_VERIFY_KINDS = new Set(['l2-verification', 'retirement-benefit']);
+
+function selectGroup(group) {
+  document.querySelectorAll('.verify-tabs .nav-link').forEach(el => {
+    el.classList.toggle('active', el.dataset.group === group);
+  });
+  document.querySelectorAll('.verify-pane').forEach(el => {
+    el.style.display = 'none';
+  });
+  const target = document.getElementById('group' + group.charAt(0).toUpperCase() + group.slice(1));
+  if (target) target.style.display = 'block';
+}
+
+function selectVerify(kind) {
+  selectedVerify = kind;
+  document.querySelectorAll('.verify-item').forEach(el => el.classList.remove('active'));
+  const id = VERIFY_ITEM_ID[kind];
+  if (id) document.getElementById(id).classList.add('active');
+  document.getElementById('runBtn').disabled = false;
+  document.getElementById('runHint').textContent = '결산기간을 확인하고 [검증 실행]을 누르세요.';
+}
+
+function fmtNum(v) {
+  if (v == null || v === '' || isNaN(v)) return '';
+  return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+async function runVerify() {
+  if (!selectedVerify) return;
+  const year = document.getElementById('yearSelect').value;
+  const area = document.getElementById('resultArea');
+
+  // 주석 검증은 4분기에만 실행 가능
+  if (NOTE_VERIFY_KINDS.has(selectedVerify) && !year.endsWith('-4Q')) {
+    area.innerHTML = `
+      <div class="alert alert-warning d-flex align-items-center" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2" style="font-size:1.4rem;"></i>
+        <div>
+          <strong>주석 검증은 4분기(4Q)에만 가능합니다.</strong><br>
+          <span class="small">현재 결산기간: <code>${escHtml(year)}</code> — 주석은 4분기에만 작성되므로 검증도 4분기에서만 의미가 있습니다. 결산기간을 4분기로 변경 후 다시 시도해주세요.</span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>검증 중...';
+  const est = estimatedSeconds(__fileCount);
+  const estLine = __fileCount
+    ? `<div class="text-muted small mt-2">${__fileCount}개 패키지 · 병렬 8개씩 · 약 ${est}초 예상</div>`
+    : '';
+  area.innerHTML = `
+    <div class="text-center py-5 text-muted">
+      <div class="spinner-border text-primary mb-2"></div>
+      <div>패키지 파일 스캔 중...</div>
+      ${estLine}
+      <div class="text-muted small mt-1" style="font-size:.78rem;">
+        ※ 패키지가 많거나 파일이 크면 시간이 더 걸릴 수 있습니다.
+      </div>
+    </div>`;
+
+  try {
+    const res = await fetch(`/admin/package-verify/${selectedVerify}?year=${encodeURIComponent(year)}`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '검증 실패');
+    if (selectedVerify === 'wcf-accounts') renderWcfAccountsResult(data);
+    else if (selectedVerify === 'wcf-signs') renderWcfSignsResult(data);
+    else if (selectedVerify === 'wcf-severance') renderWcfSeveranceResult(data);
+    else if (selectedVerify === 'cf3-liquidity') renderCf3LiquidityResult(data);
+    else if (selectedVerify === 'cf-other-transfer') renderCfOtherTransferResult(data);
+    else if (selectedVerify === 'l2-verification') renderL2VerifyResult(data);
+    else if (selectedVerify === 'retirement-benefit') renderRetirementBenefitResult(data);
+    else if (selectedVerify === 'cf4-other-transfer') renderCf4OtherTransferResult(data);
+    else if (selectedVerify === 'cf41-other-transfer') renderCf4OtherTransferResult(data);
+    else renderWcfDiffResult(data);
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger">${escHtml(e.message)}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>검증 실행';
+  }
+}
+
+function statusBadge(status) {
+  const map = {
+    'error':              {label:'오류',           cls:'badge-error'},
+    'no_sheet':           {label:'시트 없음',       cls:'badge-no_sheet'},
+    'diff_no_reason':     {label:'Reason 누락',    cls:'badge-diff_no_reason'},
+    'diff':               {label:'Diff 있음',      cls:'badge-diff'},
+    'account_misplaced':  {label:'계정 오입력',     cls:'badge-account_misplaced'},
+    'sign_negative':      {label:'합계 음수',       cls:'badge-sign_negative'},
+    'sign_positive':      {label:'합계 양수',       cls:'badge-sign_positive'},
+    'new_borrow_positive':{label:'신규차입 발생',    cls:'badge-sign_positive'},
+    'has_other_transfer': {label:'기타증감 있음',    cls:'badge-has_alert'},
+    'has_cf4_transfer':   {label:'기타변동 있음',    cls:'badge-has_alert'},
+    'reason_missing':     {label:'사유 미입력',     cls:'badge-reason_missing'},
+    'has_alert':          {label:'Y 응답',         cls:'badge-has_alert'},
+    'misplaced':          {label:'시트 오입력',      cls:'badge-account_misplaced'},
+    'unknown_standard':   {label:'기준 미상',        cls:'badge-no_sheet'},
+  };
+  const m = map[status] || {label:status, cls:'badge-diff'};
+  return `<span class="badge-status ${m.cls}">${m.label}</span>`;
+}
+
+function renderWcfDiffResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">모든 회사의 WCF Diff가 0입니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    const rowsTbl = (c.rows && c.rows.length)
+      ? `
+        <div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th style="width:60px;">행</th>
+              <th>J</th><th>K</th><th>L</th>
+              <th class="num">M</th>
+              <th class="num">N (Diff)</th>
+              <th>O (Reason)</th>
+            </tr></thead>
+            <tbody>
+              ${c.rows.map(r => {
+                const reason = (r.o || '').trim();
+                const reasonCell = reason
+                  ? escHtml(reason)
+                  : '<span class="reason-missing">미기재</span>';
+                return `<tr>
+                  <td class="text-muted">${r.row}</td>
+                  <td>${escHtml(r.j ?? '')}</td>
+                  <td>${escHtml(r.k ?? '')}</td>
+                  <td>${escHtml(r.l ?? '')}</td>
+                  <td class="num">${fmtNum(r.m)}</td>
+                  <td class="num text-danger fw-bold">${fmtNum(r.n)}</td>
+                  <td>${reasonCell}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`
+      : (c.message ? `<div class="px-3 pb-3 text-muted small">${escHtml(c.message)}</div>` : '');
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">WCF 시트가 없습니다</span>'
+        : `<span class="text-muted small">${c.rows_count}개 행, Reason 누락 ${c.rows_missing_reason}개</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${rowsTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderWcfAccountsResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-danger"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">WCF의 J열(비용), M열(수익)에 잘못 입력된 계정이 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    const rowsTbl = (c.rows && c.rows.length)
+      ? `
+        <div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th style="width:60px;">행</th>
+              <th style="width:70px;">컬럼</th>
+              <th style="width:110px;">계정코드</th>
+              <th>계정명</th>
+              <th class="num">금액</th>
+              <th>판정</th>
+            </tr></thead>
+            <tbody>
+              ${c.rows.map(r => {
+                const sideCls = r.side === 'J' ? 'side-J' : 'side-M';
+                const judgeText = r.side === 'J'
+                  ? '비용 컬럼에 <strong>수익계정</strong>'
+                  : '수익 컬럼에 <strong>비용계정</strong>';
+                return `<tr>
+                  <td class="text-muted">${r.row}</td>
+                  <td><span class="side-tag ${sideCls}">${r.side}</span></td>
+                  <td><code>${escHtml(r.code)}</code></td>
+                  <td>${escHtml(r.name || '')}</td>
+                  <td class="num">${fmtNum(r.amount)}</td>
+                  <td class="text-danger small">${judgeText}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`
+      : (c.message ? `<div class="px-3 pb-3 text-muted small">${escHtml(c.message)}</div>` : '');
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">WCF 시트가 없습니다</span>'
+        : `<span class="text-muted small">${c.rows_count}개 행 (J→수익 ${c.j_wrong}, M→비용 ${c.m_wrong})</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${rowsTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderWcfSignsResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-danger"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">U/X/AB/AE 컬럼의 모든 CF 코드 합계가 0 이상입니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    const rowsTbl = (c.items && c.items.length)
+      ? `
+        <div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th style="width:60px;">컬럼</th>
+              <th style="width:130px;">활동/방향</th>
+              <th style="width:130px;">CF 코드</th>
+              <th>과목</th>
+              <th class="num">합계</th>
+              <th>입력행</th>
+            </tr></thead>
+            <tbody>
+              ${c.items.map(it => {
+                const rowsCellHtml = (it.rows || []).map(r => {
+                  const cls = (r.amount < 0) ? 'neg' : '';
+                  return `<span class="${cls}">r${r.row}:${fmtNum(r.amount)}</span>`;
+                }).join(', ');
+                return `<tr>
+                  <td><span class="col-tag col-${escHtml(it.column)}">${escHtml(it.column)}</span></td>
+                  <td class="text-muted small">${escHtml(it.label)}</td>
+                  <td><code>${escHtml(it.code)}</code></td>
+                  <td>${escHtml(it.name || '')}</td>
+                  <td class="num text-danger fw-bold">${fmtNum(it.sum)}</td>
+                  <td class="neg-rows-cell">${rowsCellHtml}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`
+      : (c.message ? `<div class="px-3 pb-3 text-muted small">${escHtml(c.message)}</div>` : '');
+
+    const colSummary = c.by_column
+      ? Object.entries(c.by_column).map(([k,v]) => `${k}=${v}`).join(', ')
+      : '';
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">WCF 시트가 없습니다</span>'
+        : `<span class="text-muted small">${c.items_count}건 (${escHtml(colSummary)})</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${rowsTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderWcfSeveranceResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+  const tname = data.target_name || '';
+  const tcode = data.target_code || '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-danger"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small">대상 코드: <code>${escHtml(tcode)}</code> (${escHtml(tname)})</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">${escHtml(tcode)} 합계가 양수인 회사가 없습니다 (음수/0 = 정상).</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    const rowsCellHtml = (c.rows || []).map(r => {
+      const cls = (r.amount != null && r.amount > 0) ? 'neg' : '';
+      const v = (r.amount == null) ? '-' : fmtNum(r.amount);
+      return `<span class="${cls}">r${r.row}:${v}</span>`;
+    }).join(', ');
+
+    const detailTbl = `
+      <div class="px-3 pb-3">
+        <table class="table rows-table mb-0" style="max-width:720px;">
+          <tbody>
+            <tr><th style="width:120px;">코드</th><td><code>${escHtml(c.target_code || tcode)}</code></td></tr>
+            <tr><th>과목</th><td>${escHtml(c.name || tname)}</td></tr>
+            <tr><th>R열 합계</th><td class="num text-danger fw-bold">${fmtNum(c.sum)}</td></tr>
+            <tr><th>입력행</th><td class="neg-rows-cell">${rowsCellHtml}</td></tr>
+          </tbody>
+        </table>
+      </div>`;
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">WCF 시트가 없습니다</span>'
+        : `<span class="text-muted small">합계 <span class="text-danger fw-bold">${fmtNum(c.sum)}</span></span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderCf3LiquidityResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+  const tname = data.target_name || '';
+  const tcode = data.target_code || '';
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-danger"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small">대상: <code>${escHtml(tcode)}</code> (${escHtml(tname)}) · Total ≠ 0</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">유동성장기차입금의 신규차입 금액이 0이 아닌 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    let detailTbl;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || 'CF3 시트 없음')}</div>`;
+    } else {
+      detailTbl = `
+        <div class="px-3 pb-3">
+          <table class="table rows-table mb-0" style="max-width:720px;">
+            <tbody>
+              <tr><th style="width:160px;">계정 / 증감내역</th><td>${escHtml(tname)}</td></tr>
+              <tr><th>행</th><td><code>r${c.row}</code></td></tr>
+              <tr><th>신규차입 (Total)</th><td class="num text-danger fw-bold">${fmtNum(c.new_borrow)}</td></tr>
+              <tr><th>연결범위회사 (E)</th><td class="num">${fmtNum(c.affiliates)}</td></tr>
+              <tr><th>제3자 (F)</th><td class="num">${fmtNum(c.third_party)}</td></tr>
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">CF3 시트가 없습니다</span>'
+        : `<span class="text-muted small">신규차입 <span class="text-danger fw-bold">${fmtNum(c.new_borrow)}</span></span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderCfOtherTransferResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small">대상: CF1/CF2/CF3 "2. 기타증감 내용"</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">CF1/CF2/CF3 기타증감 내용에 기재된 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    let detailTbl;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || '')}</div>`;
+    } else {
+      const bySheet = c.by_sheet || {};
+      const sheetTbls = Object.keys(bySheet).map(sh => {
+        const rows = bySheet[sh] || [];
+        return `
+          <div class="px-3 pb-1">
+            <div class="fw-bold text-muted small mb-1" style="margin-top:6px;">${escHtml(sh)} 시트 (${rows.length}건)</div>
+            <table class="table rows-table table-hover mb-2">
+              <thead><tr>
+                <th style="width:55px;">행</th>
+                <th>계정명</th>
+                <th>상대계정명</th>
+                <th style="width:110px;">상대계정코드</th>
+                <th class="num">금액</th>
+                <th>상세내용</th>
+              </tr></thead>
+              <tbody>
+                ${rows.map(r => `
+                  <tr>
+                    <td class="text-muted"><code>r${r.row}</code></td>
+                    <td>${escHtml(r.name || '')}</td>
+                    <td>${escHtml(r.counter || '')}</td>
+                    <td>${r.code ? `<code>${escHtml(r.code)}</code>` : ''}</td>
+                    <td class="num">${r.amount == null ? '' : fmtNum(r.amount)}</td>
+                    <td>${escHtml(r.detail || '')}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      }).join('');
+      detailTbl = `<div class="table-responsive">${sheetTbls}</div>`;
+    }
+
+    const sheetsLbl = (c.sheets_with_content || []).join(', ');
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">CF1/CF2/CF3 시트가 없습니다</span>'
+        : `<span class="text-muted small">${escHtml(sheetsLbl)} · <strong>${c.entries_count}</strong>건</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderCf4OtherTransferResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  const tgt = data.target_name || 'CF4 기타변동 내용';
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small">대상: ${escHtml(tgt)}</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">${escHtml(tgt)}에 기재된 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    let detailTbl;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || '')}</div>`;
+    } else {
+      const rows = c.entries || [];
+      detailTbl = `
+        <div class="table-responsive px-3 pb-3">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th style="width:55px;">행</th>
+              <th style="width:110px;">계정코드</th>
+              <th>계정명</th>
+              <th class="num">금액</th>
+              <th>상대계정명</th>
+              <th style="width:110px;">상대계정코드</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td class="text-muted"><code>r${r.row}</code></td>
+                  <td>${r.code ? `<code>${escHtml(r.code)}</code>` : ''}</td>
+                  <td>${escHtml(r.name || '')}</td>
+                  <td class="num">${r.amount == null ? '' : fmtNum(r.amount)}</td>
+                  <td>${escHtml(r.counter_name || '')}</td>
+                  <td>${r.counter_code ? `<code>${escHtml(r.counter_code)}</code>` : ''}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? `<span class="text-muted small">${escHtml(c.message || '시트가 없습니다')}</span>`
+        : `<span class="text-muted small"><strong>${c.entries_count}</strong>건</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderL2VerifyResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  // 통계 (사유 미입력 / Y 응답)
+  const missingCount = items.filter(c => c.status === 'reason_missing').length;
+  const hasAlertCount = items.filter(c => c.status === 'has_alert').length;
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>Y 응답 <strong>${data.with_issues}</strong>개사</span>
+      ${missingCount > 0 ? `<span><i class="bi bi-pencil me-1 text-danger"></i>사유 미입력 <strong class="text-danger">${missingCount}</strong>개사</span>` : ''}
+      ${hasAlertCount > 0 ? `<span><i class="bi bi-info-circle me-1 text-warning"></i>사유 입력 <strong>${hasAlertCount}</strong>개사</span>` : ''}
+      <span class="text-muted small">대상 시트: <code>L2</code> Verification 테이블 G열</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">L2 시트 verification 테이블에 G='Y'인 회사가 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    let detailTbl;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">L2 시트가 없습니다.</div>`;
+    } else {
+      const yRows = c.y_rows || [];
+      detailTbl = `
+        <div class="px-3 pb-3">
+          <table class="table rows-table mb-0">
+            <thead><tr>
+              <th style="width:50px;">행</th>
+              <th>계정명</th>
+              <th>종류</th>
+              <th>대주구분</th>
+              <th class="num">금액</th>
+              <th class="num">재무제표</th>
+              <th class="num">차이</th>
+              <th>사유 (H열)</th>
+            </tr></thead>
+            <tbody>
+              ${yRows.map(r => {
+                const amt = r.amount ?? 0;
+                const book = r.book ?? 0;
+                const diff = book - amt;
+                const reasonCell = r.reason
+                  ? escHtml(r.reason)
+                  : '<span class="reason-missing">사유 미입력</span>';
+                return `<tr>
+                  <td><code>r${r.row}</code></td>
+                  <td>${escHtml(r.account)}</td>
+                  <td>${escHtml(r.sub_type)}</td>
+                  <td>${escHtml(r.creditor)}</td>
+                  <td class="num">${fmtNum(amt)}</td>
+                  <td class="num">${fmtNum(book)}</td>
+                  <td class="num ${diff !== 0 ? 'text-danger' : ''}">${fmtNum(diff)}</td>
+                  <td>${reasonCell}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">L2 시트가 없습니다</span>'
+        : `<span class="text-muted small">Y 응답 <strong>${(c.y_rows || []).length}</strong>건</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+function renderRetirementBenefitResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-danger"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small">기준: <code>Cover!B27</code> · IFRS→L3 / K-GAAP→L3-1 입력값 검사</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">모든 회사가 회계기준에 맞는 시트에만 입력했습니다.</p>
+      </div></div>`;
+    return;
+  }
+
+  const blocks = items.map((c, i) => {
+    let detailTbl;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || 'Cover 시트 없음')}</div>`;
+    } else if (c.status === 'unknown_standard') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || '')}</div>`;
+    } else {
+      const rows = c.rows || [];
+      detailTbl = `
+        <div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th style="width:70px;">행</th>
+              <th>항목 (B열)</th>
+              <th class="num">입력값 (C열)</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td class="text-muted"><code>r${r.row}</code></td>
+                  <td>${escHtml(r.label || '')}</td>
+                  <td class="num text-danger fw-bold">${fmtNum(r.value)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`;
+    }
+
+    const stdRaw = c.standard_raw || '';
+    const stdCls = c.standard === 'gaap' ? 'std-gaap' : '';
+    const stdTag = stdRaw
+      ? `<span class="std-tag ${stdCls}">${escHtml(stdRaw)}</span>`
+      : '';
+    const tgtSheet = c.target_sheet || '';
+
+    const headerExtra = c.status === 'error'
+      ? `<span class="text-danger small">${escHtml(c.message || '')}</span>`
+      : c.status === 'no_sheet'
+        ? '<span class="text-muted small">Cover 시트 없음</span>'
+        : c.status === 'unknown_standard'
+          ? `<span class="text-muted small">${escHtml(c.message || '')}</span>`
+          : `<span class="text-muted small"><code>${escHtml(tgtSheet)}</code> 시트에 <strong>${(c.rows || []).length}</strong>개 행 입력됨</span>`;
+
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${stdTag}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+
+  area.innerHTML = summary + blocks;
+}
+
+document.getElementById('yearSelect').addEventListener('change', () => {
+  // 분기 바꾸면 결과 초기화 + 회사 수 갱신
+  document.getElementById('resultArea').innerHTML = '';
+  refreshFileCount();
+});
+
+// 페이지 로드 시 회사 수 미리 조회
+refreshFileCount();
+</script>
+
+</body>
+</html>

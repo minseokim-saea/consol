@@ -1,0 +1,17 @@
+services:
+  consol-web:
+    build: .
+    image: consol-web:latest
+    container_name: consol-web
+    restart: unless-stopped
+    ports:
+      # nginx가 앞단에서 HTTPS를 받으므로 앱 포트는 로컬에만 바인딩 (외부 직접 접근 차단)
+      - "127.0.0.1:5000:5000"
+    volumes:
+      # 코드 + 데이터(uploads/, results/, *.json, secret_key.bin)가
+      # 모두 프로젝트 루트의 상대경로에 있으므로 디렉터리 전체를 마운트.
+      - .:/app
+    environment:
+      - TZ=Asia/Seoul
+    # 종료 시 _state.json flush(atexit)가 끝나도록 여유를 둠
+    stop_grace_period: 60s

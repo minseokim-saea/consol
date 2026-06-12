@@ -1,0 +1,191 @@
+{# 공용 다국어(i18n) 엔진 — index.html 외 페이지(로그인/비밀번호변경/배포용 생성 등)와
+   공용 chrome(_sidebar/_topbar)에서 재사용. localStorage['lang'] 키를 index.html 과 공유한다.
+   ※ index.html 은 자체 인라인 엔진을 쓰므로 이 파셜을 include 하지 않는다(중복 정의 방지). #}
+<style>
+  .lang-btn { font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; line-height: 1.2; }
+  .lang-btn.active { background: #fff; color: #1F3864; font-weight: 700; }
+  .lang-btn:not(.active) { background: transparent; color: rgba(255,255,255,0.65); }
+</style>
+<script>
+(function () {
+  if (window.__I18N_SHARED__) return;   // 한 페이지에서 1회만
+  window.__I18N_SHARED__ = true;
+
+  const DICT = {
+    ko: {
+      // 공용 상단/사이드바
+      'app.title':'연결 재무보고 통합 시스템',
+      'top.main':'메인페이지','nav.users':'사용자 관리','top.permgroups':'권한그룹 관리',
+      'nav.password':'비밀번호 변경','nav.logout':'로그아웃','nav.admin':'관리자',
+      'side.home':'홈 (합산)','side.distribute':'배포용 생성','side.wce_input':'WCE 본사입력',
+      'side.wce_agg':'WCE 합산','side.pkg_verify':'패키지 검증','side.consol':'연결정산표',
+      'side.cash':'현금정산표','side.dashboard':'연결 대시보드','side.timeseries':'시계열 분석',
+      'side.note':'주석합산','side.coa':'COA Audit',
+      // 로그인
+      'login.sub':'로그인','login.user':'아이디','login.user_ph':'아이디 입력',
+      'login.pw':'비밀번호','login.pw_ph':'비밀번호 입력','login.btn':'로그인',
+      // 2단계 인증(OTP)
+      'tfa.login_title':'2단계 인증','tfa.login_desc':'인증 앱(Google Authenticator 등)에 표시된 6자리 코드를 입력하세요.',
+      'tfa.code':'인증 코드','tfa.code_ph':'6자리 코드','tfa.verify':'확인','tfa.back_login':'로그인으로 돌아가기',
+      'tfa.setup_title':'2단계 인증(OTP) 등록','tfa.setup_force':'보안 정책에 따라 OTP 등록 후 시스템을 이용할 수 있습니다.',
+      'tfa.app_hint':'Google Authenticator · Microsoft Authenticator · Authy 등과 호환됩니다.',
+      'tfa.step1':'① 인증 앱으로 아래 QR 코드를 스캔하세요','tfa.step1_alt':'QR을 스캔할 수 없으면 이 키를 수동 입력하세요:',
+      'tfa.step2':'② 앱에 표시된 6자리 코드를 입력해 등록을 완료하세요','tfa.enable':'등록 완료',
+      'tfa.already':'이미 2단계 인증이 설정되어 있습니다.','tfa.already_reset':'재설정이 필요하면 관리자에게 2FA 초기화를 요청하세요.',
+      'tfa.to_main':'메인으로',
+      // 비밀번호 변경
+      'cpw.title':'비밀번호 변경','cpw.main':'메인으로','cpw.cur':'현재 비밀번호',
+      'cpw.new':'새 비밀번호','cpw.new_hint':'(6자 이상)','cpw.confirm':'새 비밀번호 확인',
+      'cpw.save':'변경 저장',
+      // 배포용 생성 — 정적
+      'dist.tpl_title':'① 빈 패키지 템플릿 등록','dist.admin_only':'(관리자 전용)',
+      'dist.tpl_desc':'자회사가 결산 데이터를 입력할 빈 패키지 양식(.xlsm)을 연도별 1개 등록합니다. 등록된 템플릿이 배포용 파일의 원본이 됩니다.',
+      'dist.year':'결산 연도','dist.quarter':'결산 분기','dist.tpl_file':'빈 템플릿 파일 (.xlsm)',
+      'dist.tpl_register':'템플릿 등록','dist.registered_tpls':'등록된 템플릿:',
+      'dist.pwd_title':'② 분기별 시트 보호 비밀번호',
+      'dist.pwd_desc':'분기 시작 전 비밀번호를 1회 등록해두면, 해당 분기에 만들어지는 모든 배포용 파일이 이 비밀번호로 시트 잠금됩니다. 자회사 사용자에게는 노출되지 않습니다.',
+      'dist.pwd_label':'비밀번호 (4자 이상)','dist.pwd_ph':'이 분기에 사용할 비밀번호',
+      'dist.save':'저장','dist.registered_pwds':'등록된 분기 비밀번호:',
+      'dist.sub_info':'본인 담당 회사의 배포용 패키지 파일을 직접 생성할 수 있습니다. 생성된 파일의 시트 보호 비밀번호는 관리자만 알고 있으며, 자회사는 TB(m) 시트에만 입력 가능합니다.',
+      'dist.registered_tpls_inline':'등록된 템플릿:',
+      'dist.gen_title':'배포용 파일 생성','dist.sheet_protect':'시트 보호',
+      'dist.target_co':'대상 회사 선택','dist.co_search':'회사명 검색...',
+      'dist.select_all':'전체 선택','dist.select_none':'전체 해제',
+      'dist.gen_btn':'배포용 파일 일괄 생성','dist.result_title':'생성 결과',
+      'dist.dl_note':'개별 파일 다운로드만 제공됩니다',
+      'dist.th_company':'회사명','dist.th_status':'상태','dist.th_bs_src':'BS 출처',
+      'dist.th_pl_src':'PL 출처','dist.th_fill':'BS / PL 채움','dist.th_dl':'개별 다운로드',
+      'q.1':'1분기','q.2':'2분기','q.3':'3분기','q.4':'4분기',
+      // 배포용 생성 — 동적
+      'dist.loading':'로딩 중...','dist.tpl_none':'등록된 템플릿 없음','dist.search_none':'검색 결과 없음',
+      'dist.pwd_none':'등록된 분기 비밀번호 없음','dist.query_fail':'조회 실패',
+      'dist.checking':'분기 비밀번호 확인 중...','dist.pwd_check_fail':'분기 비밀번호 상태 확인 실패',
+      'dist.guide_admin':'위 카드에서 먼저 비밀번호를 등록하세요.','dist.guide_sub':'관리자에게 분기 비밀번호 등록을 요청하세요.',
+      'dist.pwd_min':'비밀번호는 4자 이상이어야 합니다.','dist.save_fail':'저장 실패',
+      'dist.tpl_upload_fail':'템플릿 업로드 실패','dist.select_co_min':'회사를 1개 이상 선택하세요.',
+      'dist.preparing':'준비 중...','dist.done':'완료','dist.success':'성공','dist.fail':'실패',
+      'dist.deleting_title':'삭제',
+      '_fn': {
+        'dist.tpl_pill':   (y,kb)=>`${y}년 (${kb}KB)`,
+        'dist.pwd_set':    (y,q)=>`${y}-${q}Q 분기 비밀번호 등록됨.`,
+        'dist.pwd_set_sfx':()=>` 생성되는 모든 파일이 이 비밀번호로 시트 잠금됩니다.`,
+        'dist.pwd_unset':  (y,q)=>`${y}-${q}Q 분기 비밀번호 미등록`,
+        'dist.confirm_del':(k)=>`${k} 분기 비밀번호를 삭제할까요?`,
+        'dist.pwd_saved':  (y,q)=>`${y}-${q}Q 분기 비밀번호 저장 완료`,
+        'dist.tpl_saved':  (y)=>`${y}년 템플릿 등록 완료`,
+        'dist.processing': (co)=>`처리 중: ${co}  (이 회사는 약 1~2분 소요 가능)`,
+        'dist.done_sec':   (s)=>`완료 (총 ${s}초)`,
+        'dist.gen_summary':(ok,fail,s)=>`생성 완료 — 성공 ${ok}개${fail?`, 실패 ${fail}개`:''} (${s}초)`,
+      },
+    },
+    en: {
+      'app.title':'Consolidated Financial Reporting System',
+      'top.main':'Main','nav.users':'User Management','top.permgroups':'Permission Groups',
+      'nav.password':'Change Password','nav.logout':'Logout','nav.admin':'Admin',
+      'side.home':'Home (Aggregate)','side.distribute':'Create Package','side.wce_input':'WCE HQ Input',
+      'side.wce_agg':'WCE Aggregate','side.pkg_verify':'Package Verify','side.consol':'Consolidation',
+      'side.cash':'Cash Worksheet','side.dashboard':'Dashboard','side.timeseries':'Time Series',
+      'side.note':'Notes Aggregate','side.coa':'COA Audit',
+      'login.sub':'Login','login.user':'Username','login.user_ph':'Enter username',
+      'login.pw':'Password','login.pw_ph':'Enter password','login.btn':'Login',
+      'tfa.login_title':'Two-Factor Authentication','tfa.login_desc':'Enter the 6-digit code from your authenticator app (e.g., Google Authenticator).',
+      'tfa.code':'Verification Code','tfa.code_ph':'6-digit code','tfa.verify':'Verify','tfa.back_login':'Back to login',
+      'tfa.setup_title':'Set Up Two-Factor Authentication','tfa.setup_force':'Per security policy, you must set up OTP before using the system.',
+      'tfa.app_hint':'Compatible with Google Authenticator, Microsoft Authenticator, Authy, etc.',
+      'tfa.step1':'① Scan the QR code below with your authenticator app','tfa.step1_alt':'If you cannot scan the QR, enter this key manually:',
+      'tfa.step2':'② Enter the 6-digit code shown in the app to finish','tfa.enable':'Enable',
+      'tfa.already':'Two-factor authentication is already enabled.','tfa.already_reset':'If you need to reset it, ask an admin to reset your 2FA.',
+      'tfa.to_main':'Main',
+      'cpw.title':'Change Password','cpw.main':'Main','cpw.cur':'Current Password',
+      'cpw.new':'New Password','cpw.new_hint':'(6+ characters)','cpw.confirm':'Confirm New Password',
+      'cpw.save':'Save',
+      'dist.tpl_title':'① Register Blank Package Template','dist.admin_only':'(Admin only)',
+      'dist.tpl_desc':'Register one blank package form (.xlsm) per year for subsidiaries to enter closing data. The registered template becomes the source of distributed files.',
+      'dist.year':'Fiscal Year','dist.quarter':'Fiscal Quarter','dist.tpl_file':'Blank Template File (.xlsm)',
+      'dist.tpl_register':'Register Template','dist.registered_tpls':'Registered templates:',
+      'dist.pwd_title':'② Quarterly Sheet Protection Password',
+      'dist.pwd_desc':'Register a password once before the quarter starts; all distributed files created that quarter will be sheet-locked with it. It is not exposed to subsidiary users.',
+      'dist.pwd_label':'Password (4+ chars)','dist.pwd_ph':'Password for this quarter',
+      'dist.save':'Save','dist.registered_pwds':'Registered quarter passwords:',
+      'dist.sub_info':'You can directly create the distribution package file for your assigned company. The sheet protection password is known only to the admin; subsidiaries can only enter data in the TB(m) sheet.',
+      'dist.registered_tpls_inline':'Registered templates:',
+      'dist.gen_title':'Create Distribution Files','dist.sheet_protect':'Sheet Protection',
+      'dist.target_co':'Select Target Companies','dist.co_search':'Search company...',
+      'dist.select_all':'Select All','dist.select_none':'Clear All',
+      'dist.gen_btn':'Generate Distribution Files','dist.result_title':'Results',
+      'dist.dl_note':'Individual file download only',
+      'dist.th_company':'Company','dist.th_status':'Status','dist.th_bs_src':'BS Source',
+      'dist.th_pl_src':'PL Source','dist.th_fill':'BS / PL Filled','dist.th_dl':'Download',
+      'q.1':'Q1','q.2':'Q2','q.3':'Q3','q.4':'Q4',
+      'dist.loading':'Loading...','dist.tpl_none':'No templates registered','dist.search_none':'No results',
+      'dist.pwd_none':'No quarter passwords registered','dist.query_fail':'Query failed',
+      'dist.checking':'Checking quarter password...','dist.pwd_check_fail':'Failed to check quarter password',
+      'dist.guide_admin':'Register the password in the card above first.','dist.guide_sub':'Ask an admin to register the quarter password.',
+      'dist.pwd_min':'Password must be at least 4 characters.','dist.save_fail':'Save failed',
+      'dist.tpl_upload_fail':'Template upload failed','dist.select_co_min':'Select at least one company.',
+      'dist.preparing':'Preparing...','dist.done':'Done','dist.success':'Success','dist.fail':'Fail',
+      'dist.deleting_title':'Delete',
+      '_fn': {
+        'dist.tpl_pill':   (y,kb)=>`${y} (${kb}KB)`,
+        'dist.pwd_set':    (y,q)=>`${y}-${q}Q quarter password registered.`,
+        'dist.pwd_set_sfx':()=>` All generated files will be sheet-locked with this password.`,
+        'dist.pwd_unset':  (y,q)=>`${y}-${q}Q quarter password not registered`,
+        'dist.confirm_del':(k)=>`Delete the ${k} quarter password?`,
+        'dist.pwd_saved':  (y,q)=>`${y}-${q}Q quarter password saved`,
+        'dist.tpl_saved':  (y)=>`${y} template registered`,
+        'dist.processing': (co)=>`Processing: ${co}  (this company may take ~1-2 min)`,
+        'dist.done_sec':   (s)=>`Done (total ${s}s)`,
+        'dist.gen_summary':(ok,fail,s)=>`Done — ${ok} succeeded${fail?`, ${fail} failed`:''} (${s}s)`,
+      },
+    },
+  };
+
+  let lang = localStorage.getItem('lang') || 'ko';
+
+  function t(key, ...args) {
+    const tbl = DICT[lang] || DICT.ko;
+    const fn = (tbl._fn || {})[key] || (DICT.ko._fn || {})[key];
+    if (typeof fn === 'function') return fn(...args);
+    const v = tbl[key];
+    if (v != null) return v;
+    return (DICT.ko[key] != null) ? DICT.ko[key] : key;
+  }
+
+  function applyI18n() {
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      const v = t(el.getAttribute('data-i18n'));
+      if (typeof v === 'string') el.textContent = v;
+    });
+    document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+      const v = t(el.getAttribute('data-i18n-ph'));
+      if (typeof v === 'string') el.setAttribute('placeholder', v);
+    });
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.lang === lang);
+    });
+    document.documentElement.lang = lang;
+  }
+
+  function setLanguage(l) {
+    lang = l;
+    localStorage.setItem('lang', l);
+    applyI18n();
+    if (typeof window.onI18nChange === 'function') {
+      try { window.onI18nChange(lang); } catch (e) { /* page hook 오류 무시 */ }
+    }
+  }
+
+  // 전역 노출 (페이지 스크립트에서 t()/getLang() 사용)
+  window.t = t;
+  window.getLang = () => lang;
+  window.applyI18n = applyI18n;
+  window.setLanguage = setLanguage;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.lang-btn').forEach(btn => {
+      btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+    });
+    applyI18n();
+  });
+})();
+</script>

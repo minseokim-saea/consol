@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WCE 자본내역 합산 - 연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background:#f0f4f8; font-family:'Pretendard','Malgun Gothic',Arial,sans-serif; }
+  .navbar { background:#1F3864 !important; }
+  .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(31,56,100,0.08); }
+  .card-header {
+    background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%);
+    color:#fff; border-radius:12px 12px 0 0 !important;
+    padding:0.85rem 1.25rem; font-weight:600;
+  }
+  .table-wce { font-size:.82rem; }
+  .table-wce th { background:#EBF0FA; color:#1F3864; font-weight:600; vertical-align:middle; text-align:center; }
+  .table-wce td { vertical-align:middle; padding:6px 8px; }
+  .num { text-align:right; font-family:'Courier New',monospace; }
+  .num-local {
+    color:#6c757d; font-size:.72rem; line-height:1.1; display:block;
+    border-bottom:1px dashed #cfd8e3; padding-bottom:1px; margin-bottom:1px;
+  }
+  .num-krw { color:#1F3864; font-weight:600; line-height:1.2; display:block; }
+  .num-zero { color:#bbb; }
+  .row-ending td { background:#fff5e6; font-weight:700; }
+  .row-ending .num-krw { color:#a05a00; }
+  .col-total { background:#fff8d4; font-weight:700; }
+  .col-total .num-krw { color:#7a5c00; }
+  .row-ending.col-total, td.row-ending.col-total { background:#fff0bf; }
+  .badge-ko { background:#e8edf5; color:#1F3864; font-family:monospace; font-weight:700; padding:3px 8px; border-radius:4px; }
+  .badge-cur { background:#fff3cd; color:#856404; font-family:monospace; font-weight:600; padding:2px 6px; font-size:.7rem; border-radius:3px; margin-left:4px; }
+  .badge-no-wce { background:#f8d7da; color:#842029; font-size:.7rem; padding:2px 6px; border-radius:3px; }
+  .code-header { background:#f5f8ff; color:#1F3864; padding:6px 12px; font-weight:600; border-radius:6px; margin:14px 0 6px; }
+  .table-wce thead.sticky th { position:sticky; top:0; z-index:2; }
+  .table-wce td.sticky-left { position:sticky; left:0; background:#fafafa; font-weight:500; z-index:1; min-width:150px; }
+  .table-wce td.row-ending.sticky-left { background:#fff5e6; }
+  .table-responsive { max-height: 70vh; }
+  .display-toggle { background:#fff; padding:8px 12px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.05); }
+  .checkbox-area {
+    display:flex; flex-wrap:wrap; gap:8px;
+    max-height: 280px; overflow-y: auto;
+    padding:12px; background:#f8f9fa; border-radius:8px;
+  }
+  .form-check { margin-bottom:0; min-width:240px; }
+  .toolbar { background:#fff; padding:12px 16px; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+  .currency-summary { font-size:.78rem; color:#6c757d; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'wce_aggregate' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid px-4 pb-5">
+
+  <!-- 상단 컨트롤 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-funnel"></i>
+      <span>합산 조건</span>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 align-items-start">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1">결산기간</label>
+          <select id="yearSelect" class="form-select form-select-sm">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>
+              {% set m = y.split('-') %}{{ m[0] }}년 {{ m[1][0] }}분기
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold mb-1">표시 옵션</label>
+          <div class="display-toggle">
+            <div class="form-check form-switch mb-1">
+              <input type="checkbox" id="optShowLocal" class="form-check-input" checked>
+              <label for="optShowLocal" class="form-check-label small">현지통화 함께 표시</label>
+            </div>
+            <div class="form-check form-switch mb-0">
+              <input type="checkbox" id="optHideZeroRows" class="form-check-input">
+              <label for="optHideZeroRows" class="form-check-label small">합계 0인 행 숨기기</label>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold mb-1 d-flex justify-content-between">
+            <span>대상 회사 (WCE 입력 데이터 보유)</span>
+            <span>
+              <button id="btnSelAll" class="btn btn-sm btn-link p-0 text-decoration-none">전체 선택</button>
+              <span class="text-muted">|</span>
+              <button id="btnSelNone" class="btn btn-sm btn-link p-0 text-decoration-none">선택 해제</button>
+              <span class="text-muted">|</span>
+              <button id="btnSelHasWce" class="btn btn-sm btn-link p-0 text-decoration-none">입력 있는 회사만</button>
+            </span>
+          </label>
+          <!-- 그룹 필터 (그룹정보.xlsx 기반) -->
+          <div id="groupFilterArea" class="mb-2 p-2 rounded" style="display:none; background:#f8f9fa; font-size:0.85rem;">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="small fw-bold text-secondary"><i class="bi bi-diagram-3 me-1"></i>그룹</span>
+              <div id="groupBtns" class="d-flex flex-wrap gap-1"></div>
+              <button id="btnClearGroupSelection" class="btn btn-sm btn-link text-muted text-decoration-none p-0">
+                <i class="bi bi-x-circle me-1"></i><span class="small">초기화</span>
+              </button>
+            </div>
+          </div>
+          <div id="companyList" class="checkbox-area">
+            <div class="text-muted small">불러오는 중...</div>
+          </div>
+        </div>
+      </div>
+      <div class="d-flex justify-content-end mt-3 gap-2">
+        <button id="btnRun" class="btn btn-primary">
+          <i class="bi bi-calculator me-1"></i>합산 실행
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결과 영역 -->
+  <div id="resultArea">
+    <div class="card mb-4">
+      <div class="card-body text-center text-muted py-5">
+        <i class="bi bi-bar-chart fs-1 d-block mb-2"></i>
+        조건을 선택하고 <strong>합산 실행</strong>을 눌러주세요.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- 토스트 -->
+<div id="toast-container" style="position:fixed; bottom:32px; right:32px; z-index:9999;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const YEAR_INITIAL = {{ year | tojson }};
+
+function showToast(msg, type='info', duration=3000) {
+  const c = document.getElementById('toast-container');
+  const id = 'toast_' + Date.now();
+  c.insertAdjacentHTML('beforeend', `
+    <div id="${id}" class="toast align-items-center text-white bg-${type} border-0 mb-2 show" role="alert">
+      <div class="d-flex">
+        <div class="toast-body">${msg}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>`);
+  setTimeout(() => document.getElementById(id)?.remove(), duration);
+}
+
+function fmtNum(n) {
+  if (n == null || n === '' || isNaN(n)) return '0';
+  return Math.round(n).toLocaleString('ko-KR');
+}
+function fmtLocal(n) {
+  if (n == null || n === '' || isNaN(n)) return '-';
+  if (n === 0) return '-';
+  return Number(n).toLocaleString('ko-KR', { maximumFractionDigits: 2 });
+}
+function currentYear() {
+  return document.getElementById('yearSelect').value;
+}
+
+// ── 회사 목록 로드 ─────────────────────────────────────
+async function loadCompanies() {
+  const year = currentYear();
+  const list = document.getElementById('companyList');
+  list.innerHTML = '<div class="text-muted small">불러오는 중...</div>';
+  try {
+    // 임시로 빈 ids로 데이터 호출 → companies만 추출
+    const res = await fetch(`/admin/wce/aggregate/data?year=${encodeURIComponent(year)}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const cos = data.companies || [];
+    if (!cos.length) {
+      list.innerHTML = '<div class="text-muted small">이 기간에 업로드된 패키지 파일이 없습니다.</div>';
+      return;
+    }
+    list.innerHTML = cos.map(co => `
+      <div class="form-check">
+        <input class="form-check-input co-chk" type="checkbox" id="co_${co.id}" value="${co.id}"
+               data-company="${(co.company || '').replace(/"/g,'&quot;')}"
+               ${co.has_wce ? 'checked' : ''}>
+        <label class="form-check-label small" for="co_${co.id}">
+          ${co.company}
+          <span class="badge-cur">${co.currency || '?'}</span>
+          ${co.has_wce ? '' : '<span class="badge-no-wce ms-1">미입력</span>'}
+        </label>
+      </div>`).join('');
+    updateGroupBadges();
+  } catch (e) {
+    list.innerHTML = `<div class="text-danger small">로드 실패: ${e.message}</div>`;
+  }
+}
+
+// ── 그룹 필터 (패키지 합산과 동일 패턴) ────────────────────────
+let _groups = {};
+const _norm = s => (s || '').trim().toLowerCase();
+const _gid  = g => 'gbadge_' + g.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+
+async function loadGroups() {
+  try {
+    const res = await fetch('/groups');
+    const data = await res.json();
+    _groups = data.groups || {};
+    renderGroupButtons();
+  } catch(e) { /* 그룹 정보 없으면 무시 */ }
+}
+
+function renderGroupButtons() {
+  const area = document.getElementById('groupFilterArea');
+  const btns = document.getElementById('groupBtns');
+  const names = Object.keys(_groups);
+  if (!names.length) { area.style.display = 'none'; return; }
+  area.style.display = '';
+  btns.innerHTML = names.map(g =>
+    `<button type="button" class="btn btn-sm btn-outline-secondary group-btn py-0" data-group="${g}" style="font-size:0.78rem;">`+
+    `${g} <span class="badge bg-secondary ms-1" id="${_gid(g)}">0</span></button>`
+  ).join('');
+  // 버튼 이벤트 위임
+  btns.querySelectorAll('.group-btn').forEach(b => {
+    b.addEventListener('click', () => toggleGroup(b.dataset.group));
+  });
+  document.getElementById('btnClearGroupSelection')?.addEventListener('click', () => {
+    document.querySelectorAll('.co-chk').forEach(c => c.checked = false);
+    updateGroupBadges();
+  });
+  updateGroupBadges();
+}
+
+function toggleGroup(groupName) {
+  const companies = new Set((_groups[groupName] || []).map(_norm));
+  const chks = [...document.querySelectorAll('.co-chk')];
+  const matching = chks.filter(c => companies.has(_norm(c.dataset.company || '')));
+  if (!matching.length) { showToast(`"${groupName}" 그룹에 해당하는 파일이 없습니다.`, 'info'); return; }
+  const allChecked = matching.every(c => c.checked);
+  matching.forEach(c => c.checked = !allChecked);
+  updateGroupBadges();
+}
+
+function updateGroupBadges() {
+  const chks = [...document.querySelectorAll('.co-chk')];
+  Object.entries(_groups).forEach(([g, companies]) => {
+    const badgeEl = document.getElementById(_gid(g));
+    const btnEl = document.querySelector(`.group-btn[data-group="${g}"]`);
+    if (!badgeEl || !btnEl) return;
+    const normCompanies = companies.map(_norm);
+    const matchingChks = chks.filter(c => normCompanies.includes(_norm(c.dataset.company || '')));
+    const matchCount = matchingChks.length;
+    const checkedCount = matchingChks.filter(c => c.checked).length;
+    badgeEl.textContent = `${checkedCount}/${matchCount}`;
+    // 모두 체크 시 active 스타일
+    if (matchCount > 0 && checkedCount === matchCount) {
+      btnEl.classList.add('btn-primary');
+      btnEl.classList.remove('btn-outline-secondary');
+    } else {
+      btnEl.classList.add('btn-outline-secondary');
+      btnEl.classList.remove('btn-primary');
+    }
+  });
+}
+
+// ── 합산 실행 ─────────────────────────────────────────
+async function runAggregate() {
+  const year = currentYear();
+  const ids = [...document.querySelectorAll('.co-chk:checked')].map(c => c.value);
+  if (!ids.length) { showToast('하나 이상의 회사를 선택하세요', 'warning'); return; }
+
+  const btn = document.getElementById('btnRun');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>집계 중...';
+  document.getElementById('resultArea').innerHTML =
+    '<div class="card"><div class="card-body text-center text-muted py-5"><div class="spinner-border text-primary mb-2"></div><div>집계 중...</div></div></div>';
+
+  try {
+    const res = await fetch(`/admin/wce/aggregate/data?year=${encodeURIComponent(year)}&ids=${encodeURIComponent(JSON.stringify(ids))}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    renderResult(data);
+  } catch (e) {
+    document.getElementById('resultArea').innerHTML =
+      `<div class="alert alert-danger">합산 실패: ${e.message}</div>`;
+    showToast(e.message, 'danger', 4500);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-calculator me-1"></i>합산 실행';
+  }
+}
+
+// ── 결과 렌더링 ───────────────────────────────────────
+function renderResult(data) {
+  const area = document.getElementById('resultArea');
+  const showLocal = document.getElementById('optShowLocal').checked;
+  const hideZero = document.getElementById('optHideZeroRows').checked;
+  const companies = data.companies || [];
+
+  if (!companies.length) {
+    area.innerHTML = '<div class="alert alert-warning">선택된 회사 없음</div>';
+    return;
+  }
+
+  // 통화 분포 요약
+  const curMap = {};
+  companies.forEach(co => { curMap[co.currency] = (curMap[co.currency] || 0) + 1; });
+  const curSummary = Object.entries(curMap)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => `${c}×${n}`)
+    .join(' · ');
+
+  let html = `
+    <div class="alert alert-info py-2 mb-3">
+      <i class="bi bi-info-circle me-1"></i>
+      <strong>${data.year}</strong> · 회사 ${companies.length}개사 합산
+      <span class="currency-summary ms-2">(통화: ${curSummary})</span>
+      <span class="ms-2 text-muted small">·
+        ⚠ 통화가 다른 회사 간 <em>현지통화 합산은 의미 없음</em> → KRW만 합계 산출
+      </span>
+    </div>
+  `;
+
+  data.tables.forEach(table => {
+    html += renderTable(table, companies, showLocal, hideZero);
+  });
+
+  area.innerHTML = html;
+}
+
+function renderCell(bc, showLocal, currency) {
+  const local = bc?.local || 0;
+  const krw   = bc?.krw   || 0;
+  const localCls = local === 0 ? 'num-local num-zero' : 'num-local';
+  const krwCls   = krw === 0 ? 'num-krw num-zero'   : 'num-krw';
+  if (showLocal) {
+    return `
+      <td class="num">
+        <span class="${localCls}" title="현지통화 ${currency}">${fmtLocal(local)}</span>
+        <span class="${krwCls}">${fmtNum(krw)}</span>
+      </td>`;
+  }
+  return `<td class="num"><span class="${krwCls}">${fmtNum(krw)}</span></td>`;
+}
+
+function renderTotalCell(totalKrw, showLocal, isEnding) {
+  const cls = totalKrw === 0 ? 'num-krw num-zero' : 'num-krw';
+  const tdCls = 'num col-total' + (isEnding ? ' row-ending' : '');
+  if (showLocal) {
+    return `
+      <td class="${tdCls}">
+        <span class="num-local num-zero" title="통화가 다른 회사 간 현지 합산 불가">-</span>
+        <span class="${cls}">${fmtNum(totalKrw)}</span>
+      </td>`;
+  }
+  return `<td class="${tdCls}"><span class="${cls}">${fmtNum(totalKrw)}</span></td>`;
+}
+
+function renderTable(table, companies, showLocal, hideZero) {
+  // 각 코드별 sub-section 렌더
+  let inner = '';
+  table.columns.forEach(col => {
+    inner += renderCodeSubsection(table, col, companies, showLocal, hideZero);
+  });
+
+  return `
+    <div class="card mb-4">
+      <div class="card-header">
+        <i class="bi bi-table me-2"></i>${table.id}. ${table.title_ko}
+        <span class="text-white-50 small ms-2">(${table.title_en})</span>
+        <span class="badge bg-light text-dark ms-2 fw-normal" style="font-size:.75rem;">
+          ${table.columns.length}개 코드 × ${table.rows.length}개 행
+        </span>
+      </div>
+      <div class="card-body p-3">
+        ${inner}
+      </div>
+    </div>`;
+}
+
+function renderCodeSubsection(table, col, companies, showLocal, hideZero) {
+  const cells = table.cells;
+  const ending = (table.ending || {})[col.code] || {};
+
+  // 헤더
+  let html = `<div class="code-header">
+    <span class="badge-ko">${col.code}</span>
+    <span class="ms-2">${col.name}</span>
+  </div>`;
+
+  // 회사 컬럼: 회사명 (통화)
+  let thead = `<tr>
+    <th class="sticky-left" style="text-align:left; min-width:140px;">증감 항목</th>`;
+  companies.forEach(co => {
+    thead += `<th>${co.company}<br><span class="badge-cur">${co.currency}</span></th>`;
+  });
+  thead += `<th class="col-total">합계 (KRW)</th></tr>`;
+
+  let tbody = '';
+  table.rows.forEach(row => {
+    // 합계가 0이고 hideZero면 스킵
+    const cellKey = `${col.code}::${row.key}`;
+    const cell = cells[cellKey] || {by_company:{}, total_krw:0};
+    if (hideZero && cell.total_krw === 0 &&
+        Object.values(cell.by_company).every(b => (b.local || 0) === 0 && (b.krw || 0) === 0)) {
+      return;
+    }
+    tbody += `<tr>`;
+    tbody += `<td class="sticky-left">${row.key}</td>`;
+    companies.forEach(co => {
+      const bc = (cell.by_company || {})[co.company] || {local:0, krw:0};
+      tbody += renderCell(bc, showLocal, co.currency);
+    });
+    tbody += renderTotalCell(cell.total_krw, showLocal, false);
+    tbody += `</tr>`;
+  });
+
+  // 기말금액 자동 행
+  tbody += `<tr class="row-ending">`;
+  tbody += `<td class="sticky-left row-ending">기말금액 (자동)</td>`;
+  companies.forEach(co => {
+    const bc = (ending.by_company || {})[co.company] || {local:0, krw:0};
+    const local = bc.local || 0;
+    const krw   = bc.krw   || 0;
+    if (showLocal) {
+      const localCls = local === 0 ? 'num-local num-zero' : 'num-local';
+      const krwCls   = krw   === 0 ? 'num-krw num-zero'   : 'num-krw';
+      tbody += `<td class="num row-ending">
+        <span class="${localCls}" title="현지통화 ${co.currency}">${fmtLocal(local)}</span>
+        <span class="${krwCls}">${fmtNum(krw)}</span>
+      </td>`;
+    } else {
+      tbody += `<td class="num row-ending"><span class="num-krw">${fmtNum(krw)}</span></td>`;
+    }
+  });
+  tbody += renderTotalCell(ending.total_krw || 0, showLocal, true);
+  tbody += `</tr>`;
+
+  html += `
+    <div class="table-responsive">
+      <table class="table table-bordered table-hover table-wce mb-0">
+        <thead class="sticky">${thead}</thead>
+        <tbody>${tbody}</tbody>
+      </table>
+    </div>`;
+  return html;
+}
+
+// ── 이벤트 바인딩 ─────────────────────────────────────
+document.getElementById('yearSelect').addEventListener('change', loadCompanies);
+document.getElementById('btnRun').addEventListener('click', runAggregate);
+document.getElementById('btnSelAll').addEventListener('click', () => {
+  document.querySelectorAll('.co-chk').forEach(c => c.checked = true);
+  updateGroupBadges();
+});
+document.getElementById('btnSelNone').addEventListener('click', () => {
+  document.querySelectorAll('.co-chk').forEach(c => c.checked = false);
+  updateGroupBadges();
+});
+document.getElementById('btnSelHasWce').addEventListener('click', () => {
+  document.querySelectorAll('.co-chk').forEach(c => {
+    const lbl = document.querySelector(`label[for="${c.id}"]`);
+    c.checked = lbl ? !lbl.textContent.includes('미입력') : false;
+  });
+  updateGroupBadges();
+});
+document.getElementById('optShowLocal').addEventListener('change', () => {
+  // 결과가 이미 있으면 토글만 반영 (재요청 없이)
+  const btn = document.getElementById('btnRun');
+  if (!document.getElementById('resultArea').querySelector('.code-header')) return;
+  // 간단한 방법: 다시 실행
+  runAggregate();
+});
+document.getElementById('optHideZeroRows').addEventListener('change', () => {
+  if (!document.getElementById('resultArea').querySelector('.code-header')) return;
+  runAggregate();
+});
+
+// 체크박스 변경 시 그룹 배지 동기화
+document.getElementById('companyList').addEventListener('change', e => {
+  if (e.target.classList.contains('co-chk')) updateGroupBadges();
+});
+
+// 초기 로드
+loadGroups();
+loadCompanies();
+</script>
+</body>
+</html>

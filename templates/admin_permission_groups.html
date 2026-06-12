@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>권한그룹 관리</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+:root { --brand-900:#1F3864; --brand-500:#4472C4; }
+body { background:#f0f4f8; font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Arial,sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border-radius:10px; border:none; box-shadow:0 1px 6px rgba(0,0,0,0.08); }
+.perm-table th { background:#1F3864; color:#fff; }
+.perm-table td { vertical-align:middle; }
+.perm-table .category-row td { background:#EBF0FA; font-weight:600; color:#1F3864; }
+.group-card { border-radius:8px; border:1px solid #dee2e6; background:#fff; }
+.group-card.system { border-left:4px solid #1F3864; }
+.group-card .group-header { padding:.6rem 1rem; display:flex; justify-content:space-between; align-items:center; gap:.5rem; background:#f8f9fa; border-bottom:1px solid #dee2e6; border-radius:8px 8px 0 0; }
+.group-card .group-body { padding:.8rem 1rem; }
+.perm-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:.4rem 1.2rem; }
+@media (max-width: 768px) { .perm-grid { grid-template-columns:1fr; } }
+.perm-grid label { font-size:.88rem; }
+.perm-cat-header { font-weight:700; color:#1F3864; font-size:.85rem; grid-column:1/-1; margin-top:.4rem; border-bottom:1px dashed #cfd6dd; padding-bottom:2px; }
+.btn-system-warning { pointer-events:none; opacity:.5; }
+</style>
+</head>
+<body>
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h5 class="mb-1"><i class="bi bi-shield-lock-fill text-primary"></i> 권한그룹 관리</h5>
+        <small class="text-muted">기능별 권한을 그룹으로 묶고 사용자에게 부여합니다. 사용자별 권한그룹 변경은 <a href="{{ url_for('admin_users') }}">사용자 관리</a>에서 가능합니다.</small>
+      </div>
+      <button class="btn btn-primary" onclick="openCreateModal()">
+        <i class="bi bi-plus-lg"></i> 새 권한그룹 추가
+      </button>
+    </div>
+  </div>
+
+  <div id="groupsContainer" class="row g-3">
+    <div class="col-12 text-center text-muted py-5">
+      <span class="spinner-border"></span><br>로딩 중…
+    </div>
+  </div>
+
+</div>
+
+<!-- 생성 / 수정 모달 -->
+<div class="modal fade" id="groupModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1F3864; color:#fff;">
+        <h5 class="modal-title" id="groupModalTitle">권한그룹</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3" id="idField">
+          <label class="form-label fw-bold">권한그룹 ID (영문/숫자/언더스코어)</label>
+          <input type="text" class="form-control" id="gmId" placeholder="예: custom_role">
+          <div class="form-text">생성 후에는 변경할 수 없습니다.</div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label fw-bold">권한그룹 이름</label>
+          <input type="text" class="form-control" id="gmName" placeholder="예: 결산담당자">
+        </div>
+        <h6 class="mt-4 mb-2"><i class="bi bi-key-fill text-primary"></i> 권한 토글</h6>
+        <div id="gmPermsArea" class="perm-grid">
+          <!-- JS로 채움 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-primary" id="gmSaveBtn" onclick="saveGroup()">
+          <i class="bi bi-save"></i> 저장
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let DATA = { definitions: [], groups: {}, user_count_by_group: {} };
+let MODAL_MODE = 'create';
+let MODAL_GID = '';
+
+function escapeHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+async function load() {
+  const r = await fetch('/admin/permission-groups/data');
+  const j = await r.json();
+  if (!r.ok) { alert(j.error || '로드 실패'); return; }
+  DATA = j;
+  renderGroups();
+}
+
+function renderGroups() {
+  const c = document.getElementById('groupsContainer');
+  const groups = DATA.groups || {};
+  const defs = DATA.definitions || [];
+  // 카테고리별로 정의 묶기
+  const byCat = {};
+  defs.forEach(d => { (byCat[d.category] = byCat[d.category] || []).push(d); });
+
+  c.innerHTML = Object.keys(groups).map(gid => {
+    const g = groups[gid];
+    const userCount = DATA.user_count_by_group[gid] || 0;
+    const isSystem = !!g.system;
+
+    let permsHtml = '';
+    Object.keys(byCat).forEach(cat => {
+      permsHtml += `<div class="mb-2"><small class="text-muted fw-bold">${escapeHtml(cat)}</small></div>`;
+      permsHtml += '<div class="d-flex flex-wrap gap-2 mb-2">';
+      byCat[cat].forEach(d => {
+        const on = !!(g.perms && g.perms[d.key]);
+        permsHtml += `<span class="badge ${on ? 'bg-success' : 'bg-secondary'}" title="${escapeHtml(d.key)}">
+          ${on ? '✓' : '✗'} ${escapeHtml(d.label)}
+        </span>`;
+      });
+      permsHtml += '</div>';
+    });
+
+    return `
+      <div class="col-lg-6">
+        <div class="group-card ${isSystem ? 'system' : ''}">
+          <div class="group-header">
+            <div>
+              <strong>${escapeHtml(g.name)}</strong>
+              <small class="text-muted ms-2 font-monospace">${escapeHtml(gid)}</small>
+              ${isSystem ? '<span class="badge bg-primary ms-2">시스템 기본</span>' : ''}
+              <small class="text-muted ms-2">· 사용자 ${userCount}명</small>
+            </div>
+            <div class="btn-group btn-group-sm">
+              <button class="btn btn-outline-primary" onclick="openEditModal('${escapeHtml(gid)}')">
+                <i class="bi bi-pencil"></i> 수정
+              </button>
+              <button class="btn btn-outline-danger ${isSystem ? 'btn-system-warning' : ''}"
+                      onclick="deleteGroup('${escapeHtml(gid)}')"
+                      ${isSystem ? 'disabled title="시스템 기본 그룹은 삭제 불가"' : ''}>
+                <i class="bi bi-trash"></i> 삭제
+              </button>
+            </div>
+          </div>
+          <div class="group-body">
+            ${permsHtml}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openCreateModal() {
+  MODAL_MODE = 'create';
+  MODAL_GID = '';
+  document.getElementById('groupModalTitle').textContent = '새 권한그룹 추가';
+  document.getElementById('idField').style.display = '';
+  document.getElementById('gmId').value = '';
+  document.getElementById('gmId').readOnly = false;
+  document.getElementById('gmName').value = '';
+  renderPermsArea({});
+  new bootstrap.Modal(document.getElementById('groupModal')).show();
+}
+
+function openEditModal(gid) {
+  const g = (DATA.groups || {})[gid];
+  if (!g) return;
+  MODAL_MODE = 'edit';
+  MODAL_GID = gid;
+  document.getElementById('groupModalTitle').textContent = '권한그룹 수정 — ' + g.name;
+  document.getElementById('idField').style.display = 'none';
+  document.getElementById('gmId').value = gid;
+  document.getElementById('gmName').value = g.name || '';
+  renderPermsArea(g.perms || {});
+  new bootstrap.Modal(document.getElementById('groupModal')).show();
+}
+
+function renderPermsArea(perms) {
+  const defs = DATA.definitions || [];
+  const byCat = {};
+  defs.forEach(d => { (byCat[d.category] = byCat[d.category] || []).push(d); });
+  const area = document.getElementById('gmPermsArea');
+  let html = '';
+  Object.keys(byCat).forEach(cat => {
+    html += `<div class="perm-cat-header">${escapeHtml(cat)}</div>`;
+    byCat[cat].forEach(d => {
+      const on = !!perms[d.key];
+      html += `
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" id="pm-${d.key}" data-perm-key="${d.key}" ${on ? 'checked' : ''}>
+          <label class="form-check-label" for="pm-${d.key}">
+            ${escapeHtml(d.label)} <small class="text-muted font-monospace">(${d.key})</small>
+          </label>
+        </div>`;
+    });
+  });
+  area.innerHTML = html;
+}
+
+async function saveGroup() {
+  const name = document.getElementById('gmName').value.trim();
+  if (!name) { alert('권한그룹 이름을 입력하세요.'); return; }
+  const perms = {};
+  document.querySelectorAll('#gmPermsArea input[data-perm-key]').forEach(el => {
+    perms[el.dataset.permKey] = el.checked;
+  });
+  let r;
+  try {
+    if (MODAL_MODE === 'create') {
+      const id = document.getElementById('gmId').value.trim();
+      if (!id) { alert('권한그룹 ID를 입력하세요.'); return; }
+      r = await fetch('/admin/permission-groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, perms }),
+      });
+    } else {
+      r = await fetch(`/admin/permission-groups/${encodeURIComponent(MODAL_GID)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, perms }),
+      });
+    }
+  } catch (e) {
+    alert('네트워크 오류: ' + e.message);
+    return;
+  }
+  let j = null;
+  try { j = await r.json(); } catch (_) { /* HTML 응답 등 비-JSON */ }
+  if (!r.ok) {
+    alert((j && j.error) ? j.error : `저장 실패 (HTTP ${r.status})`);
+    return;
+  }
+  bootstrap.Modal.getInstance(document.getElementById('groupModal')).hide();
+  load();
+}
+
+async function deleteGroup(gid) {
+  const g = (DATA.groups || {})[gid];
+  if (!g) return;
+  if (!confirm(`권한그룹 "${g.name}" 을(를) 삭제하시겠습니까?`)) return;
+  const r = await fetch(`/admin/permission-groups/${encodeURIComponent(gid)}`, { method: 'DELETE' });
+  const j = await r.json();
+  if (!r.ok) {
+    let msg = j.error || '삭제 실패';
+    if (j.in_use_users) msg += '\n대상 사용자: ' + j.in_use_users.join(', ');
+    alert(msg);
+    return;
+  }
+  load();
+}
+
+load();
+</script>
+</body>
+</html>

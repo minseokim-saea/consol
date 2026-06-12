@@ -1,0 +1,40 @@
+{# 공용 상단 네비게이션 — 모든 페이지가 동일한 상단 항목을 갖도록 하는 include.
+   메인페이지(index.html)의 상단 항목과 동일하게 유지하고 "메인페이지" 버튼을 추가한다.
+   언어 토글(한국어/English)은 공유 i18n 엔진(_i18n.html)으로 동작하며, 선택값은
+   localStorage 로 메인페이지와 공유된다. (메뉴/상단바 라벨이 선택 언어를 따라감)
+   username/is_admin 은 context_processor 가 자동 주입(개별 render 에서 같은 키 전달 시 그것이 우선). #}
+{% include '_i18n.html' %}
+<nav class="navbar navbar-dark px-3 py-2 mb-4" style="background:var(--brand-900,#1F3864) !important;">
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <a class="navbar-brand fw-bold mb-0" href="/">
+      <i class="bi bi-bar-chart-fill me-2" aria-hidden="true"></i><span data-i18n="app.title">연결 재무보고 통합 시스템</span>
+    </a>
+    <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+      <div class="d-flex border border-secondary rounded-pill overflow-hidden me-1" style="gap:1px;">
+        <button type="button" class="btn btn-sm lang-btn border-0" data-lang="ko">한국어</button>
+        <button type="button" class="btn btn-sm lang-btn border-0" data-lang="en">English</button>
+      </div>
+      <a href="/" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-house-door-fill me-1" aria-hidden="true"></i><span data-i18n="top.main">메인페이지</span>
+      </a>
+      <span class="text-white-50 small me-1">
+        <i class="bi bi-person-circle me-1" aria-hidden="true"></i>{{ username }}
+        {% if is_admin %}<span class="badge bg-danger ms-1" data-i18n="nav.admin">관리자</span>{% endif %}
+      </span>
+      {% if is_admin %}
+      <a href="/admin/users" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-people me-1" aria-hidden="true"></i><span data-i18n="nav.users">사용자 관리</span>
+      </a>
+      <a href="/admin/permission-groups" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-shield-lock-fill me-1" aria-hidden="true"></i><span data-i18n="top.permgroups">권한그룹 관리</span>
+      </a>
+      {% endif %}
+      <a href="/change-password" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-key me-1" aria-hidden="true"></i><span data-i18n="nav.password">비밀번호 변경</span>
+      </a>
+      <a href="/logout" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i><span data-i18n="nav.logout">로그아웃</span>
+      </a>
+    </div>
+  </div>
+</nav>

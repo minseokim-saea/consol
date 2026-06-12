@@ -1,0 +1,18 @@
+# 빌드 컨텍스트 최소화 (이미지에는 requirements.txt만 들어감)
+# 런타임 파일은 docker-compose의 바인드 마운트로 공급되므로 여기 제외돼도 무관
+python/
+venv/
+__pycache__/
+uploads/
+results/
+ppt_screenshots/
+_slide_preview/
+*.log
+*.xlsm
+*.xlsx
+*.pptx
+*.docx
+*.bak
+*.bak.*
+.git/
+.claude/

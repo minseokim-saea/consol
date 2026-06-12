@@ -1,0 +1,154 @@
+{# 좌측 사이드바 (관리자 메뉴) — 공용 include.
+   사용 페이지에서 그냥 {% include '_sidebar.html' %} 만 추가하면 됨.
+   `perms`/`is_admin` 변수는 context_processor 가 자동 주입. #}
+
+<style>
+  /* 사이드바 폭 + 우측 여유 공간 */
+  body { padding-left: 224px; padding-right: 16px; }
+
+  /* 상단 네비바를 화면 전체 폭으로 확장 (body padding 무시) →
+     사이드바 위쪽 좌측 빈 영역도 네이비색으로 채워짐.
+     Bootstrap 유틸리티(px-3 등)가 !important로 적용되므로 여기도 !important 사용. */
+  body > nav.navbar {
+    margin-left: -224px !important;
+    margin-right: -16px !important;
+    padding-left: 224px !important;
+    padding-right: 16px !important;
+  }
+
+  /* 메인 콘텐츠 가운데 정렬 + max-width 확대 (좌우 여백 축소) */
+  @media (min-width: 992px) {
+    .container { max-width: 1600px; margin-left: auto; margin-right: auto; }
+  }
+  @media (max-width: 991px) {
+    body { padding-left: 0; padding-right: 0; }
+    body > nav.navbar {
+      margin-left: 0 !important; margin-right: 0 !important;
+      padding-left: 12px !important; padding-right: 12px !important;
+    }
+  }
+
+  .side-nav {
+    position: fixed;
+    top: 80px;
+    left: 16px;
+    width: 196px;
+    z-index: 1030;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(31,56,100,0.10);
+    padding: 8px 4px;
+    overflow: hidden;
+  }
+  .side-nav .side-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    color: #1F3864;
+    text-decoration: none;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: background .15s;
+  }
+  .side-nav .side-link:hover { background: #EBF0FA; }
+  .side-nav .side-link.active { background: #EBF0FA; color: #1F3864; }
+  .side-nav .side-link i { font-size: 1.25rem; flex-shrink: 0; width: 24px; text-align: center; }
+
+  .side-nav .side-signature {
+    margin-top: 10px;
+    padding: 8px 12px 4px;
+    border-top: 1px solid #e5e9f0;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: #6c757d;
+    text-align: center;
+    user-select: none;
+  }
+  .side-nav .side-signature .sig-name {
+    display: block;
+    font-weight: 600;
+    color: #1F3864;
+    letter-spacing: 0.3px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .side-nav .side-signature { border-top-color: #334155; color: #94a3b8; }
+    .side-nav .side-signature .sig-name { color: #6FA1E0; }
+  }
+
+  @media (max-width: 991px) {
+    .side-nav { position: relative; top: 0; left: 0; width: 100%; margin: 12px 0; }
+  }
+</style>
+
+<aside class="side-nav" aria-label="기능 메뉴">
+  <a href="/" class="side-link {% if active_menu == 'home' %}active{% endif %}" title="홈">
+    <i class="bi bi-house-fill" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.home">홈 (합산)</span>
+  </a>
+  {% if perms and perms.distribute_run %}
+  <a href="/distribute" class="side-link {% if active_menu == 'distribute' %}active{% endif %}" title="배포용 패키지 생성">
+    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.distribute">배포용 생성</span>
+  </a>
+  {% endif %}
+  {% if perms and perms.wce_manage %}
+  <a href="/admin/wce" class="side-link {% if active_menu == 'wce' %}active{% endif %}" title="WCE 본사입력">
+    <i class="bi bi-table" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.wce_input">WCE 본사입력</span>
+  </a>
+  <a href="/admin/wce/aggregate" class="side-link {% if active_menu == 'wce_aggregate' %}active{% endif %}" title="WCE 합산">
+    <i class="bi bi-calculator" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.wce_agg">WCE 합산</span>
+  </a>
+  {% endif %}
+  {% if perms and perms.package_verify %}
+  <a href="/admin/package-verify" class="side-link {% if active_menu == 'package_verify' %}active{% endif %}" title="패키지 검증">
+    <i class="bi bi-clipboard-check" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.pkg_verify">패키지 검증</span>
+  </a>
+  {% endif %}
+  {% if perms and (perms.consol_compute or perms.consol_journal) %}
+  <a href="/consolidation" class="side-link {% if active_menu == 'consolidation' %}active{% endif %}" title="연결정산표">
+    <i class="bi bi-calculator-fill" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.consol">연결정산표</span>
+  </a>
+  {% endif %}
+  {% if perms and perms.cash_compute %}
+  <a href="/cash-worksheet" class="side-link {% if active_menu == 'cash_worksheet' %}active{% endif %}" title="현금정산표">
+    <i class="bi bi-cash-stack" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.cash">현금정산표</span>
+  </a>
+  {% endif %}
+  {% if perms and (perms.consol_compute or perms.consol_journal) %}
+  <a href="/consolidation/dashboard" class="side-link {% if active_menu == 'consol_dashboard' %}active{% endif %}" title="연결 대시보드">
+    <i class="bi bi-speedometer2" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.dashboard">연결 대시보드</span>
+  </a>
+  <a href="/timeseries" class="side-link {% if active_menu == 'timeseries' %}active{% endif %}" title="시계열 분석">
+    <i class="bi bi-graph-up" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.timeseries">시계열 분석</span>
+  </a>
+  {% endif %}
+  {% if perms and perms.note_aggregate %}
+  <a href="/admin/note-aggregate" class="side-link {% if active_menu == 'note_aggregate' %}active{% endif %}" title="주석 합산">
+    <i class="bi bi-journal-text" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.note">주석합산</span>
+  </a>
+  {% endif %}
+  {% if perms and perms.coa_audit %}
+  <a href="/admin/coa-audit" class="side-link {% if active_menu == 'coa_audit' %}active{% endif %}" title="COA Audit">
+    <i class="bi bi-search" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.coa">COA Audit</span>
+  </a>
+  {% endif %}
+
+  <div class="side-signature" title="기획 · 설계">
+    Planned &amp; Designed by
+    <span class="sig-name">Minseo Kim</span>
+  </div>
+</aside>

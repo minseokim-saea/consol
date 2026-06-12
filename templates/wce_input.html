@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ company }} - WCE 입력 ({{ year }})</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background:#f0f4f8; font-family:'Malgun Gothic', Arial, sans-serif; }
+  .navbar { background:#1F3864 !important; }
+  .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(31,56,100,0.08); margin-bottom:24px; }
+  .card-header {
+    background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%);
+    color:#fff; border-radius:12px 12px 0 0 !important;
+    padding:0.85rem 1.25rem;
+  }
+  .card-header .table-no {
+    display:inline-block; min-width:28px; height:28px;
+    background:rgba(255,255,255,0.25); border-radius:50%;
+    text-align:center; line-height:28px; font-weight:700; margin-right:8px;
+  }
+  .wce-table { font-size:0.88rem; margin-bottom:0; }
+  .wce-table th, .wce-table td {
+    padding:6px 8px; vertical-align:middle; border:1px solid #dee2e6;
+  }
+  .wce-table thead th {
+    background:#EBF0FA; color:#1F3864; font-weight:600; text-align:center;
+    font-size:0.82rem;
+  }
+  .wce-table thead th.code-row { background:#dde6f5; font-size:0.74rem; color:#555; font-family: monospace; }
+  .wce-table tbody td.label-cell { background:#fafbfd; font-weight:500; min-width:200px; }
+  .wce-table .total-cell {
+    background:#fff5e6; font-weight:600; color:#9c5700;
+    text-align:right; font-variant-numeric:tabular-nums;
+  }
+  .wce-input {
+    width:100%; border:none; background:transparent;
+    text-align:right; font-variant-numeric:tabular-nums;
+    font-size:0.88rem; padding:2px 4px;
+  }
+  .wce-input:focus { outline:2px solid #1F3864; background:#fff; border-radius:3px; }
+  .wce-input.is-modified { background:#fffbea; }
+  .wce-input.wce-readonly {
+    color:#9c5700; font-weight:600; cursor:not-allowed;
+    background:transparent;
+  }
+  .wce-input.wce-readonly:focus { outline:none; background:transparent; }
+  td.auto-cell { background:#fff5e6; }
+  td.label-cell.auto-cell { background:#fff5e6 !important; }
+
+  /* 셀 내 현지/환산 분리 표시 */
+  .cell-stack { display:flex; flex-direction:column; gap:1px; }
+  .local-value {
+    font-size:0.72rem; color:#6c757d; text-align:right;
+    font-style:italic; padding:1px 4px; line-height:1.2;
+    border-bottom:1px dashed #d8dde6;
+    font-variant-numeric:tabular-nums;
+  }
+  .local-value.local-empty { color:#cdd2d8; font-style:normal; }
+  .local-value.local-positive { color:#1F3864; }
+  .cell-stack .wce-input { font-size:0.88rem; padding:2px 4px; }
+
+  /* 미입력 셀 — 빨간 외곽선 + 경고 아이콘 */
+  td.missing-cell {
+    background:#fef2f2 !important;
+    box-shadow: inset 0 0 0 2px #dc3545;
+  }
+  td.missing-cell .local-value { color:#dc3545; font-weight:600; }
+  td.missing-cell .wce-input { color:#dc3545; }
+
+  /* 헤더의 통화 안내 */
+  .currency-hint { font-size:0.72rem; color:#1F3864; font-weight:600; }
+
+  /* 플로팅 버튼 그룹 */
+  .float-btn-group {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 1050;
+  }
+  .float-btn {
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.2);
+    cursor: pointer;
+    text-decoration: none;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .float-btn:hover { transform: scale(1.1); box-shadow: 0 6px 18px rgba(0,0,0,0.28); }
+  .float-btn-list  { background:#1F3864; color:#fff; }
+  .float-btn-save  { background:#198754; color:#fff; }
+  .float-btn-top   { background:#f8f9fa; color:#1F3864; border:1px solid #dee2e6; }
+
+  .sticky-bar {
+    position:sticky; top:0; z-index:50;
+    background:#fff; border-bottom:1px solid #dee2e6;
+    padding:12px 0; margin-bottom:20px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.04);
+  }
+  .meta-info { font-size:0.82rem; color:#666; }
+
+  /* 테이블 가로 스크롤 시에도 첫 열은 고정 */
+  .table-scroll { overflow-x:auto; }
+  .wce-table tbody td.label-cell {
+    position:sticky; left:0; z-index:1;
+  }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'wce' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<!-- 상단 고정 바: 회사명 + 저장 -->
+<div class="sticky-bar">
+  <div class="container d-flex flex-wrap align-items-center gap-3">
+    <div>
+      <div class="text-muted small">{{ year.split('-')[0] }}년 {{ year.split('-')[1][0] }}분기</div>
+      <div class="fw-bold fs-5"><i class="bi bi-building me-1"></i>{{ company }}</div>
+    </div>
+    <div class="meta-info ms-auto">
+      {% if meta and meta.updated_at %}
+      <i class="bi bi-clock-history me-1"></i>최근: {{ meta.updated_at }}{% if meta.updated_by %} · {{ meta.updated_by }}{% endif %}
+      {% else %}
+      <span class="text-warning"><i class="bi bi-pencil me-1"></i>미입력 상태</span>
+      {% endif %}
+    </div>
+    <button id="saveBtn" class="btn btn-primary" onclick="saveAll()">
+      <i class="bi bi-floppy me-1"></i>전체 저장
+    </button>
+    <button class="btn btn-outline-danger" onclick="clearAll()">
+      <i class="bi bi-trash me-1"></i>전체 0으로 초기화
+    </button>
+  </div>
+</div>
+
+<div class="container pb-5">
+
+  <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-info-circle-fill"></i>
+    <div class="small">
+      각 셀의 <span class="text-muted fst-italic">윗줄 회색</span>은 패키지 파일의 <strong>현지통화 값</strong>(WCE 시트 1~132행),
+      <span class="fw-semibold">아랫줄 입력</span>은 본사가 직접 입력하는 <strong>KRW 환산값</strong>입니다.
+      <span class="ms-2 text-success">기말금액·합계는 자동 계산됩니다.</span>
+    </div>
+  </div>
+
+  {% if has_local %}
+  <div class="alert {% if missing.count %}alert-danger{% else %}alert-success{% endif %} d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-{% if missing.count %}exclamation-octagon-fill{% else %}check-circle-fill{% endif %}"></i>
+    <div class="small flex-grow-1">
+      {% if missing.count %}
+      <strong>미입력 셀 {{ missing.count }}개 발견</strong> — 현지통화에 값이 있는데 KRW 환산값이 비어있습니다.
+      빨간색으로 강조된 셀을 확인 후 입력해주세요.
+      {% else %}
+      <strong>미입력 셀 없음</strong> — 현지통화에 값이 있는 셀은 모두 KRW 환산값이 입력되어 있습니다.
+      {% endif %}
+      <span class="text-muted ms-2">
+        통화: <span class="currency-hint">{{ currency or '?' }}</span>
+        {% if fx_avg %} · 당기 평균환율 {{ '{:,.2f}'.format(fx_avg) }} KRW{% endif %}
+      </span>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert alert-secondary d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-cloud-slash"></i>
+    <div class="small">
+      <strong>패키지 파일이 업로드되지 않았습니다.</strong> 현지통화 값을 표시하려면 해당 회사의 패키지 파일을 먼저 업로드하세요.
+      (이미 업로드된 파일은 메인에서 <em>재분석</em> 후 다시 진입하세요.)
+    </div>
+  </div>
+  {% endif %}
+
+  {% if auto_re_meta %}
+  <div class="alert {% if auto_re_meta.has_data %}alert-success{% else %}alert-secondary{% endif %} d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-{% if auto_re_meta.has_data %}magic{% else %}cloud-slash{% endif %}"></i>
+    <div class="small flex-grow-1">
+      {% if auto_re_meta.has_data %}
+      <strong>5번 이익잉여금 자동 연결됨</strong> — 패키지 파일의 WCE 시트(현지통화) ×당기 평균환율로
+      <em>당기순이익 · 보험수리적손익 · R/E조정</em> 행이 자동 채워졌습니다.
+      <span class="text-muted ms-2">소스: {{ auto_re_meta.source_file }}</span>
+      {% else %}
+      <strong>패키지 파일이 업로드되지 않았습니다.</strong> 자동 RE(당기순이익/보험수리적손익/R/E조정) 채우기를 사용하려면
+      먼저 해당 회사의 패키지 파일을 업로드하세요.
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% if is_first_year %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <div class="small">
+      <strong>{{ year.split('-')[0] }}년 {{ year.split('-')[1][0] }}분기는 시스템 운영 첫 해입니다.</strong>
+      기초금액을 직접 입력해주세요. 다음 분기부터는 전년도 4분기 기말금액이 자동으로 채워집니다.
+    </div>
+  </div>
+  {% elif is_new_company %}
+  <div class="alert alert-info d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-plus-circle-fill"></i>
+    <div class="small flex-grow-1">
+      <strong>신규 편입 회사로 감지되었습니다.</strong>
+      전년도({{ prior_meta.year if prior_meta else '' }}) 패키지 파일이 없어서 기초금액을 자동으로 가져올 수 없어요.
+      <strong>기초금액을 직접 입력해주세요.</strong>
+      <div class="text-muted mt-1" style="font-size:0.85em;">
+        <i class="bi bi-info-circle me-1"></i>
+        만약 전년도 패키지 업로드를 깜박하신 거라면, 먼저 해당 파일을 업로드한 후 이 페이지를 새로고침하세요.
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="alert {% if prior_meta and prior_meta.has_data %}alert-success{% else %}alert-danger{% endif %} d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-{% if prior_meta and prior_meta.has_data %}check-circle-fill{% else %}exclamation-octagon-fill{% endif %}"></i>
+    <div class="small flex-grow-1">
+      {% if prior_meta and prior_meta.has_data %}
+      <strong>기초금액 자동 연결됨</strong> — 전년도 4분기({{ prior_meta.year }}) 기말금액을 가져왔습니다.
+      <span class="text-muted ms-2">(최근 수정: {{ prior_meta.updated_at }}{% if prior_meta.updated_by %} · {{ prior_meta.updated_by }}{% endif %})</span>
+      {% else %}
+      <strong>전년도 4분기({{ prior_meta.year if prior_meta else '' }}) 입력값이 없습니다.</strong>
+      모든 기초금액이 0으로 표시됩니다. 먼저 {{ prior_meta.year if prior_meta else '' }} 데이터를 입력해주세요.
+      {% endif %}
+    </div>
+    {% if prior_meta %}
+    <a href="/admin/wce/{{ prior_meta.year }}/{{ company | urlencode }}" class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-arrow-up-right me-1"></i>{{ prior_meta.year }} 입력 화면으로
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% for table in tables %}
+  <div class="card" data-table-id="{{ table.id }}">
+    <div class="card-header d-flex align-items-center">
+      <span class="table-no">{{ table.id }}</span>
+      <span class="fw-bold">{{ table.title_ko }} ({{ table.title_en }})</span>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-scroll">
+        <table class="wce-table table mb-0">
+          <thead>
+            <tr>
+              <th class="code-row" rowspan="2" style="width:240px; min-width:200px;">구분</th>
+              {% for col in table.columns %}
+              <th class="code-row">{{ col.code }}</th>
+              {% endfor %}
+              {% if table.columns|length > 1 %}<th class="code-row" rowspan="2">Total (자동)</th>{% endif %}
+            </tr>
+            <tr>
+              {% for col in table.columns %}
+              <th>{{ col.name }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in table.rows %}
+            {% set is_auto_beginning = (row.key == '기초금액' and not is_first_year and not is_new_company) %}
+            {# 행 전체가 자동인지 (라벨에 자동 배지 표시 용) — 기초금액 또는 모든 셀이 auto_cells_set에 포함되는 경우 #}
+            {% set is_row_auto_re = false %}
+            {% if not is_auto_beginning %}
+              {% set ns = namespace(all_auto=true, any_auto=false) %}
+              {% for col in table.columns %}
+                {% if (table.id|string + ':' + col.code + ':' + row.key) in auto_cells_set %}
+                  {% set ns.any_auto = true %}
+                {% else %}
+                  {% set ns.all_auto = false %}
+                {% endif %}
+              {% endfor %}
+              {% set is_row_auto_re = ns.any_auto %}
+            {% endif %}
+            <tr data-row-key="{{ row.key }}" {% if is_auto_beginning %}data-auto-beginning="1"{% endif %}>
+              <td class="label-cell {% if is_auto_beginning or is_row_auto_re %}auto-cell{% endif %}">
+                {{ row.key }}
+                {% if is_auto_beginning %}
+                <span class="badge bg-secondary ms-1" style="font-size:0.65rem;" title="전년도 4분기 기말금액 자동">자동</span>
+                {% elif is_row_auto_re %}
+                <span class="badge bg-info ms-1" style="font-size:0.65rem;" title="WCE 시트 현지통화 × 당기 평균환율">RE자동</span>
+                {% endif %}
+                {% if row.name_en %}<span class="text-muted small d-block">{{ row.name_en }}</span>{% endif %}
+              </td>
+              {% for col in table.columns %}
+              {% set cell_key = table.id|string + ':' + col.code + ':' + row.key %}
+              {% set v = (values.get(table.id|string, {}).get(col.code, {}).get(row.key, 0)) %}
+              {% set is_auto_re_cell = cell_key in auto_cells_set %}
+              {% set is_readonly = is_auto_beginning or is_auto_re_cell %}
+              {% set local_v = local_lookup.get(cell_key, 0) %}
+              {% set is_missing = cell_key in missing_set %}
+              {% set cell_classes = [] %}
+              {% if is_readonly %}{% set _ = cell_classes.append('auto-cell') %}{% endif %}
+              {% if is_missing %}{% set _ = cell_classes.append('missing-cell') %}{% endif %}
+              <td{% if cell_classes %} class="{{ cell_classes|join(' ') }}"{% endif %}>
+                <div class="cell-stack">
+                  <div class="local-value {% if local_v %}local-positive{% else %}local-empty{% endif %}"
+                       title="현지통화 ({{ currency or '?' }})">
+                    {% if local_v %}{{ '{:,.0f}'.format(local_v|float) }}{% else %}-{% endif %}
+                  </div>
+                  <input type="text" class="wce-input{% if is_readonly %} wce-readonly{% endif %}"
+                         data-table="{{ table.id }}"
+                         data-code="{{ col.code }}"
+                         data-row="{{ row.key }}"
+                         data-local="{{ local_v|float }}"
+                         value="{{ '{:,.0f}'.format(v|float) if v else '0' }}"
+                         {% if is_readonly %}readonly tabindex="-1"
+                           title="{% if is_auto_beginning %}전년도 4분기 기말금액 (자동){% else %}WCE 시트 현지통화 × 당기 평균환율 (자동){% endif %}"{% endif %}
+                         {% if is_missing %}aria-label="미입력 셀 — 현지통화 값이 있는데 KRW 환산값이 0입니다"{% endif %}
+                         oninput="onCellInput(this)">
+                </div>
+              </td>
+              {% endfor %}
+              {% if table.columns|length > 1 %}
+              <td class="total-cell row-total">0</td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+
+            <!-- 자동 계산: 기말금액 = 기초 + 증감 (환산효과 제외) -->
+            <tr style="background:#fff5e6;" data-computed="ending">
+              <td class="label-cell"><strong>기말금액 (자동)</strong><span class="text-muted small d-block">Ending = 기초 + 증감</span></td>
+              {% for col in table.columns %}
+              <td class="total-cell col-ending" data-code="{{ col.code }}">
+                <div class="cell-stack">
+                  <div class="local-value local-ending local-empty" title="현지통화 ({{ currency or '?' }}) 기말">-</div>
+                  <span class="ending-krw">0</span>
+                </div>
+              </td>
+              {% endfor %}
+              {% if table.columns|length > 1 %}
+              <td class="total-cell row-total ending-total">
+                <div class="cell-stack">
+                  <div class="local-value local-ending local-empty" title="현지통화 ({{ currency or '?' }}) 기말 합계">-</div>
+                  <span class="ending-krw-total">0</span>
+                </div>
+              </td>
+              {% endif %}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+  {% endfor %}
+
+</div>
+
+<!-- 플로팅 버튼 -->
+<div class="float-btn-group">
+  <a href="/admin/wce?year={{ year }}" class="float-btn float-btn-list"
+     title="회사 목록으로">
+    <i class="bi bi-list-ul"></i>
+  </a>
+  <button onclick="saveAll()" class="float-btn float-btn-save" title="전체 저장 (Ctrl+S)">
+    <i class="bi bi-floppy"></i>
+  </button>
+  <button onclick="window.scrollTo({top:0,behavior:'smooth'})" class="float-btn float-btn-top" title="맨 위로">
+    <i class="bi bi-arrow-up"></i>
+  </button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const YEAR = {{ year | tojson }};
+const COMPANY = {{ company | tojson }};
+
+// 숫자 포맷
+function fmtNum(n) {
+  if (!isFinite(n)) return '0';
+  return Math.round(n).toLocaleString('ko-KR');
+}
+function parseNum(s) {
+  if (s == null) return 0;
+  const cleaned = String(s).replace(/[,\s]/g, '');
+  const n = parseFloat(cleaned);
+  return isFinite(n) ? n : 0;
+}
+
+// 셀 입력 시: 같은 테이블의 합계/기말 갱신 + 미입력 하이라이트 해제
+function onCellInput(input) {
+  if (input.classList.contains('wce-readonly')) return;
+  input.classList.add('is-modified');
+  // 값이 0이 아니면 미입력 표시 제거
+  const td = input.closest('td');
+  if (td && td.classList.contains('missing-cell')) {
+    const n = parseNum(input.value);
+    if (Math.abs(n) >= 0.5) {
+      td.classList.remove('missing-cell');
+      updateMissingCounter();
+    }
+  }
+  recalcTable(input.closest('.card'));
+}
+
+function updateMissingCounter() {
+  // 현재 페이지 미입력 셀 수 갱신 (배너 카운터)
+  const cnt = document.querySelectorAll('td.missing-cell').length;
+  const banner = document.querySelector('.alert-danger .small strong, .alert-success .small strong');
+  if (!banner) return;
+  if (cnt) {
+    banner.textContent = `미입력 셀 ${cnt}개 발견`;
+    banner.closest('.alert').classList.remove('alert-success');
+    banner.closest('.alert').classList.add('alert-danger');
+  } else {
+    banner.textContent = '미입력 셀 없음';
+    banner.closest('.alert').classList.remove('alert-danger');
+    banner.closest('.alert').classList.add('alert-success');
+  }
+}
+
+function recalcTable(card) {
+  const tbody = card.querySelector('tbody');
+  const rows = card.querySelectorAll('tbody tr[data-row-key]');
+  const codes = [...card.querySelectorAll('thead .code-row')]
+    .filter(th => /\S/.test(th.textContent) && th.textContent.trim() !== '구분' && !th.textContent.includes('Total'))
+    .map(th => th.textContent.trim());
+
+  // 각 행의 row-total = 그 행의 코드별 입력값 합
+  rows.forEach(tr => {
+    let rowSum = 0;
+    tr.querySelectorAll('input.wce-input').forEach(inp => {
+      rowSum += parseNum(inp.value);
+    });
+    const totalCell = tr.querySelector('.row-total');
+    if (totalCell) totalCell.textContent = fmtNum(rowSum);
+  });
+
+  // 기말금액 = 기초금액 + 모든 증감행 (환산효과 제외)
+  const endingRow = card.querySelector('tr[data-computed="ending"]');
+  if (!endingRow) return;
+  let endingTotal = 0;
+  let endingLocalTotal = 0;
+  let anyLocalSeen = false;
+
+  endingRow.querySelectorAll('.col-ending').forEach(cell => {
+    const code = cell.dataset.code;
+    let sum = 0;
+    let localSum = 0;
+    let localAny = false;
+    rows.forEach(tr => {
+      const key = tr.dataset.rowKey;
+      if (key === '환산효과') return;  // 기말금액 산정에서 제외
+      const inp = tr.querySelector(`input[data-code="${code}"]`);
+      if (inp) {
+        sum += parseNum(inp.value);
+        const lv = parseFloat(inp.dataset.local || '0');
+        if (!isNaN(lv) && lv !== 0) {
+          localSum += lv;
+          localAny = true;
+        }
+      }
+    });
+    // KRW 표시
+    const krwSpan = cell.querySelector('.ending-krw');
+    if (krwSpan) krwSpan.textContent = fmtNum(sum);
+    // 현지통화 표시
+    const localDiv = cell.querySelector('.local-ending');
+    if (localDiv) {
+      if (localAny) {
+        localDiv.textContent = fmtNum(localSum);
+        localDiv.classList.remove('local-empty');
+        localDiv.classList.add('local-positive');
+      } else {
+        localDiv.textContent = '-';
+        localDiv.classList.add('local-empty');
+        localDiv.classList.remove('local-positive');
+      }
+    }
+    endingTotal += sum;
+    endingLocalTotal += localSum;
+    if (localAny) anyLocalSeen = true;
+  });
+
+  const endingTotalCell = endingRow.querySelector('.ending-total');
+  if (endingTotalCell) {
+    const krwT = endingTotalCell.querySelector('.ending-krw-total');
+    if (krwT) krwT.textContent = fmtNum(endingTotal);
+    const localT = endingTotalCell.querySelector('.local-ending');
+    if (localT) {
+      if (anyLocalSeen) {
+        localT.textContent = fmtNum(endingLocalTotal);
+        localT.classList.remove('local-empty');
+        localT.classList.add('local-positive');
+      } else {
+        localT.textContent = '-';
+        localT.classList.add('local-empty');
+        localT.classList.remove('local-positive');
+      }
+    }
+  }
+}
+
+// 페이지 로드 시 모든 테이블 합계 1회 계산
+document.querySelectorAll('.card[data-table-id]').forEach(recalcTable);
+
+// 입력 후 포커스 떠날 때 천단위 콤마 적용
+document.querySelectorAll('input.wce-input').forEach(inp => {
+  if (inp.classList.contains('wce-readonly')) return;  // 자동 셀은 포맷 그대로 유지
+  inp.addEventListener('blur', () => {
+    const n = parseNum(inp.value);
+    inp.value = n ? fmtNum(n) : '0';
+  });
+  inp.addEventListener('focus', () => {
+    const n = parseNum(inp.value);
+    inp.value = n ? String(n) : '';
+  });
+});
+
+function clearAll() {
+  if (!confirm('현재 페이지의 사용자 입력값을 0으로 초기화하시겠습니까? (자동 채워진 기초금액은 유지됩니다 / 저장 전까지는 서버에 반영되지 않습니다)')) return;
+  document.querySelectorAll('input.wce-input').forEach(inp => {
+    if (inp.classList.contains('wce-readonly')) return;
+    inp.value = '0';
+    inp.classList.add('is-modified');
+  });
+  document.querySelectorAll('.card[data-table-id]').forEach(recalcTable);
+}
+
+async function saveAll() {
+  const tables = {};
+  document.querySelectorAll('input.wce-input').forEach(inp => {
+    const tid = inp.dataset.table;
+    const code = inp.dataset.code;
+    const row = inp.dataset.row;
+    if (!tables[tid]) tables[tid] = {};
+    if (!tables[tid][code]) tables[tid][code] = {};
+    tables[tid][code][row] = parseNum(inp.value);
+  });
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+
+  try {
+    const url = `/admin/wce/${encodeURIComponent(YEAR)}/${encodeURIComponent(COMPANY)}`;
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({tables}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || '저장 실패');
+
+    // 수정 표시 제거
+    document.querySelectorAll('.is-modified').forEach(el => el.classList.remove('is-modified'));
+    btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>저장 완료';
+    btn.classList.remove('btn-primary');
+    btn.classList.add('btn-success');
+    setTimeout(() => {
+      btn.innerHTML = '<i class="bi bi-floppy me-1"></i>전체 저장';
+      btn.classList.add('btn-primary');
+      btn.classList.remove('btn-success');
+      btn.disabled = false;
+    }, 1800);
+  } catch (e) {
+    alert('저장 실패: ' + e.message);
+    btn.innerHTML = '<i class="bi bi-floppy me-1"></i>전체 저장';
+    btn.disabled = false;
+  }
+}
+
+// Ctrl+S 저장
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveAll();
+  }
+});
+</script>
+</body>
+</html>

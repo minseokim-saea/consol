@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>현금정산표 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6; --total-bg:#FFE699; --total-fg:#9C5700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+    --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+    --border:#334155; --total-bg:#4a3a1a; --total-fg:#f0d08e;
+  }
+  body { color-scheme: dark; }
+  .card, .modal-content { background:var(--card-bg); color:var(--text-body); }
+  .table { color:var(--text-body); --bs-table-bg:var(--card-bg); }
+  .form-control, .form-select { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Arial,sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border-radius:10px; border:none; box-shadow:0 1px 6px rgba(0,0,0,0.10); background:var(--card-bg); }
+.group-card { border-left:5px solid var(--brand-500); }
+.scroll-x { overflow-x:scroll; overflow-y:auto; max-height:78vh; width:100%; }
+.scroll-x::-webkit-scrollbar { height:14px; width:14px; }
+.scroll-x::-webkit-scrollbar-thumb { background:#888; border-radius:7px; }
+.scroll-x::-webkit-scrollbar-track { background:#eee; }
+
+.cf-table {
+  font-size:0.83rem; width:auto !important; min-width:100%;
+  border-collapse:separate; border-spacing:0; margin-bottom:0;
+}
+.cf-table th, .cf-table td {
+  white-space:nowrap; border:1px solid #dee2e6; padding:4px 8px;
+}
+.cf-table th {
+  background:var(--brand-900); color:#fff; text-align:center;
+  position:sticky; top:0; z-index:2;
+}
+.cf-table td.num { text-align:right; font-variant-numeric:tabular-nums; min-width:110px; }
+.cf-table td:nth-child(1) { min-width:90px; }
+.cf-table td:nth-child(2) { min-width:240px; }
+.cf-table tr.section td  { background:var(--brand-050); font-weight:700; }
+.cf-table tr.total td    { background:var(--total-bg); color:var(--total-fg); font-weight:700; }
+.cf-table tr.ni td       { background:#FFE2CC; font-weight:600; }
+.cf-table tr.unmatched td{ background:#F8D7DA; color:#842029; }
+.cf-table th:nth-child(1),
+.cf-table td:nth-child(1) { position:sticky; left:0; z-index:3; background:var(--card-bg); }
+.cf-table th:nth-child(2),
+.cf-table td:nth-child(2) { position:sticky; left:90px; z-index:3; background:var(--card-bg); }
+.cf-table thead th:nth-child(1),
+.cf-table thead th:nth-child(2) { background:var(--brand-900); z-index:5; }
+.cf-table tr.section td:nth-child(1),
+.cf-table tr.section td:nth-child(2) { background:var(--brand-050); }
+.cf-table tr.total td:nth-child(1),
+.cf-table tr.total td:nth-child(2)   { background:var(--total-bg); }
+.cf-table tr.ni td:nth-child(1),
+.cf-table tr.ni td:nth-child(2)      { background:#FFE2CC; }
+.manual-input {
+  border:none; background:transparent; width:90px; text-align:right;
+  font:inherit; color:inherit; padding:2px 4px;
+}
+.manual-input:focus { outline:1px solid var(--brand-500); background:#fff; }
+.manual-cell { display:flex; align-items:center; justify-content:flex-end; gap:2px; }
+.comment-btn {
+  border:none; background:transparent; padding:0 2px;
+  color:#94a3b8; cursor:pointer; font-size:0.95em; line-height:1;
+}
+.comment-btn:hover { color:var(--brand-700); }
+.comment-btn.has-comment { color:#d97706; }
+.comment-btn.has-comment:hover { color:#b45309; }
+.col-K { background:#F4F6FA; }
+.col-L { background:#FFFBEA; }
+.col-M { background:#EAF4FF; }
+.col-N { background:#EAFBF1; }
+.col-O { background:#FFF1E6; }
+.col-Q { background:#F8ECF8; }
+.col-P { background:#FFE699; font-weight:600; }
+.col-spacer { background:transparent; border-top:none !important; border-bottom:none !important; min-width:14px !important; max-width:14px !important; padding:0 !important; }
+.col-CV { background:#E1F0FF; }                          /* 연결정산표 비교값 */
+.col-CD { background:#F0F4F8; font-weight:600; }         /* 차이 */
+.col-CD.diff-bad { background:#F8D7DA; color:#842029; }  /* 차이 ≠ 0 강조 */
+.rounding-input {
+  border:none; background:transparent; width:90px; text-align:right;
+  font:inherit; color:inherit; padding:2px 4px;
+}
+.rounding-input:focus { outline:1px solid var(--brand-500); background:#fff; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'cash_worksheet' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <!-- 결산기간 + 안내 -->
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:200px">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <span class="text-muted ms-2">
+        그룹별 CF 합산(환산 KRW) + 연결조정·내부거래 분개 + 수기조정 → 최종 현금흐름표
+      </span>
+      <a href="/cash-worksheet/mapping" target="_blank"
+         class="btn btn-outline-secondary btn-sm ms-auto">
+        <i class="bi bi-bookmark"></i> 매핑 보기
+      </a>
+    </div>
+  </div>
+
+  <!-- 그룹 목록 -->
+  <div id="groupList"></div>
+</div>
+
+<!-- 결과 모달 -->
+<div class="modal fade" id="resultModal" tabindex="-1">
+  <div class="modal-dialog" style="max-width:98vw; margin:1vh auto;">
+    <div class="modal-content" style="height:98vh; display:flex; flex-direction:column;">
+      <div class="modal-header" style="background:var(--brand-900); color:#fff; flex-shrink:0;">
+        <h5 class="modal-title" id="resultTitle">현금정산표</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="flex:1; min-height:0; display:flex; flex-direction:column; padding:1rem; overflow:hidden;">
+        <div id="resultSummary" class="mb-2" style="flex-shrink:0;"></div>
+        <div class="d-flex align-items-center gap-3 small mb-2" style="flex-shrink:0;">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="hideZeroToggle" checked
+                   onchange="onHideZeroToggle()">
+            <label class="form-check-label" for="hideZeroToggle">
+              값 0 라인 숨기기 (detail만 — 섹션 소계·NI·총계·Ⅴ~Ⅶ은 항상 표시)
+            </label>
+          </div>
+          <span class="text-muted" id="hideZeroCount"></span>
+        </div>
+        <div class="scroll-x" style="flex:1; min-height:0;">
+          <table class="cf-table" id="resultTable">
+            <thead><tr id="resultHead"></tr></thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        {% if is_admin %}
+        <button class="btn btn-primary" onclick="saveManualsAndRecompute()">
+          <i class="bi bi-floppy"></i> 수기조정 저장 + 재계산
+        </button>
+        {% else %}
+        <span class="text-muted small me-auto">
+          <i class="bi bi-lock-fill"></i> 수기입력은 관리자만 가능 (조회 전용)
+        </span>
+        {% endif %}
+        <button class="btn btn-warning" onclick="runValidation()">
+          <i class="bi bi-shield-check"></i> 검증
+        </button>
+        <button class="btn btn-success" onclick="downloadExcel()">
+          <i class="bi bi-download"></i> 엑셀 다운로드
+        </button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 검증 결과 모달 -->
+<div class="modal fade" id="validationModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--brand-700); color:#fff;">
+        <h5 class="modal-title"><i class="bi bi-shield-check"></i> 현금정산표 검증 결과</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="validationBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 코멘트 입력 모달 -->
+<div class="modal fade" id="commentModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--brand-700); color:#fff;">
+        <h6 class="modal-title">
+          <i class="bi bi-chat-left-text"></i>
+          수기조정 코멘트 — <span id="commentTarget"></span>
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <textarea id="commentText" class="form-control" rows="5"
+                  placeholder="수기조정 사유, 근거자료, 검토메모 등을 입력하세요"></textarea>
+        <div class="form-text mt-2">
+          입력한 코멘트는 [수기조정 저장 + 재계산] 시 함께 저장됩니다.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-danger me-auto" onclick="clearComment()">
+          <i class="bi bi-trash"></i> 코멘트 삭제
+        </button>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-primary" onclick="applyComment()">
+          <i class="bi bi-check2"></i> 적용
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// 수기입력(수기조정·단수조정·코멘트) 권한 — 관리자만 가능. 비관리자는 조회 전용.
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+let CURRENT_GROUPS = [];
+let CURRENT_RESULT = null;       // 마지막 계산 결과
+let CURRENT_GROUP_ID = null;
+let CURRENT_PERIOD = null;
+let MANUAL_EDITS = {};            // {cf_code: number} — L 수기조정
+let MANUAL_COMMENTS = {};         // {cf_code: text}
+let ROUNDING_EDITS = {};          // {cf_code: number} — Q 단수조정
+let COMMENT_TARGET_CODE = null;   // 코멘트 모달이 현재 가리키는 cf_code
+let HIDE_ZERO = true;             // 값 0 라인 숨기기 (기본 ON)
+let ZERO_HIDDEN_COUNT = 0;        // 마지막 렌더링에서 숨겨진 행 수
+let LAST_PAYLOAD = null;          // 마지막 compute 응답 (토글 재렌더용)
+let HAS_FUND_ADJ = false;         // 자금조정(O) 컬럼 표시 여부 (글로벌세아만)
+
+function fmt(n) {
+  if (n === null || n === undefined || n === '') return '';
+  const v = Math.round(Number(n));
+  if (v === 0) return '';
+  return v < 0 ? '(' + (-v).toLocaleString('ko-KR') + ')' : v.toLocaleString('ko-KR');
+}
+
+function currentPeriod() { return document.getElementById('periodSelect').value; }
+
+async function loadGroups() {
+  const r = await fetch('/consolidation/groups?year=' + encodeURIComponent(currentPeriod()));
+  const j = await r.json();
+  CURRENT_GROUPS = j.groups || [];
+  renderGroups();
+}
+
+function renderGroups() {
+  const wrap = document.getElementById('groupList');
+  if (!CURRENT_GROUPS.length) {
+    wrap.innerHTML = `
+      <div class="card section-card">
+        <div class="card-body text-center text-muted py-5">
+          <i class="bi bi-diagram-3 fs-1 d-block mb-2"></i>
+          등록된 연결그룹이 없습니다. 먼저 [연결정산표] 메뉴에서 그룹을 만들어주세요.
+        </div>
+      </div>`;
+    return;
+  }
+  wrap.innerHTML = CURRENT_GROUPS.map(g => `
+    <div class="card section-card group-card mb-3">
+      <div class="card-body d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-1"><i class="bi bi-diagram-3"></i> ${g.name}</h5>
+          <div class="text-muted small">
+            대상 회사 ${(g.active_companies || []).length}개 · 업로드 ${g.file_count || 0}건
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="computeCF('${g.id}')">
+          <i class="bi bi-play-circle"></i> 현금정산표 계산
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function computeCF(groupId) {
+  CURRENT_GROUP_ID = groupId;
+  CURRENT_PERIOD = currentPeriod();
+  MANUAL_EDITS = {};
+
+  const r = await fetch(`/cash-worksheet/compute/${groupId}/${encodeURIComponent(CURRENT_PERIOD)}`,
+                        { method: 'POST' });
+  const j = await r.json();
+  if (!r.ok || !j.ok) {
+    alert('계산 실패: ' + (j.error || r.status));
+    return;
+  }
+  CURRENT_RESULT = j.result;
+  LAST_PAYLOAD = j;
+  // 기존 저장된 수기조정/코멘트/단수조정 반영
+  MANUAL_EDITS    = Object.assign({}, j.manuals   || {});
+  MANUAL_COMMENTS = Object.assign({}, j.comments  || {});
+  ROUNDING_EDITS  = Object.assign({}, j.roundings || {});
+  renderResult(j);
+}
+
+function renderResult(payload) {
+  const res = payload.result;
+  const grp = payload.group;
+  document.getElementById('resultTitle').textContent =
+    `현금정산표 — ${grp.name} / ${payload.period}`;
+  ZERO_HIDDEN_COUNT = 0;
+  HIDE_ZERO = !!document.getElementById('hideZeroToggle')?.checked;
+
+  // 요약
+  const sum = res.op_cf || {};
+  const ni = res.net_income || {};
+  const niMatchBadge = ni.ni_target_applied
+    ? `<span class="badge bg-success" title="연결정산표 최종 NI에 NI 행 adj를 plug 보정하여 일치">
+         <i class="bi bi-check2-circle"></i> NI 일치: ${fmt(ni.ni_target_value)}
+       </span>`
+    : `<span class="badge bg-secondary" title="연결정산표 NI 미적용 (분개 기반 그대로)">
+         NI: ${fmt(ni.final)}
+       </span>`;
+  // 항등식 검증 — 조정 컬럼 (L+M+N+Q) × (Ⅳ.현금증감 + Ⅴ.환율변동 + 연결범위변동) 의 합 = 0
+  //   ※ 각 조정 컬럼은 BS/PL 라인 간 이동이므로, 현금흐름 3행(Ⅳ+Ⅴ+scope) 전체 합에
+  //     미치는 영향은 0이 되어야 함.
+  //   ※ 개별 컬럼/개별 행은 0이 아니어도 무방 — 서로 상계되면 됨.
+  //   ※ Ⅳ 자체는 더 이상 0 강제 안 함 (Ⅴ나 scope_change로 흡수 가능).
+  const _sumAdj = (r) => ((r||{}).manual||0)+((r||{}).adj||0)+((r||{}).inter||0)+((r||{}).fund_adj||0)+((r||{}).rounding||0);
+  const adjSum = Math.round(_sumAdj(res.net_cash) + _sumAdj(res.fx_effect) + _sumAdj(res.scope_change));
+  const manualBalanceBadge = (adjSum === 0)
+    ? `<span class="badge bg-success" title="(L+M+N+Q) × (Ⅳ현금증감 + Ⅴ환율변동 + 연결범위변동) 합 = 0 (조정 정합)">
+         <i class="bi bi-check2-circle"></i> 조정 정합 (Ⅳ+Ⅴ+scope = 0)
+       </span>`
+    : `<span class="badge bg-danger" title="조정 컬럼 4개 × 현금흐름 3행 (Ⅳ+Ⅴ+scope) 합이 0이 아닙니다. 분개/수기/단수조정의 부호·금액을 점검하세요.">
+         <i class="bi bi-exclamation-triangle-fill"></i> 조정 불균형 net=${adjSum.toLocaleString('ko-KR')}
+       </span>`;
+  document.getElementById('resultSummary').innerHTML = `
+    <div class="d-flex gap-3 flex-wrap small">
+      <span class="badge bg-secondary">분개: 연결조정 ${payload.adjustment_count}건 ·
+            내부거래 ${payload.intercompany_count}건 ·
+            매듭 ${payload.bridge_count}건</span>
+      <span class="badge bg-dark">내부거래 차분: (${payload.period}) − (${payload.prior_period||'전기없음'}) =
+            전기 ${payload.prior_intercompany_count}건</span>
+      ${niMatchBadge}
+      ${manualBalanceBadge}
+      <span class="badge bg-primary">영업CF 최종: ${fmt(sum.final)}</span>
+      <span class="badge bg-info text-dark">투자CF 최종: ${fmt((res.inv_cf||{}).final)}</span>
+      <span class="badge bg-success">재무CF 최종: ${fmt((res.fin_cf||{}).final)}</span>
+      <span class="badge bg-warning text-dark">현금증감: ${fmt((res.net_cash||{}).final)}</span>
+    </div>`;
+
+  // 헤더
+  const companies = res.companies || [];
+  HAS_FUND_ADJ = !!res.has_fund_adj;
+  const hasFundAdj = HAS_FUND_ADJ;
+  const fundAdjHeader = hasFundAdj
+    ? `<th class="col-O" title="글로벌세아 전용 — CF1/CF2/CF3 시트의 연결범위회사 대여금/차입금 변동 합산">O. 자금조정</th>`
+    : '';
+  const head = document.getElementById('resultHead');
+  head.innerHTML = `
+    <th>CF코드</th><th>계정명</th>
+    ${companies.map(c => `<th>${c}</th>`).join('')}
+    <th class="col-K">K. 합산</th>
+    <th class="col-L">L. 수기조정</th>
+    <th class="col-M">M. 연결조정</th>
+    <th class="col-N">N. 내부거래</th>
+    ${fundAdjHeader}
+    <th class="col-Q">Q. 단수조정</th>
+    <th class="col-P">P. 최종</th>
+    <th class="col-spacer"></th>
+    <th class="col-CV" title="현표비교계정.xlsx의 코드만 표시 — 연결정산표 detail 행의 final 값">연결정산표</th>
+    <th class="col-CD" title="P. 최종 − 연결정산표">차이</th>`;
+
+  // 본문
+  const body = document.getElementById('resultBody');
+  const rows = [];
+
+  // 로마숫자별로 sections 그룹핑 (Ⅰ→Ⅱ→Ⅲ 순서 보존)
+  const romanGroups = new Map();
+  res.sections.forEach(sec => {
+    const r = sec.roman || '';
+    if (!romanGroups.has(r)) romanGroups.set(r, []);
+    romanGroups.get(r).push(sec);
+  });
+
+  const romanTotals = {
+    'Ⅰ': res.op_cf,
+    'Ⅱ': res.inv_cf,
+    'Ⅲ': res.fin_cf,
+  };
+  const romanLabel = {
+    'Ⅰ': 'Ⅰ. 영업활동으로 인한 현금흐름',
+    'Ⅱ': 'Ⅱ. 투자활동으로 인한 현금흐름',
+    'Ⅲ': 'Ⅲ. 재무활동으로 인한 현금흐름',
+  };
+
+  const totalRowHtml = (label, t) => {
+    t = t || {};
+    const tcs = t.companies || {};
+    const fundCell = hasFundAdj
+      ? `<td class="num col-O">${fmt(t.fund_adj)}</td>`
+      : '';
+    return `
+      <tr class="total">
+        <td></td><td>${label}</td>
+        ${companies.map(c => `<td class="num">${fmt(tcs[c])}</td>`).join('')}
+        <td class="num col-K">${fmt(t.sum)}</td>
+        <td class="num col-L">${fmt(t.manual)}</td>
+        <td class="num col-M">${fmt(t.adj)}</td>
+        <td class="num col-N">${fmt(t.inter)}</td>
+        ${fundCell}
+        <td class="num col-Q">${fmt(t.rounding)}</td>
+        <td class="num col-P">${fmt(t.final)}</td>
+        <td class="col-spacer"></td><td class="col-CV"></td><td class="col-CD"></td>
+      </tr>`;
+  };
+
+  // 로마숫자별로:
+  //   Ⅰ: 영업 합계 → 1. 당기순이익 → Ⅰ의 sub-sections (가산/차감/WC)
+  //   Ⅱ: 투자 합계 → Ⅱ의 sub-sections (유입/유출)
+  //   Ⅲ: 재무 합계 → Ⅲ의 sub-sections (유입/유출)
+  // 각 합계 라인은 해당 섹션 맨 위 — Ⅰ은 NI를 그 뒤에 둔다 (당기순이익 위에 Ⅰ).
+  for (const [r, secs] of romanGroups.entries()) {
+    const romanKey = (r || '').charAt(0);
+    if (romanLabel[romanKey] && romanTotals[romanKey]) {
+      rows.push(totalRowHtml(romanLabel[romanKey], romanTotals[romanKey]));
+    }
+    // 영업 섹션에서는 합계 바로 뒤에 NI 행
+    if (romanKey === 'Ⅰ') {
+      rows.push(rowHtml(ni, companies, 'ni', '1. 당기순이익', false));
+    }
+    secs.forEach(sec => {
+      const ts = sec.totals_signed || {};
+      const title = `${sec.roman || ''}  ${sec.sub || ''}`;
+      const cs = sec.companies_signed || {};
+      const secFundCell = hasFundAdj
+        ? `<td class="num col-O">${fmt(ts.fund_adj)}</td>`
+        : '';
+      rows.push(`
+        <tr class="section">
+          <td></td><td>${title}</td>
+          ${companies.map(c => `<td class="num">${fmt(cs[c])}</td>`).join('')}
+          <td class="num col-K">${fmt(ts.sum)}</td>
+          <td class="num col-L">${fmt(ts.manual)}</td>
+          <td class="num col-M">${fmt(ts.adj)}</td>
+          <td class="num col-N">${fmt(ts.inter)}</td>
+          ${secFundCell}
+          <td class="num col-Q">${fmt(ts.rounding)}</td>
+          <td class="num col-P">${fmt(ts.final)}</td>
+          <td class="col-spacer"></td><td class="col-CV"></td><td class="col-CD"></td>
+        </tr>`);
+      sec.rows.forEach(row => {
+        if (HIDE_ZERO && rowAllZero(row, companies)) {
+          ZERO_HIDDEN_COUNT++;
+          return;
+        }
+        rows.push(rowHtml(row, companies, '', '  '+row.name, true));
+      });
+    });
+  }
+
+  // Ⅳ. 현금의 증감 — 모든 섹션 다음 마지막에
+  rows.push(totalRowHtml('Ⅳ. 현금의 증감', res.net_cash));
+
+  // 현금증감 하단 4행 — Ⅴ.환율변동효과, 연결범위변동, Ⅵ.기초현금, Ⅶ.기말현금
+  // editL: L(수기조정) 편집 가능 여부 / editQ: Q(단수조정) 편집 가능 여부.
+  //   - Ⅴ 환율변동, 연결범위변동: L, Q 모두 편집 가능
+  //   - Ⅵ 기초, Ⅶ 기말: Q만 편집 가능
+  const epilogueRows = [
+    { row: res.fx_effect,    label: 'Ⅴ. 환율변동효과', editL: true,  editQ: true  },
+    { row: res.scope_change, label: '연결범위변동',     editL: true,  editQ: true  },
+    { row: res.cash_begin,   label: 'Ⅵ. 기초의현금',   editL: false, editQ: true  },
+    { row: res.cash_end,     label: 'Ⅶ. 기말의현금',   editL: false, editQ: true  },
+  ];
+  epilogueRows.forEach(({ row, label, editL, editQ }) => {
+    if (!row) return;
+    const code = row.cf_code || '';  // LBL::... 또는 __SCOPE_CHANGE__
+    const isFinal = label.startsWith('Ⅶ');
+    const trCls = isFinal ? 'total' : '';
+    const noteTip = row.plug_note ? ` title="${row.plug_note}"` : '';
+    const epiFundCell = hasFundAdj
+      ? `<td class="num col-O">${fmt(row.fund_adj)}</td>`
+      : '';
+
+    let lCell, qCell;
+    if (editL && code && IS_ADMIN) {
+      const mv = MANUAL_EDITS[code] !== undefined ? MANUAL_EDITS[code] : (row.manual || 0);
+      // 코멘트 버튼 포함 — 일반 detail 행의 manual-cell 패턴과 동일.
+      // 저장 시 코멘트 누락 검증을 통과하려면 epilogue 행도 코멘트 입력 가능해야 함.
+      const comment = MANUAL_COMMENTS[code] || '';
+      const hasC = !!comment;
+      const safeC = comment.replace(/"/g, '&quot;').replace(/\n/g, ' ⏎ ');
+      const tip = hasC ? `코멘트: ${safeC}` : '코멘트 입력 (수기조정 사유/근거)';
+      const safeLabel = label.replace(/'/g, "\\'");
+      const safeCode = code.replace(/'/g, "\\'");
+      lCell = `
+        <div class="manual-cell">
+          <input type="number" class="manual-input" data-code="${code}"
+                 value="${mv || ''}" placeholder="0"
+                 oninput="onManualChange(event)" onchange="onManualChange(event)">
+          <button type="button" class="comment-btn ${hasC ? 'has-comment' : ''}"
+                  title="${tip}" onclick="openCommentModal('${safeCode}', '${safeLabel}')">
+            <i class="bi ${hasC ? 'bi-chat-left-text-fill' : 'bi-chat-left-text'}"></i>
+          </button>
+        </div>`;
+    } else {
+      lCell = fmt(row.manual);
+    }
+    if (editQ && code && IS_ADMIN) {
+      const qv = ROUNDING_EDITS[code] !== undefined ? ROUNDING_EDITS[code] : (row.rounding || 0);
+      qCell = `<input type="number" class="rounding-input" data-code="${code}"
+                      value="${qv || ''}" placeholder="0"
+                      oninput="onRoundingChange(event)" onchange="onRoundingChange(event)">`;
+    } else {
+      qCell = fmt(row.rounding);
+    }
+
+    rows.push(`
+      <tr class="${trCls}">
+        <td></td>
+        <td${noteTip}>${label}</td>
+        ${companies.map(c => `<td class="num">${fmt((row.companies||{})[c])}</td>`).join('')}
+        <td class="num col-K">${fmt(row.sum)}</td>
+        <td class="num col-L">${lCell}</td>
+        <td class="num col-M">${fmt(row.adj)}</td>
+        <td class="num col-N">${fmt(row.inter)}</td>
+        ${epiFundCell}
+        <td class="num col-Q">${qCell}</td>
+        <td class="num col-P">${fmt(row.final)}</td>
+        <td class="col-spacer"></td><td class="col-CV"></td><td class="col-CD"></td>
+      </tr>`);
+  });
+
+  body.innerHTML = rows.join('');
+  const ch = document.getElementById('hideZeroCount');
+  if (ch) ch.textContent = HIDE_ZERO && ZERO_HIDDEN_COUNT
+    ? `(${ZERO_HIDDEN_COUNT}개 행 숨김)`
+    : '';
+  // 모달이 닫혀 있으면 새로 열고, 열려 있으면 그대로 갱신 (toggle 변경 시)
+  const modalEl = document.getElementById('resultModal');
+  if (!modalEl.classList.contains('show')) {
+    new bootstrap.Modal(modalEl).show();
+  }
+}
+
+function onHideZeroToggle() {
+  if (LAST_PAYLOAD) renderResult(LAST_PAYLOAD);
+}
+
+function downloadExcel() {
+  if (!CURRENT_GROUP_ID || !CURRENT_PERIOD) {
+    alert('계산 결과가 없습니다.'); return;
+  }
+  const hz = document.getElementById('hideZeroToggle')?.checked ? '1' : '0';
+  const url = `/cash-worksheet/download-excel/${CURRENT_GROUP_ID}/${encodeURIComponent(CURRENT_PERIOD)}?hide_zero=${hz}`;
+  window.location.href = url;
+}
+
+async function runValidation() {
+  if (!CURRENT_GROUP_ID || !CURRENT_PERIOD) {
+    alert('계산 결과가 없습니다.'); return;
+  }
+  const body = document.getElementById('validationBody');
+  body.innerHTML = `<div class="text-center py-4 text-muted">
+    <i class="bi bi-hourglass-split fs-1"></i>
+    <div class="mt-2">검증 중... (전년 4Q 연결정산표도 산출하므로 잠시 걸립니다)</div>
+  </div>`;
+  new bootstrap.Modal(document.getElementById('validationModal')).show();
+
+  let j;
+  try {
+    const r = await fetch(`/cash-worksheet/validate/${CURRENT_GROUP_ID}/${encodeURIComponent(CURRENT_PERIOD)}`);
+    j = await r.json();
+    if (!r.ok) {
+      body.innerHTML = `<div class="alert alert-danger">검증 실패: ${j.error || r.status}</div>`;
+      return;
+    }
+  } catch (e) {
+    body.innerHTML = `<div class="alert alert-danger">검증 에러: ${e.message}</div>`;
+    return;
+  }
+  renderValidation(j);
+}
+
+function renderValidation(j) {
+  const body = document.getElementById('validationBody');
+  const checks = j.checks || [];
+
+  const okCount   = checks.filter(c => c.ok).length;
+  const failCount = checks.filter(c => c.available !== false && !c.ok).length;
+  const skipCount = checks.filter(c => c.available === false).length;
+
+  const headerCls = failCount > 0 ? 'alert-danger' : (skipCount > 0 ? 'alert-warning' : 'alert-success');
+  const headerIcon = failCount > 0 ? 'bi-x-circle-fill' :
+                     (skipCount > 0 ? 'bi-exclamation-triangle-fill' : 'bi-check-circle-fill');
+  const headerText = failCount > 0
+    ? `❌ ${failCount}개 검증 실패`
+    : (skipCount > 0 ? `⚠️ ${okCount}개 통과 · ${skipCount}개 스킵` : `✓ 전체 ${okCount}개 검증 통과`);
+
+  const blocks = checks.map((c, i) => {
+    const badge = c.available === false
+      ? '<span class="badge bg-warning text-dark">스킵</span>'
+      : (c.ok ? '<span class="badge bg-success">✓ 통과</span>'
+              : '<span class="badge bg-danger">✗ 실패</span>');
+
+    let detail = '';
+    if (i === 0) {
+      // 등식 검증
+      const co = c.components || {};
+      detail = `
+        <table class="table table-sm mb-2">
+          <tbody class="small">
+            <tr><td>Ⅳ. 현금의 증감</td><td class="text-end">${fmt(co.net_cash)}</td></tr>
+            <tr><td>＋ Ⅴ. 환율변동효과</td><td class="text-end">${fmt(co.fx_effect)}</td></tr>
+            <tr><td>＋ 연결범위변동</td><td class="text-end">${fmt(co.scope_change)}</td></tr>
+            <tr><td>＋ Ⅵ. 기초현금</td><td class="text-end">${fmt(co.cash_begin)}</td></tr>
+            <tr class="fw-bold" style="border-top:2px solid #6c757d"><td>좌변 합계</td><td class="text-end">${fmt(co.lhs_sum)}</td></tr>
+            <tr class="fw-bold"><td>Ⅶ. 기말현금 (우변)</td><td class="text-end">${fmt(co.cash_end)}</td></tr>
+            <tr class="${c.ok?'table-success':'table-danger'} fw-bold"><td>차이 (좌 − 우)</td><td class="text-end">${fmt(c.diff)}</td></tr>
+          </tbody>
+        </table>
+        <div class="form-text">${c.formula || ''}</div>`;
+    } else {
+      // 잔액 비교
+      const note = c.note ? `<div class="text-muted small mt-2">${c.note}</div>` : '';
+      detail = `
+        <table class="table table-sm mb-2">
+          <tbody class="small">
+            <tr><td>현금정산표 값</td><td class="text-end">${fmt(c.cf_value)}</td></tr>
+            <tr><td>연결정산표 값 <span class="text-muted">(${c.consol_period || '?'} · 1110101)</span></td>
+                <td class="text-end">${c.consol_value === null || c.consol_value === undefined ? '—' : fmt(c.consol_value)}</td></tr>
+            <tr class="${c.ok?'table-success':(c.available===false?'':'table-danger')} fw-bold">
+              <td>차이</td>
+              <td class="text-end">${c.diff === null || c.diff === undefined ? '—' : fmt(c.diff)}</td></tr>
+          </tbody>
+        </table>${note}`;
+    }
+
+    return `
+      <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <span><strong>${i+1}.</strong> ${c.name}</span>
+          ${badge}
+        </div>
+        <div class="card-body py-2">${detail}</div>
+      </div>`;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="alert ${headerCls} d-flex align-items-center gap-2 mb-3">
+      <i class="bi ${headerIcon} fs-4"></i>
+      <div>
+        <strong>${headerText}</strong>
+        <div class="small text-muted">${j.period} · 전년 4Q 비교 ${j.prior_period || '없음'}</div>
+      </div>
+    </div>
+    ${blocks}`;
+}
+
+function rowAllZero(row, companies) {
+  const keys = ['sum', 'manual', 'adj', 'inter', 'fund_adj', 'rounding', 'final'];
+  for (const k of keys) {
+    if (Math.round(Number(row[k] || 0)) !== 0) return false;
+  }
+  const co = row.companies || {};
+  for (const c of companies) {
+    if (Math.round(Number(co[c] || 0)) !== 0) return false;
+  }
+  return true;
+}
+
+function rowHtml(row, companies, klass, label, editable) {
+  const code = row.cf_code || '';
+  const manualVal   = MANUAL_EDITS[code]   !== undefined ? MANUAL_EDITS[code]   : (row.manual   || 0);
+  const roundingVal = ROUNDING_EDITS[code] !== undefined ? ROUNDING_EDITS[code] : (row.rounding || 0);
+  let editor;
+  let roundingEditor;
+  if (editable && IS_ADMIN) {
+    const comment = MANUAL_COMMENTS[code] || '';
+    const hasC = !!comment;
+    const safeC = comment.replace(/"/g, '&quot;').replace(/\n/g, ' ⏎ ');
+    const tip = hasC
+      ? `코멘트: ${safeC}`
+      : '코멘트 입력 (수기조정 사유/근거)';
+    editor = `
+      <div class="manual-cell">
+        <input type="number" class="manual-input"
+               data-code="${code}" value="${manualVal || ''}"
+               placeholder="0"
+               oninput="onManualChange(event)" onchange="onManualChange(event)">
+        <button type="button" class="comment-btn ${hasC ? 'has-comment' : ''}"
+                title="${tip}" onclick="openCommentModal('${code}', '${label.trim().replace(/'/g, "\\'")}')">
+          <i class="bi ${hasC ? 'bi-chat-left-text-fill' : 'bi-chat-left-text'}"></i>
+        </button>
+      </div>`;
+    roundingEditor = `<input type="number" class="rounding-input"
+                            data-code="${code}" value="${roundingVal || ''}"
+                            placeholder="0"
+                            oninput="onRoundingChange(event)" onchange="onRoundingChange(event)">`;
+  } else {
+    editor = fmt(row.manual);
+    roundingEditor = fmt(row.rounding);
+  }
+
+  // NI 행 adj 셀: plug 적용된 경우 설명 tooltip
+  let adjTitle = `Dr ${fmt(row.dr_adj)} / Cr ${fmt(row.cr_adj)}`;
+  if (row.ni_target_applied) {
+    adjTitle = `연결정산표 최종 NI 기준 plug 보정\n`
+             + `  연결정산표 최종 NI = ${fmt(row.ni_target_value)}\n`
+             + `  분개 기반 adj      = ${fmt(row.adj_journal)}\n`
+             + `  plug 추가분         = ${fmt(row.adj_plug)}\n`
+             + `  적용 adj (=일치용)  = ${fmt(row.adj)}`;
+  }
+  // 비교 컬럼 — 현표비교계정.xlsx의 코드만
+  let compareCells = '<td class="col-spacer"></td><td class="col-CV"></td><td class="col-CD"></td>';
+  if (row.has_compare) {
+    const cv = row.consol_value;
+    const cd = row.consol_diff;
+    const diffBad = (typeof cd === 'number') && Math.abs(cd) > 0.5;
+    const cdCls = 'col-CD' + (diffBad ? ' diff-bad' : '');
+    const cvTitle = row.consol_available === false
+      ? '연결정산표에서 해당 코드를 찾지 못함'
+      : '연결정산표 detail 행의 P. 최종';
+    compareCells = `
+      <td class="col-spacer"></td>
+      <td class="num col-CV" title="${cvTitle}">${row.consol_available === false ? '—' : fmt(cv)}</td>
+      <td class="num ${cdCls}" title="P. 최종 − 연결정산표">${fmt(cd)}</td>`;
+  }
+  const fundAdjCell = HAS_FUND_ADJ
+    ? `<td class="num col-O" title="글로벌세아 자금조정 — CF1/CF2/CF3 연결범위회사 대여금/차입금">${fmt(row.fund_adj)}</td>`
+    : '';
+  return `
+    <tr class="${klass}">
+      <td>${code}</td>
+      <td>${label}</td>
+      ${companies.map(c => `<td class="num">${fmt((row.companies||{})[c])}</td>`).join('')}
+      <td class="num col-K">${fmt(row.sum)}</td>
+      <td class="num col-L">${editor}</td>
+      <td class="num col-M" title="${adjTitle}">${fmt(row.adj)}</td>
+      <td class="num col-N" title="Dr ${fmt(row.dr_int)} / Cr ${fmt(row.cr_int)}">${fmt(row.inter)}</td>
+      ${fundAdjCell}
+      <td class="num col-Q">${roundingEditor}</td>
+      <td class="num col-P">${fmt(row.final)}</td>
+      ${compareCells}
+    </tr>`;
+}
+
+function onManualChange(ev) {
+  const code = ev.target.dataset.code;
+  const v = parseFloat(ev.target.value);
+  if (isNaN(v) || v === 0) {
+    delete MANUAL_EDITS[code];
+  } else {
+    MANUAL_EDITS[code] = v;
+  }
+}
+
+function onRoundingChange(ev) {
+  const code = ev.target.dataset.code;
+  const v = parseFloat(ev.target.value);
+  if (isNaN(v) || v === 0) {
+    delete ROUNDING_EDITS[code];
+  } else {
+    ROUNDING_EDITS[code] = v;
+  }
+}
+
+function openCommentModal(code, label) {
+  COMMENT_TARGET_CODE = code;
+  document.getElementById('commentTarget').textContent =
+    `${code} · ${label || ''}`;
+  document.getElementById('commentText').value = MANUAL_COMMENTS[code] || '';
+  new bootstrap.Modal(document.getElementById('commentModal')).show();
+}
+
+function applyComment() {
+  if (!COMMENT_TARGET_CODE) return;
+  const text = (document.getElementById('commentText').value || '').trim();
+  if (text) MANUAL_COMMENTS[COMMENT_TARGET_CODE] = text;
+  else      delete MANUAL_COMMENTS[COMMENT_TARGET_CODE];
+  refreshCommentIcon(COMMENT_TARGET_CODE);
+  bootstrap.Modal.getInstance(document.getElementById('commentModal')).hide();
+}
+
+function clearComment() {
+  if (!COMMENT_TARGET_CODE) return;
+  delete MANUAL_COMMENTS[COMMENT_TARGET_CODE];
+  document.getElementById('commentText').value = '';
+  refreshCommentIcon(COMMENT_TARGET_CODE);
+  bootstrap.Modal.getInstance(document.getElementById('commentModal')).hide();
+}
+
+function refreshCommentIcon(code) {
+  // 해당 cf_code 행의 코멘트 버튼만 갱신 (전체 재렌더 회피 — 사용자가 입력 중인 다른 셀 보존)
+  const inp = document.querySelector(`.manual-input[data-code="${code}"]`);
+  if (!inp) return;
+  const btn = inp.parentElement.querySelector('.comment-btn');
+  if (!btn) return;
+  const comment = MANUAL_COMMENTS[code] || '';
+  const hasC = !!comment;
+  btn.classList.toggle('has-comment', hasC);
+  const icon = btn.querySelector('i');
+  if (icon) {
+    icon.className = 'bi ' + (hasC ? 'bi-chat-left-text-fill' : 'bi-chat-left-text');
+  }
+  const safeC = comment.replace(/\n/g, ' ⏎ ');
+  btn.title = hasC ? `코멘트: ${safeC}` : '코멘트 입력 (수기조정 사유/근거)';
+}
+
+// CURRENT_RESULT에서 cf_code → 계정명 인덱스 (검증 메시지용)
+function _cfCodeNameMap() {
+  const map = {};
+  const res = CURRENT_RESULT || {};
+  (res.sections || []).forEach(sec => (sec.rows || []).forEach(r => {
+    if (r.cf_code) map[r.cf_code] = r.name || '';
+  }));
+  return map;
+}
+
+// 화면의 모든 input value를 MANUAL_EDITS/ROUNDING_EDITS 에 강제 동기화.
+// <input onchange>는 blur/Enter 때만 발화하므로, 사용자가 타이핑 중에 저장 버튼을
+// 누르면 마지막 입력이 누락된 채 서버 전송 → 재계산 후 화면에 이전 값 복원
+// → "입력이 날아간 것처럼" 보임. 이를 막기 위해 저장 직전에 호출한다.
+function syncInputsToState() {
+  document.querySelectorAll('.manual-input').forEach(inp => {
+    const code = inp.dataset.code;
+    if (!code) return;
+    const raw = inp.value;
+    const v = parseFloat(raw);
+    if (raw === '' || isNaN(v) || v === 0) {
+      delete MANUAL_EDITS[code];
+    } else {
+      MANUAL_EDITS[code] = v;
+    }
+  });
+  document.querySelectorAll('.rounding-input').forEach(inp => {
+    const code = inp.dataset.code;
+    if (!code) return;
+    const raw = inp.value;
+    const v = parseFloat(raw);
+    if (raw === '' || isNaN(v) || v === 0) {
+      delete ROUNDING_EDITS[code];
+    } else {
+      ROUNDING_EDITS[code] = v;
+    }
+  });
+}
+
+async function saveManualsAndRecompute() {
+  if (!IS_ADMIN) { alert('현금정산표 수기입력은 관리자만 가능합니다.'); return; }
+  if (!CURRENT_GROUP_ID || !CURRENT_PERIOD) return;
+
+  // ★ onchange가 아직 발화하지 않은 입력값까지 모두 state에 반영 (타이핑 중 저장 보호)
+  syncInputsToState();
+
+  // 수기조정 금액 ≠ 0 인데 코멘트 비어있는 항목 검증
+  const nameMap = _cfCodeNameMap();
+  const missing = [];
+  Object.entries(MANUAL_EDITS).forEach(([code, val]) => {
+    const amt = Number(val);
+    if (!amt) return;  // 0/NaN은 검증 제외
+    const c = (MANUAL_COMMENTS[code] || '').trim();
+    if (!c) missing.push({ code, name: nameMap[code] || '', amt });
+  });
+  if (missing.length) {
+    const list = missing.slice(0, 10).map(m =>
+      `  • ${m.code} ${m.name}  (${m.amt.toLocaleString('ko-KR')})`
+    ).join('\n');
+    const more = missing.length > 10 ? `\n  ... 외 ${missing.length - 10}건` : '';
+    alert(
+      `수기조정 금액이 입력된 ${missing.length}개 행에 코멘트가 없습니다.\n` +
+      `각 수기조정 사유/근거를 코멘트로 입력한 뒤 다시 저장해주세요.\n\n` +
+      list + more
+    );
+    return;
+  }
+
+  const r = await fetch(
+    `/cash-worksheet/manual/${CURRENT_GROUP_ID}/${encodeURIComponent(CURRENT_PERIOD)}`,
+    { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        manuals:   MANUAL_EDITS,
+        comments:  MANUAL_COMMENTS,
+        roundings: ROUNDING_EDITS,
+      }) });
+  if (!r.ok) { alert('저장 실패'); return; }
+  await computeCF(CURRENT_GROUP_ID);
+
+  // 재계산 결과 검증: (L+M+N+Q) × (Ⅳ현금증감 + Ⅴ환율변동 + scope_change) 합 = 0
+  //   조정은 BS/PL 라인 간 이동이라 현금흐름 3행 전체 합에 영향이 없어야 함.
+  //   Ⅳ만 따로 0일 필요는 없음 — Ⅴ/scope_change로 흡수 가능.
+  const res = CURRENT_RESULT || {};
+  const _sa = (r) => ((r||{}).manual||0)+((r||{}).adj||0)+((r||{}).inter||0)+((r||{}).fund_adj||0)+((r||{}).rounding||0);
+  const ncS  = _sa(res.net_cash);
+  const fxS  = _sa(res.fx_effect);
+  const scS  = _sa(res.scope_change);
+  const adjTotal = Math.round(ncS + fxS + scS);
+  if (adjTotal !== 0) {
+    const r = (row) => row || {};
+    const _byCol = (row) => ({
+      L: Math.round(r(row).manual   || 0),
+      M: Math.round(r(row).adj      || 0),
+      N: Math.round(r(row).inter    || 0),
+      Q: Math.round(r(row).rounding || 0),
+    });
+    const ncCol = _byCol(res.net_cash);
+    const fxCol = _byCol(res.fx_effect);
+    const scCol = _byCol(res.scope_change);
+    const sumCol = {
+      L: ncCol.L+fxCol.L+scCol.L,
+      M: ncCol.M+fxCol.M+scCol.M,
+      N: ncCol.N+fxCol.N+scCol.N,
+      Q: ncCol.Q+fxCol.Q+scCol.Q,
+    };
+    alert(
+      `⚠️ 조정 정합 불균형\n\n` +
+      `(L+M+N+Q) × (Ⅳ현금증감 + Ⅴ환율변동 + 연결범위변동) 합계가 ` +
+      `${adjTotal.toLocaleString('ko-KR')} 입니다 (0이어야 함).\n` +
+      `조정은 BS/PL 라인 간 이동이므로 현금흐름 3행 전체 합에 미치는 영향은 0이 되어야 합니다.\n\n` +
+      `행별 조정 합 (L+M+N+Q):\n` +
+      `  • Ⅳ 현금증감    : ${Math.round(ncS).toLocaleString('ko-KR')}\n` +
+      `  • Ⅴ 환율변동    : ${Math.round(fxS).toLocaleString('ko-KR')}\n` +
+      `  • 연결범위변동   : ${Math.round(scS).toLocaleString('ko-KR')}\n` +
+      `  • 합계 (= 잔차) : ${adjTotal.toLocaleString('ko-KR')}\n\n` +
+      `컬럼별 (Ⅳ+Ⅴ+scope) 합:\n` +
+      `  • L 수기조정 : ${sumCol.L.toLocaleString('ko-KR')}\n` +
+      `  • M 연결조정 : ${sumCol.M.toLocaleString('ko-KR')}\n` +
+      `  • N 내부거래 : ${sumCol.N.toLocaleString('ko-KR')}\n` +
+      `  • Q 단수조정 : ${sumCol.Q.toLocaleString('ko-KR')}`
+    );
+  }
+}
+
+document.getElementById('periodSelect').addEventListener('change', loadGroups);
+loadGroups();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

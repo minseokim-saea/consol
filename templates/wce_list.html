@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WCE 본사 입력 - 연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+  body { background:#f0f4f8; font-family:'Malgun Gothic', Arial, sans-serif; }
+  .navbar { background:#1F3864 !important; }
+  .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(31,56,100,0.08); }
+  .card-header {
+    background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%);
+    color:#fff; border-radius:12px 12px 0 0 !important;
+    padding:1rem 1.5rem; font-weight:600;
+  }
+  table th { background:#EBF0FA; color:#1F3864; font-weight:600; }
+  .badge-done { background:#28a745; }
+  .badge-todo { background:#ffc107; color:#333; }
+  .btn-edit {
+    background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%);
+    border:none; color:#fff; font-weight:500;
+  }
+  .btn-edit:hover { opacity:0.9; color:#fff; }
+</style>
+</head>
+<body>
+
+{% include '_topbar.html' %}
+
+<div class="container pb-5">
+
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-calendar3"></i>
+      <span>결산기간 선택</span>
+    </div>
+    <div class="card-body">
+      <form method="GET" action="/admin/wce" class="d-flex gap-2 align-items-center">
+        <label class="fw-semibold mb-0">기간:</label>
+        <select name="year" class="form-select form-select-sm" style="max-width:220px;" onchange="this.form.submit()">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>
+            {% set m = y.split('-') %}{{ m[0] }}년 {{ m[1][0] }}분기
+          </option>
+          {% endfor %}
+        </select>
+        <span class="text-muted small ms-auto">
+          <i class="bi bi-info-circle me-1"></i>WCE 시트 132행 이후 6개 테이블을 본사에서 직접 입력합니다.
+        </span>
+      </form>
+    </div>
+  </div>
+
+  {# 전체 미입력 합계 요약 #}
+  {% set total_missing_co = rows | selectattr('missing_count', '>', 0) | list | length %}
+  {% set total_missing_cells = rows | sum(attribute='missing_count') %}
+  {% if rows and total_missing_co > 0 %}
+  <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
+    <i class="bi bi-exclamation-octagon-fill"></i>
+    <div class="small">
+      <strong>{{ total_missing_co }}개사에서 총 {{ total_missing_cells }}개 셀이 미입력입니다.</strong>
+      현지통화에는 값이 있는데 KRW 환산값이 비어있는 셀입니다. 아래 표의 빨간 배지 회사들을 확인하세요.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-buildings"></i>
+      <span>{{ year }} 회사별 입력 현황 ({{ rows|length }}개사)</span>
+    </div>
+    <div class="card-body">
+      {% if not rows %}
+      <div class="alert alert-warning mb-0">
+        <i class="bi bi-exclamation-circle me-1"></i>{{ year }}에 업로드된 회사가 없습니다. 먼저 패키지 파일을 업로드해주세요.
+      </div>
+      {% else %}
+      <div class="table-responsive">
+        <table class="table align-middle">
+          <thead>
+            <tr>
+              <th style="width:5%;">#</th>
+              <th>회사명</th>
+              <th style="width:10%;">통화</th>
+              <th style="width:13%;">상태</th>
+              <th style="width:15%;">미입력</th>
+              <th style="width:22%;">최근 수정</th>
+              <th style="width:13%;">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in rows %}
+            <tr>
+              <td class="text-muted">{{ loop.index }}</td>
+              <td class="fw-semibold">
+                <i class="bi bi-building me-1 text-muted"></i>{{ row.company }}
+              </td>
+              <td class="small">
+                {% if row.currency %}<span class="badge bg-light text-dark border">{{ row.currency }}</span>
+                {% else %}<span class="text-muted">-</span>{% endif %}
+              </td>
+              <td>
+                {% if row.has_data %}
+                <span class="badge badge-done"><i class="bi bi-check-circle me-1"></i>입력완료</span>
+                {% else %}
+                <span class="badge badge-todo"><i class="bi bi-pencil me-1"></i>미입력</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if not row.has_local %}
+                  <span class="text-muted small">패키지 없음</span>
+                {% elif row.missing_count > 0 %}
+                  <span class="badge bg-danger" title="현지통화에 값이 있는데 KRW 환산값이 비어있는 셀 수">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ row.missing_count }}개
+                  </span>
+                {% else %}
+                  <span class="badge bg-success-subtle text-success border border-success-subtle">
+                    <i class="bi bi-check2 me-1"></i>이상없음
+                  </span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if row.has_data %}
+                  {{ row.updated_at }}{% if row.updated_by %} · {{ row.updated_by }}{% endif %}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                <a class="btn btn-sm btn-edit"
+                   href="/admin/wce/{{ year }}/{{ row.company | urlencode }}">
+                  <i class="bi bi-pencil-square me-1"></i>{% if row.has_data %}수정{% else %}입력{% endif %}
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

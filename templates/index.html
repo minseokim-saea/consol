@@ -1,0 +1,3783 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+  :root {
+    --brand-900: #1F3864;
+    --brand-700: #2F5597;
+    --brand-500: #4472C4;
+    --brand-050: #EBF0FA;
+    --surface:   #f0f4f8;
+    --card-bg:   #ffffff;
+    --text-body: #1a202c;
+    --text-muted:#6c757d;
+    --border:    #dee2e6;
+    --table-head:#1F3864;
+    --table-row-alt:#f8f9fa;
+    --radius-lg: 12px;
+    --radius-md: 10px;
+  }
+  /* 다크모드 (사용자 OS 설정 따름) */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --brand-900: #4472C4;
+      --brand-700: #5A8DD6;
+      --brand-500: #6FA1E0;
+      --brand-050: #1a2942;
+      --surface:   #0f172a;
+      --card-bg:   #1e293b;
+      --text-body: #e2e8f0;
+      --text-muted:#94a3b8;
+      --border:    #334155;
+      --table-head:#1e3a5f;
+      --table-row-alt:#253246;
+    }
+    body { color-scheme: dark; }
+    .card, .section-card, .modal-content { background: var(--card-bg); color: var(--text-body); }
+    .bg-white { background: var(--card-bg) !important; }
+    .table, .table-hover, .table-sm { color: var(--text-body); --bs-table-bg: var(--card-bg); }
+    .table-light, thead.table-light { --bs-table-bg: var(--table-row-alt); color: var(--text-body); }
+    .text-muted { color: var(--text-muted) !important; }
+    .alert-info { background:#1a3a52; color:#b3d9e6; border-color:#2a5a7a; }
+    .alert-warning { background:#4a3a1a; color:#f0d08e; border-color:#6a5520; }
+    .alert-success { background:#1a4028; color:#a8e6b8; border-color:#2a6040; }
+    .alert-danger { background:#4a1e24; color:#f0a8b0; border-color:#6a2e38; }
+    .form-control, .form-select { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+    .btn-close { filter: brightness(0) invert(0.9); }
+    .border, .rounded { border-color: var(--border) !important; }
+    .total-col { background:#2a3f5f; color:#d0deef; }
+    .preview-table td { background: var(--card-bg); }
+    .upload-item { background: var(--table-row-alt); }
+    .upload-item.done       { background:#1a4028; }
+    .upload-item.error      { background:#4a1e24; }
+    .upload-item.processing { background:#4a3a1a; }
+    .dashboard-chart-panel { background: linear-gradient(180deg,#1e293b 0%,#253246 100%); border-color:var(--border); }
+    .dashboard-delta      { background:#2a3548; color:#b8c0d0; }
+    .dashboard-delta.up   { background:#1a4028; color:#a8e6b8; }
+    .dashboard-delta.down { background:#4a1e24; color:#f0a8b0; }
+  }
+  body {
+    background: var(--surface);
+    color: var(--text-body);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont,
+                 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif;
+  }
+  /* 키보드 포커스 일관성 (네이비 테마 대비용 골드) */
+  :focus-visible {
+    outline: 3px solid #FFC107;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  .navbar { background: var(--brand-900) !important; }
+  .navbar .d-flex { flex-wrap: wrap; row-gap: 6px; }
+  /* 브랜드 모달 헤더 공통 클래스 */
+  .modal-header--brand { background: var(--brand-900); color: #fff; }
+  .modal-header--brand .btn-close { filter: brightness(0) invert(1); }
+
+  .upload-zone {
+    border: 2.5px dashed var(--brand-500);
+    border-radius: var(--radius-lg);
+    background: var(--brand-050);
+    transition: background 0.2s;
+    cursor: pointer;
+    min-height: 160px;
+  }
+  .upload-zone.dragover { background: #D6E4FF; border-color: var(--brand-700); }
+  .upload-zone:hover    { background: #dce8fb; }
+  .upload-zone:focus-visible { background: #dce8fb; }
+  .file-badge { font-size: 0.78rem; }
+  .section-card { border-radius: var(--radius-md); border: none; box-shadow: 0 1px 6px rgba(0,0,0,0.10); }
+  .preview-table th {
+    background: var(--brand-900);
+    color: #fff;
+    text-align: center !important;
+    vertical-align: middle;
+  }
+  .preview-table th,
+  .preview-table td {
+    border-right: 1px dotted #cbd5e1;
+  }
+  .preview-table th:first-child,
+  .preview-table td:first-child {
+    border-left: 1px dotted #cbd5e1;
+  }
+  .preview-table td.company-col {
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    hyphens: auto;
+  }
+  .total-col { background: var(--brand-050); font-weight: bold; color: var(--brand-900); }
+  #progressBar { transition: width 0.3s; }
+  .upload-modal-list { max-height: 340px; overflow-y: auto; }
+  .upload-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px; border-radius: 6px; margin-bottom: 6px;
+    background: #f8f9fa; border-left: 4px solid #dee2e6;
+    transition: all 0.25s;
+    flex-wrap: nowrap;
+  }
+  .upload-item.processing { background: #fff9e6; border-left-color: #ffc107; }
+  .upload-item.done       { background: #e8f5e9; border-left-color: #28a745; }
+  .upload-item.error      { background: #fbeaea; border-left-color: #dc3545; }
+  .upload-item .status-icon { font-size: 1.2rem; width: 24px; flex: 0 0 24px; text-align: center; }
+  .upload-item .filename {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .upload-item .company-tag {
+    flex: 0 0 auto;
+    max-width: 40%;
+    font-size: 0.78rem;
+    color: #1F3864;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 8px;
+    background: rgba(31, 56, 100, 0.08);
+    border-radius: 10px;
+  }
+  .spinner-sm {
+    width: 16px; height: 16px; border: 2px solid #ffc107;
+    border-top-color: transparent; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .step-badge {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #1F3864; color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 0.85rem;
+  }
+  .dashboard-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .dashboard-chart-panel {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #d9e2ef;
+    border-radius: 8px;
+    padding: 14px;
+    min-height: 260px;
+  }
+  .dashboard-chart-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+  .dashboard-chart-title h6 {
+    color: #1F3864;
+    font-weight: 700;
+    margin: 0;
+  }
+  .dashboard-chart-subtitle {
+    color: #6c757d;
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+  .dashboard-chart-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+    color: #6c757d;
+    font-size: 0.78rem;
+  }
+  .dashboard-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-weight: 700;
+    background: #eef2f7;
+    color: #5c6670;
+    white-space: nowrap;
+  }
+  .dashboard-delta i { font-size: 0.9rem; line-height: 1; }
+  .dashboard-delta.up   { background: #d7efdc; color: #165c31; }
+  .dashboard-delta.down { background: #fbd9df; color: #8f1a2f; }
+  /* ── 대시보드 섹션 헤더 ─────────────────────── */
+  .db-section { }
+  .db-section-hdr {
+    display: flex; align-items: center; gap: 8px;
+    font-size: .82rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    padding: 6px 12px; border-radius: 6px; margin-bottom: 12px;
+  }
+  .db-section-hdr i { font-size: 1rem; }
+  .db-section-hdr--profit  { background: #EBF0FA; color: #1F3864; }
+  .db-section-hdr--safety  { background: #FFF2CC; color: #7B5E00; }
+  .db-section-hdr--cashflow{ background: #E2F0D9; color: #375623; }
+  @media (prefers-color-scheme: dark) {
+    .db-section-hdr--profit  { background: #1e2a40; color: #a0b4d0; }
+    .db-section-hdr--safety  { background: #2a2510; color: #c9a838; }
+    .db-section-hdr--cashflow{ background: #192518; color: #7fc47a; }
+  }
+  /* ── KPI 카드 (섹션별 색상 오버라이드) ────────── */
+  .kpi-card {
+    border-radius: 10px; border: 1px solid var(--border);
+    background: var(--card-bg); padding: 14px 16px; height: 100%;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .kpi-card-name  { font-size: .76rem; color: var(--text-muted); font-weight: 600; }
+  .kpi-card-value { font-size: 1.45rem; font-weight: 800; color: var(--text-body); line-height: 1.2; }
+  .kpi-card-unit  { font-size: .75rem; color: var(--text-muted); font-weight: 400; margin-left:2px; }
+  .kpi-card-cmp   { font-size: .76rem; color: var(--text-muted); margin-top: 4px; }
+  /* ICR 신호등 */
+  .kpi-card.icr-green  { border-left: 4px solid #70AD47; }
+  .kpi-card.icr-amber  { border-left: 4px solid #ED7D31; }
+  .kpi-card.icr-red    { border-left: 4px solid #C00000; }
+  /* 빈 상태 일러스트 */
+  .empty-state {
+    text-align: center;
+    color: #6c757d;
+    padding: 48px 16px;
+  }
+  .empty-state .bi { font-size: 3rem; opacity: 0.55; display: block; margin-bottom: 12px; }
+  .empty-state p { margin: 4px 0; }
+  /* Sticky 하단 액션 바 */
+  .sticky-actionbar {
+    position: fixed;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #dee2e6);
+    border-radius: 999px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 8px 14px;
+    z-index: 1040;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    animation: slideUp 0.3s ease-out;
+  }
+  .sticky-actionbar.visible { display: inline-flex; }
+  @keyframes slideUp { from { transform: translate(-50%, 20px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }
+
+  /* 사이드바 스타일은 _sidebar.html include 에서 처리 */
+
+  /* 파일 목록 스크롤 카드 (회사 많을 때 페이지 절약) */
+  .file-list-scroll {
+    max-height: min(480px, 60vh);
+    overflow-y: auto;
+    padding-right: 6px;       /* 스크롤바 가까이 닿지 않게 */
+    position: relative;
+  }
+  /* 카드 내부 헤더(전체선택+카운터)를 스크롤해도 위에 고정 */
+  .file-list-controls-sticky {
+    position: sticky;
+    top: 0;
+    background: var(--card-bg, #fff);
+    z-index: 5;
+    padding: 6px 0 8px;
+    border-bottom: 1px solid var(--border, #dee2e6);
+    margin-bottom: 8px;
+  }
+  /* 스크롤 영역 하단 fade-out — "더 있음" 시각 힌트 */
+  .file-list-fade-bottom {
+    position: relative;
+  }
+  .file-list-fade-bottom::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 28px;
+    background: linear-gradient(to bottom, transparent, var(--card-bg, #fff));
+    pointer-events: none;
+    border-radius: 0 0 var(--radius-md) var(--radius-md);
+  }
+  /* 마지막까지 스크롤하면 fade 가림 (선택적, JS로 토글) */
+  .file-list-fade-bottom.at-bottom::after { opacity: 0; transition: opacity .15s; }
+  /* 언어 토글 버튼 */
+  .lang-btn { font-size: 0.8rem; padding: 3px 10px; border-radius: 999px; }
+  .lang-btn.active { background: #fff; color: var(--brand-900); font-weight: 700; }
+  .lang-btn:not(.active) { background: transparent; color: rgba(255,255,255,0.65); }
+  /* ── 차입금 구성 합산 패널 ─────────────────── */
+  .debt-comp-panel {
+    grid-column: 1 / -1;
+    background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+    border: 1px solid #d9e2ef;
+    border-radius: var(--radius-md);
+    padding: 16px 20px 12px;
+    box-shadow: 0 1px 6px rgba(31,56,100,.06);
+  }
+  .debt-comp-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+  .debt-comp-title { font-weight: 700; font-size: 1rem; color: #1F3864; margin: 0 0 2px; }
+  .debt-comp-kpis  { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .debt-comp-kpi-prior { font-size: .9rem; font-weight: 700; color: var(--text-muted); }
+  .debt-comp-kpi-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
+  .debt-comp-canvas { position: relative; height: 220px; margin: 4px 0 8px; }
+  .debt-comp-stats {
+    display: flex;
+    gap: 16px;
+    padding-top: 8px;
+    border-top: 1px solid #e2e8f0;
+    font-size: .8rem;
+    color: var(--text-muted);
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .debt-comp-stat-item { display: flex; align-items: center; gap: 6px; }
+  .debt-comp-stat-ratio { margin-left: auto; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .debt-color-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
+  @media (prefers-color-scheme: dark) {
+    .debt-comp-panel { background: linear-gradient(160deg,#1e293b 0%,#253246 100%); border-color:var(--border); }
+    .debt-comp-title { color: #e2e8f0; }
+    .debt-comp-stats { border-top-color: #334155; }
+  }
+  /* ─────────────────────────────────────────── */
+  .dashboard-chart-canvas {
+    position: relative;
+    height: 185px;
+  }
+</style>
+</head>
+<body{% if is_admin %} class="has-sidenav"{% endif %}>
+
+<!-- Toast 알림 컨테이너 (우하단, 전역) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastArea" style="z-index:1090;"></div>
+
+<!-- 범용 확인 모달 (Promise 기반) -->
+<div class="modal fade" id="confirmModal" tabindex="-1"
+     aria-labelledby="confirmModalTitle" aria-modal="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header modal-header--brand">
+        <h5 class="modal-title" id="confirmModalTitle">
+          <i class="bi bi-question-circle me-2" aria-hidden="true"></i><span id="confirmModalTitleText">확인</span>
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
+      </div>
+      <div class="modal-body">
+        <p id="confirmModalBody" class="mb-0" style="white-space:pre-line;"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancel">취소</button>
+        <button type="button" class="btn btn-danger" id="confirmModalOk">확인</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Sticky 하단 액션 바: 합산 카드까지 스크롤되면 노출 (합산 전/후 모두) -->
+<div class="sticky-actionbar" id="stickyActionBar" role="toolbar" aria-label="빠른 액션">
+  <button class="btn btn-sm btn-primary" id="stickyAggregate" style="display:none;">
+    <i class="bi bi-calculator me-1" aria-hidden="true"></i>합산 실행
+    <span class="badge bg-light text-primary ms-1" id="stickyAggregateBadge" style="display:none;"></span>
+  </button>
+  <a id="stickyDownload" class="btn btn-sm btn-success" href="#" style="display:none;">
+    <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i><span data-i18n="step4.download">Excel 다운로드</span>
+  </a>
+  <button class="btn btn-sm btn-outline-primary" id="stickyReaggregate" style="display:none;">
+    <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i><span data-i18n="sticky.rerun">재실행</span>
+  </button>
+  <button class="btn btn-sm btn-link text-muted p-0 ms-1" id="stickyToTop" aria-label="맨 위로">
+    <i class="bi bi-arrow-up-circle fs-5" aria-hidden="true"></i>
+  </button>
+</div>
+
+<nav class="navbar navbar-dark mb-4">
+  <div class="container">
+    <span class="navbar-brand fw-bold">
+      <i class="bi bi-bar-chart-fill me-2" aria-hidden="true"></i><span data-i18n="app.title">연결 재무보고 통합 시스템</span>
+    </span>
+    <div class="d-flex align-items-center gap-2">
+      <!-- 언어 토글 -->
+      <div class="d-flex border border-secondary rounded-pill overflow-hidden me-2" style="gap:1px;">
+        <button id="langKo" class="btn btn-sm lang-btn active border-0" data-lang="ko">한국어</button>
+        <button id="langEn" class="btn btn-sm lang-btn border-0" data-lang="en">English</button>
+      </div>
+      <span class="text-white-50 small me-1">
+        <i class="bi bi-person-circle me-1" aria-hidden="true"></i>{{ username }}
+        {% if is_admin %}<span class="badge bg-danger ms-1" data-i18n="nav.admin">관리자</span>{% endif %}
+      </span>
+      {% if is_admin %}
+      <a href="/admin/users" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-people me-1" aria-hidden="true"></i><span data-i18n="nav.users">사용자 관리</span>
+      </a>
+      <a href="/admin/permission-groups" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-shield-lock-fill me-1" aria-hidden="true"></i>권한그룹 관리
+      </a>
+      {% endif %}
+      <a href="/change-password" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-key me-1" aria-hidden="true"></i><span data-i18n="nav.password">비밀번호 변경</span>
+      </a>
+      <a href="/logout" class="btn btn-sm btn-outline-light">
+        <i class="bi bi-box-arrow-right me-1" aria-hidden="true"></i><span data-i18n="nav.logout">로그아웃</span>
+      </a>
+    </div>
+  </div>
+</nav>
+
+{% set active_menu = 'home' %}
+{% include '_sidebar.html' %}
+
+<div class="container pb-5">
+
+  <!-- 결산기간 선택 -->
+  <div class="card section-card mb-4">
+    <div class="card-body p-3 d-flex flex-wrap align-items-center gap-2">
+      <span class="fw-bold me-2"><i class="bi bi-calendar3 me-1" aria-hidden="true"></i><span data-i18n="period.label">결산기간</span></span>
+      <select id="yearSelect" class="form-select form-select-sm" style="max-width:240px;">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == default_year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <span id="yearLockBadge" class="badge d-none align-items-center"
+            style="background:#dc3545; color:#fff; font-weight:600; padding:6px 10px; gap:4px;">
+        <i class="bi bi-lock-fill" aria-hidden="true"></i>
+        <span data-i18n="period.locked">마감됨</span>
+      </span>
+      <script>
+        // 초기 locked 목록 (서버에서 주입)
+        window._lockedYears = {{ locked_years|tojson }};
+        // 서버 측에서 raw value로 내려온 옵션을 "YYYY년 N분기" 형식으로 표시
+        (function formatInitialOptions(){
+          const sel = document.getElementById('yearSelect');
+          if (!sel) return;
+          [...sel.options].forEach(o => {
+            const m = o.value.match(/^(\d{4})-([1-4])Q$/);
+            const base = m ? `${m[1]}년 ${m[2]}분기` : o.value;
+            o.textContent = (window._lockedYears || []).includes(o.value) ? `🔒 ${base}` : base;
+          });
+        })();
+      </script>
+      <button id="btnSubmissionStatus" class="btn btn-sm btn-outline-success ms-2">
+        <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i><span data-i18n="period.status">제출현황</span>
+      </button>
+      {% if is_admin %}
+      <button id="btnFxRates" class="btn btn-sm btn-outline-info ms-2">
+        <i class="bi bi-currency-exchange me-1" aria-hidden="true"></i>환율 관리
+      </button>
+      {% endif %}
+      {% if is_admin %}
+      <button id="btnToggleLock" class="btn btn-sm btn-outline-warning ms-2">
+        <i class="bi bi-lock me-1" aria-hidden="true"></i><span id="btnToggleLockLabel" data-i18n="period.lock">마감</span>
+      </button>
+      <button class="btn btn-sm btn-outline-primary ms-2" data-bs-toggle="modal" data-bs-target="#addPeriodModal">
+        <i class="bi bi-plus-circle me-1" aria-hidden="true"></i><span data-i18n="period.add">기간 추가</span>
+      </button>
+      <button id="btnDeleteCurrentYear" class="btn btn-sm btn-outline-danger">
+        <i class="bi bi-trash me-1" aria-hidden="true"></i><span data-i18n="period.delete">현재 기간 삭제</span>
+      </button>
+      <span class="text-muted small ms-2" data-i18n="period.adminOnly">(관리자만 결산기간 추가·삭제·마감 가능)</span>
+      {% else %}
+      <span class="text-muted small ms-2" data-i18n="period.lockNote">(마감된 기간은 업로드 불가)</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 제출현황 모달 -->
+  <div class="modal fade" id="submissionModal" tabindex="-1"
+       aria-labelledby="submissionModalTitle" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header modal-header--brand">
+          <h5 class="modal-title" id="submissionModalTitle">
+            <i class="bi bi-clipboard-check me-2" aria-hidden="true"></i>제출현황
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <div id="submissionSummary" class="alert alert-info small mb-3">조회 중...</div>
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="small fw-semibold text-secondary">필터</span>
+            <div class="btn-group btn-group-sm" role="group" aria-label="제출현황 필터">
+              <button type="button" class="btn btn-primary" id="submissionFilterAll">전체</button>
+              <button type="button" class="btn btn-outline-success" id="submissionFilterSubmitted">제출</button>
+              <button type="button" class="btn btn-outline-danger" id="submissionFilterMissing">미제출</button>
+            </div>
+          </div>
+          <div class="table-responsive" style="max-height:520px;">
+            <table class="table table-sm table-hover align-middle mb-0">
+              <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                <tr>
+                  <th scope="col" style="width:90px;">상태</th>
+                  <th scope="col">필수제출회사</th>
+                  <th scope="col">업로드 파일</th>
+                  <th scope="col" style="width:170px;">업로드 일시</th>
+                </tr>
+              </thead>
+              <tbody id="submissionList">
+                <tr><td colspan="4" class="text-muted text-center py-4">조회 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="btnSubmissionRefresh" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>새로고침
+          </button>
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">확인</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if is_admin %}
+  <!-- 환율 관리 모달 -->
+  <div class="modal fade" id="fxRatesModal" tabindex="-1"
+       aria-labelledby="fxRatesModalTitle" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header modal-header--brand">
+          <h5 class="modal-title d-flex align-items-center gap-2" id="fxRatesModalTitle">
+            <span><i class="bi bi-currency-exchange me-2" aria-hidden="true"></i>환율 관리</span>
+            <select id="fxPeriodSelect" class="form-select form-select-sm ms-2"
+                    style="width:auto;min-width:170px;font-size:.85rem;"
+                    aria-label="환율 입력 분기 선택"></select>
+            <span id="fxRatesYearBadge" class="badge bg-warning text-dark fw-normal d-none" style="font-size:.7rem;">비교용</span>
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <div id="fxRatesAlert" class="alert alert-info small mb-3">
+            <i class="bi bi-info-circle me-1"></i>
+            중앙 관리 환율은 패키지 파일의 환율보다 <strong>우선 적용</strong>됩니다.
+            (WCE 자동 환산: 당기순이익·보험수리적손익 등)
+          </div>
+
+          <!-- 당기 환율 -->
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="mb-0 fw-bold" style="color:#1F3864;">
+              <i class="bi bi-graph-up me-1"></i>당기 환율
+            </h6>
+            <div class="d-flex gap-2">
+              <button type="button" id="btnFxTemplate" class="btn btn-sm btn-outline-secondary"
+                      title="환율 일괄 업로드용 엑셀 양식을 다운로드합니다">
+                <i class="bi bi-file-earmark-excel me-1"></i>양식 다운로드
+              </button>
+              <button type="button" id="btnFxUpload" class="btn btn-sm btn-outline-success"
+                      title="작성한 엑셀 양식을 업로드해 환율을 일괄 등록합니다">
+                <i class="bi bi-upload me-1"></i>엑셀 업로드
+              </button>
+              <input type="file" id="fxUploadInput" class="d-none"
+                     accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+              <button type="button" id="btnFxAddRow" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-plus-circle me-1"></i>통화 추가
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive mb-4">
+            <table class="table table-sm table-hover mb-0" id="fxCurrentTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:90px;">통화</th>
+                  <th>Spot Rate <span class="text-muted small">(기말 ₩/1단위)</span></th>
+                  <th>Avg Rate <span class="text-muted small">(평균 ₩/1단위)</span></th>
+                  <th style="width:50px;"></th>
+                </tr>
+              </thead>
+              <tbody id="fxCurrentTbody">
+                <tr><td colspan="4" class="text-muted text-center py-3">불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 전기 환율 -->
+          <div class="d-flex align-items-center justify-content-between mb-2">
+            <h6 class="mb-0 fw-bold" style="color:#2d5a27;">
+              <i class="bi bi-clock-history me-1"></i>전기 환율
+              <span id="fxPriorBadge" class="badge bg-secondary fw-normal ms-2" style="font-size:.7rem;">-</span>
+            </h6>
+            <button type="button" id="btnFxPriorAddRow" class="btn btn-sm btn-outline-success d-none">
+              <i class="bi bi-plus-circle me-1"></i>통화 추가
+            </button>
+          </div>
+          <div id="fxPriorNote" class="alert alert-success small py-2 mb-2 d-none">
+            <i class="bi bi-check-circle me-1"></i>
+            전기 환율은 <strong id="fxPriorYearLabel">-</strong>의 당기 환율에서 자동으로 가져옵니다.
+            <span class="text-muted">(수정하려면 해당 기간을 선택해서 변경)</span>
+          </div>
+          <div id="fxPriorManualNote" class="alert alert-warning small py-2 mb-2 d-none">
+            <i class="bi bi-pencil-square me-1"></i>
+            <strong>최초연도</strong>이므로 전기 환율을 직접 입력합니다.
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm mb-0" id="fxPriorTable">
+              <thead class="table-light">
+                <tr>
+                  <th style="width:90px;">통화</th>
+                  <th>Spot Rate</th>
+                  <th>Avg Rate</th>
+                  <th id="fxPriorActionTh" style="width:50px;" class="d-none"></th>
+                </tr>
+              </thead>
+              <tbody id="fxPriorTbody">
+                <tr><td colspan="3" class="text-muted text-center py-3">-</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer justify-content-between">
+          <button type="button" id="btnFxReapply" class="btn btn-outline-warning"
+                  title="이 기간 업로드된 모든 패키지를 새 환율로 재환산합니다">
+            <i class="bi bi-arrow-repeat me-1"></i>이 기간 패키지 재환산
+          </button>
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            <button type="button" id="btnFxSave" class="btn btn-primary">
+              <i class="bi bi-floppy me-1"></i>저장
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 결산기간 추가 모달 -->
+  <div class="modal fade" id="addPeriodModal" tabindex="-1"
+       aria-labelledby="addPeriodModalTitle" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header modal-header--brand">
+          <h5 class="modal-title" id="addPeriodModalTitle">
+            <i class="bi bi-calendar-plus me-2" aria-hidden="true"></i>결산기간 추가
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-7">
+              <label class="form-label fw-semibold">연도</label>
+              <input type="number" id="periodYearInput" class="form-control"
+                     min="2000" max="2099" value="2024" required>
+            </div>
+            <div class="col-5">
+              <label class="form-label fw-semibold">분기</label>
+              <select id="periodQuarterInput" class="form-select">
+                <option value="1">1분기</option>
+                <option value="2">2분기</option>
+                <option value="3">3분기</option>
+                <option value="4">4분기</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+          <button type="button" id="btnSubmitAddPeriod" class="btn btn-primary">
+            <i class="bi bi-check-lg me-1" aria-hidden="true"></i>추가
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Step 1: 파일 업로드 -->
+  <div class="card section-card mb-4">
+    <div class="card-body p-4">
+      <h5 class="card-title mb-3">
+        <span class="step-badge me-2">1</span><span data-i18n="step1.title">파일 업로드</span>
+      </h5>
+      <p class="text-muted small mb-3" data-i18n="step1.desc">엑셀양식으로 작성된 패키지 파일(<code>.xlsm</code>)을 업로드하세요. 여러 회사 파일을 한꺼번에 선택할 수 있습니다.</p>
+
+      <div class="upload-zone d-flex flex-column align-items-center justify-content-center p-4 mb-3"
+           id="dropZone"
+           role="button" tabindex="0"
+           aria-label="파일 선택 영역 — 클릭 또는 Enter/Space 키로 선택, 드래그 앤 드롭 지원">
+        <i class="bi bi-cloud-upload fs-1 text-primary mb-2" aria-hidden="true"></i>
+        <p class="mb-1 fw-semibold" data-i18n="upload.dropzone">파일을 드래그하거나 클릭하여 선택</p>
+        <p class="text-muted small mb-0" data-i18n="upload.hint">.xlsm 파일만 지원 · 파일당 최대 50MB</p>
+        <input type="file" id="fileInput" accept=".xlsm" multiple style="display:none">
+      </div>
+
+      {% if is_admin %}
+      <div class="alert alert-warning small d-flex align-items-center py-2 mb-3"
+           style="border-style:dashed;">
+        <div class="form-check form-switch mb-0 me-3">
+          <input class="form-check-input" type="checkbox" id="forceUploadToggle">
+          <label class="form-check-label fw-semibold" for="forceUploadToggle">
+            <i class="bi bi-shield-exclamation me-1"></i>토큰 검증 우회 (관리자 강제 업로드)
+          </label>
+        </div>
+        <span class="text-muted">
+          체크 시: 정식 배포가 아닌 파일·옛 분기 파일·타사 파일도 업로드 허용. 평소엔 끄세요.
+        </span>
+      </div>
+      {% endif %}
+
+      <div id="uploadStatus"></div>
+    </div>
+  </div>
+
+  <!-- 재분석 진행 모달 -->
+  <div class="modal fade" id="reanalyzeModal" tabindex="-1"
+       data-bs-backdrop="static" data-bs-keyboard="false"
+       aria-labelledby="reanalyzeModalTitle" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header modal-header--brand">
+          <h5 class="modal-title" id="reanalyzeModalTitle">
+            <i class="bi bi-arrow-repeat me-2" aria-hidden="true"></i>재분석 진행 중
+          </h5>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="small text-muted"><span id="raCurFileName">준비 중...</span></span>
+            <span class="small fw-bold" id="raCounter">0 / 0</span>
+          </div>
+          <div class="progress mb-3" style="height:10px;">
+            <div class="progress-bar bg-success progress-bar-striped progress-bar-animated"
+                 id="raProgressBar" style="width:0%"></div>
+          </div>
+          <div class="d-flex gap-3 mb-3 small">
+            <span class="text-success"><i class="bi bi-check-circle-fill"></i> 성공 <b id="raDoneCount">0</b></span>
+            <span class="text-danger"><i class="bi bi-x-circle-fill"></i> 실패 <b id="raErrorCount">0</b></span>
+            <span class="text-warning"><i class="bi bi-hourglass-split"></i> 대기 <b id="raPendingCount">0</b></span>
+          </div>
+          <div class="upload-modal-list" id="raFileList"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-danger" id="raCancelBtn">
+            <i class="bi bi-x-circle me-1"></i>중단
+          </button>
+          <button type="button" class="btn btn-primary" id="raCloseBtn" disabled data-bs-dismiss="modal">
+            <i class="bi bi-check-lg me-1"></i>완료
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 업로드 진행 모달 -->
+  <div class="modal fade" id="uploadModal" tabindex="-1"
+       data-bs-backdrop="static" data-bs-keyboard="false"
+       aria-labelledby="uploadModalTitle" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content">
+        <div class="modal-header modal-header--brand">
+          <h5 class="modal-title" id="uploadModalTitle">
+            <i class="bi bi-cloud-upload me-2" aria-hidden="true"></i>파일 업로드 진행 중
+          </h5>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="small text-muted"><span id="modalCurFileName">준비 중...</span></span>
+            <span class="small fw-bold" id="modalCounter">0 / 0</span>
+          </div>
+          <div class="progress mb-3" style="height:10px;">
+            <div class="progress-bar bg-primary progress-bar-striped progress-bar-animated"
+                 id="modalProgressBar" style="width:0%">
+            </div>
+          </div>
+
+          <div class="d-flex gap-3 mb-3 small">
+            <span class="text-success"><i class="bi bi-check-circle-fill"></i> 성공 <b id="modalDoneCount">0</b></span>
+            <span class="text-danger"><i class="bi bi-x-circle-fill"></i> 실패 <b id="modalErrorCount">0</b></span>
+            <span class="text-warning"><i class="bi bi-hourglass-split"></i> 처리 중 <b id="modalPendingCount">0</b></span>
+          </div>
+
+          <div class="upload-modal-list" id="modalFileList"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-primary" id="modalCloseBtn" disabled
+                  data-bs-dismiss="modal">
+            <i class="bi bi-check-lg me-1"></i>완료
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 코멘트 보기/편집 모달 — 업로드된 파일의 특이사항(자회사가 후에 기록) -->
+  <div class="modal fade" id="commentModal" tabindex="-1"
+       aria-labelledby="commentModalTitle" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header modal-header--brand">
+          <h5 class="modal-title" id="commentModalTitle">
+            <i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>파일 코멘트
+          </h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2 small text-muted" id="commentMeta"></div>
+          <textarea id="commentTextarea" class="form-control" rows="6"
+                    maxlength="4000"
+                    placeholder="이번 분기 특이사항·재무 변동 사유·검토자 메모 등을 자유롭게 기록하세요. (최대 4,000자)"></textarea>
+          <div class="d-flex justify-content-between mt-1">
+            <small class="text-muted" id="commentReadOnlyNote" style="display:none;">
+              <i class="bi bi-eye"></i> 보기 전용 — 업로드한 본인 또는 관리자만 수정할 수 있습니다.
+            </small>
+            <small class="text-muted ms-auto"><span id="commentCharCount">0</span> / 4,000</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          <button type="button" class="btn btn-primary" id="commentSaveBtn">
+            <i class="bi bi-save me-1"></i>저장
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: 업로드된 파일 목록 -->
+  <div class="card section-card mb-4" id="fileListCard" style="display:none">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="card-title mb-0">
+          <span class="step-badge me-2">2</span>업로드된 파일 <span class="badge bg-primary" id="fileCount">0</span>개사
+        </h5>
+        <div>
+          <button id="btnLoadFiles" class="btn btn-sm btn-outline-secondary me-1">
+            <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> <span data-i18n="step2.refresh">새로고침</span>
+          </button>
+          <button id="btnReanalyzeAll" class="btn btn-sm btn-outline-primary me-1">
+            <i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span data-i18n="step2.reanalyze">재분석</span>
+          </button>
+          <button id="btnDownloadZip" class="btn btn-sm btn-outline-success me-1"
+                  title="선택된 패키지(없으면 전체)를 ZIP으로 다운로드합니다">
+            <i class="bi bi-file-earmark-zip" aria-hidden="true"></i> <span data-i18n="step2.downloadZip">선택 다운로드</span>
+          </button>
+          {% if is_admin %}
+          <button id="btnDeleteAllFiles" class="btn btn-sm btn-outline-danger">
+            <i class="bi bi-trash" aria-hidden="true"></i> <span data-i18n="step2.deleteAll">전체 삭제</span>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+      <!-- 그룹 필터 -->
+      <div id="groupFilterArea" class="mb-3 p-3 rounded" style="display:none; background:#f8f9fa;">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <span class="small fw-bold text-secondary me-1"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>그룹 선택</span>
+          <div id="groupBtns" class="d-flex flex-wrap gap-1"></div>
+          <button id="btnClearGroupSelection" class="btn btn-sm btn-link text-muted text-decoration-none ms-1 p-0">
+            <i class="bi bi-x-circle me-1" aria-hidden="true"></i><span class="small">초기화</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 스크롤 카드 내부: 컨트롤 (sticky) + 파일 목록 -->
+      <div class="file-list-fade-bottom">
+        <div class="file-list-scroll" id="fileListScroll">
+          <!-- 전체 선택 + 카운터 (스크롤해도 상단 고정) -->
+          <div class="file-list-controls-sticky d-flex align-items-center gap-3 px-1">
+            <div class="form-check mb-0">
+              <input class="form-check-input" type="checkbox" id="selectAllChk">
+              <label class="form-check-label small fw-semibold" for="selectAllChk" data-i18n="step2.selectAll">전체 선택</label>
+            </div>
+            <span class="small text-muted"><span id="selectedCount">0</span>개 선택됨</span>
+            <span class="small text-muted ms-auto" id="fileListHint">
+              <i class="bi bi-arrow-down-up me-1"></i>스크롤
+            </span>
+          </div>
+          <div id="fileList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: 합산 실행 (핵심 CTA — 액션 스트립으로 강조) -->
+  <div class="card section-card mb-4" id="aggregateCard" style="display:none;
+       background:linear-gradient(90deg,var(--brand-050),#fff); border-left:4px solid var(--brand-900);">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
+        <span class="step-badge flex-shrink-0">3</span>
+        <div class="flex-grow-1" style="min-width:220px;">
+          <div class="fw-bold" style="color:var(--brand-900); font-size:1.05rem;" data-i18n="step3.title">통합 합산 실행</div>
+          <div class="small text-muted" id="aggregateSelInfo">선택 없음 → 전체 파일 합산</div>
+        </div>
+        <button class="btn btn-primary btn-lg px-4" id="aggregateBtn">
+          <i class="bi bi-calculator me-2" aria-hidden="true"></i><span data-i18n="step3.btn">합산 실행</span>
+          <span class="badge bg-white text-primary ms-2" id="aggregateBadge" style="display:none"></span>
+        </button>
+      </div>
+      <div id="aggregateStatus" class="mt-3"></div>
+    </div>
+  </div>
+
+  <!-- Step 4: 결과 미리보기 + 다운로드 -->
+  <div class="card section-card mb-4" id="resultCard" style="display:none">
+    <div class="card-body p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="card-title mb-0">
+          <span class="step-badge me-2">4</span><span data-i18n="step4.title">합산 결과</span>
+          <span class="badge bg-secondary ms-2" style="font-weight:normal" data-i18n="step4.unit">단위: 억원</span>
+        </h5>
+        <div class="d-flex gap-2">
+          <a id="downloadCompareBtn" class="btn btn-outline-success d-none" href="#"
+             title="회사별 전기 비교 (동기 환율 기준)">
+            <i class="bi bi-files me-1" aria-hidden="true"></i>회사별 전기비교
+          </a>
+          <a id="downloadBtn" class="btn btn-success" href="#">
+            <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i><span data-i18n="step4.download">Excel 다운로드</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="alert alert-info small" id="resultSummary"></div>
+
+      <h6 class="text-muted mb-2"><i class="bi bi-bank me-1" aria-hidden="true"></i><span data-i18n="step4.bs">대차대조표 (BS)</span></h6>
+      <div class="table-responsive mb-4">
+        <table class="table table-sm table-hover preview-table" id="bsPreviewTable">
+          <thead id="bsPreviewHead"></thead>
+          <tbody id="bsPreviewBody"></tbody>
+        </table>
+      </div>
+
+      <h6 class="text-muted mb-2"><i class="bi bi-graph-up me-1" aria-hidden="true"></i><span data-i18n="step4.pl">손익계산서 (PL)</span></h6>
+      <div class="table-responsive">
+        <table class="table table-sm table-hover preview-table" id="plPreviewTable">
+          <thead id="plPreviewHead"></thead>
+          <tbody id="plPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 5: 경영 대시보드 -->
+  <div class="card section-card" id="dashboardCard" style="display:none">
+    <div class="card-body p-3 p-md-4">
+      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 class="card-title mb-0">
+          <span class="step-badge me-2">5</span>
+          <span data-i18n="step5.title">경영 대시보드</span>
+        </h5>
+        <div class="d-flex align-items-center gap-2">
+          <button id="dashboardExcelBtn" class="btn btn-sm btn-success" onclick="downloadDashboardExcel(this)">
+            <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i><span data-i18n="step5.download">Excel 다운로드</span>
+          </button>
+          <span class="badge bg-light text-secondary border" data-i18n="step5.unit">단위: 억원</span>
+        </div>
+      </div>
+
+      <!-- ① 수익성 -->
+      <div class="db-section mb-4">
+        <div class="db-section-hdr db-section-hdr--profit">
+          <i class="bi bi-graph-up-arrow" aria-hidden="true"></i>
+          <span data-i18n="db.section.profit">수익성 (Profitability)</span>
+        </div>
+        <div class="row g-3 mb-3" id="dbCardsProfitability"></div>
+        <div id="dbChartsProfitability"></div>
+      </div>
+
+      <!-- ② 재무안전성 -->
+      <div class="db-section mb-4">
+        <div class="db-section-hdr db-section-hdr--safety">
+          <i class="bi bi-shield-check" aria-hidden="true"></i>
+          <span data-i18n="db.section.safety">재무안전성 (Financial Safety)</span>
+        </div>
+        <div class="row g-3 mb-3" id="dbCardsSafety"></div>
+        <div id="dbChartsSafety"></div>
+      </div>
+
+      <!-- ③ 현금흐름 -->
+      <div class="db-section">
+        <div class="db-section-hdr db-section-hdr--cashflow">
+          <i class="bi bi-cash-stack" aria-hidden="true"></i>
+          <span data-i18n="db.section.cashflow">현금흐름 (Cash Flow)</span>
+        </div>
+        <div class="row g-3 mb-3" id="dbCardsCashflow"></div>
+        <div id="dbChartsCashflow"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const fmt = (n) => n == null || n === 0 ? '-' : new Intl.NumberFormat('ko-KR').format(Math.round(n));
+
+// ── 다국어(i18n) ────────────────────────────────────────
+const I18N = {
+  ko: {
+    'app.title':      '연결 재무보고 통합 시스템',
+    'nav.admin':      '관리자',
+    'nav.wce':        'WCE 본사입력',
+    'nav.users':      '사용자 관리',
+    'nav.password':   '비밀번호 변경',
+    'nav.logout':     '로그아웃',
+    'top.main':       '메인페이지',
+    'top.permgroups': '권한그룹 관리',
+    'side.home':      '홈 (합산)',
+    'side.distribute':'배포용 생성',
+    'side.wce_input': 'WCE 본사입력',
+    'side.wce_agg':   'WCE 합산',
+    'side.pkg_verify':'패키지 검증',
+    'side.consol':    '연결정산표',
+    'side.cash':      '현금정산표',
+    'side.dashboard': '연결 대시보드',
+    'side.timeseries':'시계열 분석',
+    'side.note':      '주석합산',
+    'side.coa':       'COA Audit',
+    'period.label':   '결산기간',
+    'period.status':  '제출현황',
+    'period.add':     '기간 추가',
+    'period.delete':  '현재 기간 삭제',
+    'period.adminOnly': '(관리자만 결산기간 추가·삭제·마감 가능)',
+    'period.lock':    '마감',
+    'period.unlock':  '마감 해제',
+    'period.locked':  '마감됨',
+    'period.lockNote':'(마감된 기간은 업로드 불가)',
+    'step1.title':    '파일 업로드',
+    'step1.desc':     '엑셀양식으로 작성된 패키지 파일(.xlsm)을 업로드하세요. 여러 회사 파일을 한꺼번에 선택할 수 있습니다.',
+    'upload.dropzone':'파일을 드래그하거나 클릭하여 선택',
+    'upload.hint':    '.xlsm 파일만 지원 · 파일당 최대 50MB',
+    'step2.title':    '업로드된 파일',
+    'step2.refresh':  '새로고침',
+    'step2.reanalyze':'재분석',
+    'step2.downloadZip':'선택 다운로드',
+    'step2.deleteAll':'전체 삭제',
+    'step2.selectAll':'전체 선택',
+    'step2.selected': '개 선택됨',
+    'group.label':    '그룹 선택',
+    'group.reset':    '초기화',
+    'step3.title':    '통합 합산 실행',
+    'step3.btn':      '합산 실행',
+    'step3.nosel':    '선택 없음 → 전체 파일 합산',
+    'step3.selInfo':  (n) => `선택된 ${n}개사만 합산합니다.`,
+    'step3.selBadge': (n) => `${n}개사`,
+    'step4.title':    '합산 결과',
+    'step4.unit':     '단위: 억원',
+    'step4.download': 'Excel 다운로드',
+    'step4.bs':       '대차대조표 (BS)',
+    'step4.pl':       '손익계산서 (PL)',
+    'table.account':  '계정항목',
+    'table.total':    '합계',
+    'table.compare':  '비교',
+    'step5.title':        '경영 대시보드',
+    'step5.unit':         '단위: 억원',
+    'step5.download':     'Excel 다운로드',
+    'db.section.profit':  '수익성 (Profitability)',
+    'db.section.safety':  '재무안전성 (Financial Safety)',
+    'db.section.cashflow':'현금흐름 (Cash Flow)',
+    'sticky.rerun':   '재실행',
+    'card.compare':   '비교',
+    'summary.prefix': (n, cos) => `<b>${n}개사</b> 통합 완료 — 참여사: ${cos}`,
+    'nosel.arrow':    '선택 없음 → 전체 파일 합산',
+  },
+  en: {
+    'app.title':      'Consolidated Financial Reporting System',
+    'nav.admin':      'Admin',
+    'nav.wce':        'WCE HQ Input',
+    'nav.users':      'User Management',
+    'nav.password':   'Change Password',
+    'nav.logout':     'Logout',
+    'top.main':       'Main',
+    'top.permgroups': 'Permission Groups',
+    'side.home':      'Home (Aggregate)',
+    'side.distribute':'Create Package',
+    'side.wce_input': 'WCE HQ Input',
+    'side.wce_agg':   'WCE Aggregate',
+    'side.pkg_verify':'Package Verify',
+    'side.consol':    'Consolidation',
+    'side.cash':      'Cash Worksheet',
+    'side.dashboard': 'Dashboard',
+    'side.timeseries':'Time Series',
+    'side.note':      'Notes Aggregate',
+    'side.coa':       'COA Audit',
+    'period.label':   'Fiscal Period',
+    'period.status':  'Submission Status',
+    'period.add':     'Add Period',
+    'period.delete':  'Delete Period',
+    'period.adminOnly': '(Only admins can add/delete/close periods)',
+    'period.lock':    'Close',
+    'period.unlock':  'Reopen',
+    'period.locked':  'Closed',
+    'period.lockNote':'(Closed periods are read-only)',
+    'step1.title':    'File Upload',
+    'step1.desc':     'Upload the package file (.xlsm). You can select multiple company files at once.',
+    'upload.dropzone':'Drag & drop or click to select files',
+    'upload.hint':    '.xlsm files only · Max 50MB per file',
+    'step2.title':    'Uploaded Files',
+    'step2.refresh':  'Refresh',
+    'step2.reanalyze':'Re-analyze',
+    'step2.downloadZip':'Download ZIP',
+    'step2.deleteAll':'Delete All',
+    'step2.selectAll':'Select All',
+    'step2.selected': ' selected',
+    'group.label':    'Group Filter',
+    'group.reset':    'Reset',
+    'step3.title':    'Run Aggregation',
+    'step3.btn':      'Run',
+    'step3.nosel':    'No selection → Aggregate all files',
+    'step3.selInfo':  (n) => `Aggregating ${n} selected companies.`,
+    'step3.selBadge': (n) => `${n} co.`,
+    'step4.title':    'Results',
+    'step4.unit':     'Unit: KRW 100M',
+    'step4.download': 'Download Excel',
+    'step4.bs':       'Balance Sheet (BS)',
+    'step4.pl':       'Income Statement (PL)',
+    'table.account':  'Account',
+    'table.total':    'Total',
+    'table.compare':  'Prior Year',
+    'step5.title':        'Management Dashboard',
+    'step5.unit':         'Unit: KRW 100M',
+    'step5.download':     'Download Excel',
+    'db.section.profit':  'Profitability',
+    'db.section.safety':  'Financial Safety',
+    'db.section.cashflow':'Cash Flow',
+    'sticky.rerun':   'Re-run',
+    'card.compare':   'Prior',
+    'summary.prefix': (n, cos) => `<b>${n} companies</b> aggregated — Participants: ${cos}`,
+    'nosel.arrow':    'No selection → Aggregate all files',
+  }
+};
+
+let _lang = localStorage.getItem('lang') || 'ko';
+
+// 번역 헬퍼
+function t(key, ...args) {
+  const v = (I18N[_lang] || I18N.ko)[key];
+  if (typeof v === 'function') return v(...args);
+  return v != null ? v : (I18N.ko[key] || key);
+}
+
+// row 이름 (영어 모드면 eng, 없으면 kor)
+function rowName(row) {
+  return (_lang === 'en' && row.eng) ? row.eng : (row.kor || row.code);
+}
+
+// data-i18n 속성 기반 정적 텍스트 일괄 갱신
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const val = I18N[_lang]?.[key];
+    if (val != null && typeof val === 'string') el.textContent = val;
+  });
+  // 언어 버튼 활성화 표시
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.lang === _lang);
+  });
+  // html lang 속성
+  document.documentElement.lang = _lang;
+}
+
+function setLanguage(lang) {
+  _lang = lang;
+  localStorage.setItem('lang', lang);
+  applyI18n();
+  // 이미 렌더된 결과가 있으면 다시 렌더
+  if (_lastRenderData) renderResult(_lastRenderData);
+}
+let _lastRenderData = null;
+
+// 초기 언어 적용
+applyI18n();
+
+// ── 커스텀 확인 모달 (Promise 기반) ───────────────────
+// confirmModal({ title, body, okText, okClass }) → Promise<boolean>
+//   nested modal 지원: 이미 다른 모달이 열려있으면 z-index를 동적으로 높여 항상 위에 표시
+function confirmModal({ title = '확인', body = '', okText = '확인', okClass = 'btn-danger' } = {}) {
+  return new Promise(resolve => {
+    const el = document.getElementById('confirmModal');
+    if (!el) { resolve(window.confirm(body)); return; }
+    document.getElementById('confirmModalTitleText').textContent = title;
+    document.getElementById('confirmModalBody').textContent = body;
+    const okBtn = document.getElementById('confirmModalOk');
+    okBtn.textContent = okText;
+    okBtn.className = 'btn ' + okClass;
+    const modal = bootstrap.Modal.getOrCreateInstance(el);
+
+    // 다른 모달이 이미 열려있는 경우 z-index 위로 (Bootstrap nested modal 패턴)
+    const openCount = document.querySelectorAll('.modal.show').length;
+    if (openCount > 0) {
+      const z = 1055 + 20 * (openCount + 1);
+      el.style.zIndex = String(z);
+    } else {
+      el.style.zIndex = '';
+    }
+
+    let decided = false;
+    const onOk = () => { decided = true; modal.hide(); resolve(true); };
+
+    // 표시 직후 backdrop의 z-index도 끌어올림 (현재 모달 바로 아래)
+    const onShown = () => {
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      const last = backdrops[backdrops.length - 1];
+      if (last && openCount > 0) {
+        last.style.zIndex = String(1050 + 20 * (openCount + 1) - 1);
+        last.classList.add('confirm-backdrop-overlay');
+      }
+    };
+
+    const onHidden = () => {
+      okBtn.removeEventListener('click', onOk);
+      el.removeEventListener('hidden.bs.modal', onHidden);
+      el.removeEventListener('shown.bs.modal', onShown);
+      el.style.zIndex = '';
+      // 부모 모달이 열려 있다면 .modal-open 클래스가 body에 다시 필요 (사라지면 스크롤 깨짐)
+      if (document.querySelector('.modal.show')) {
+        document.body.classList.add('modal-open');
+      }
+      if (!decided) resolve(false);
+    };
+
+    okBtn.addEventListener('click', onOk);
+    el.addEventListener('shown.bs.modal', onShown);
+    el.addEventListener('hidden.bs.modal', onHidden);
+    modal.show();
+  });
+}
+
+// ── Toast 알림 ─────────────────────────────────────────
+// showToast(message, kind, duration, { actionText, onAction, onTimeout })
+//   - actionText: 액션 버튼 라벨 ("실행취소" 등)
+//   - onAction:   버튼 클릭 시 콜백
+//   - onTimeout:  duration 경과(또는 수동 닫기)로 액션 없이 사라질 때 콜백
+function showToast(message, kind = 'info', duration = 3000, opts = {}) {
+  const area = document.getElementById('toastArea');
+  if (!area) return { dismiss: () => {} };
+  const icons = { success: 'check-circle-fill', danger: 'x-circle-fill',
+                  info: 'info-circle-fill', warning: 'exclamation-triangle-fill' };
+  const el = document.createElement('div');
+  el.className = `toast align-items-center text-bg-${kind} border-0 show`;
+  el.setAttribute('role', 'alert');
+  el.setAttribute('aria-live', 'polite');
+  const actionHtml = opts.actionText
+    ? `<button type="button" class="btn btn-sm btn-light me-2 align-self-center toast-action">${opts.actionText}</button>`
+    : '';
+  el.innerHTML = `
+    <div class="d-flex">
+      <div class="toast-body">
+        <i class="bi bi-${icons[kind] || icons.info} me-2" aria-hidden="true"></i>${message}
+      </div>
+      ${actionHtml}
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" aria-label="닫기"></button>
+    </div>`;
+  let timeoutFired = false;
+  let actioned = false;
+  const dismiss = () => { if (el.parentNode) el.remove(); };
+  el.querySelector('.btn-close').addEventListener('click', () => {
+    dismiss();
+    if (!actioned && !timeoutFired && opts.onTimeout) opts.onTimeout();
+  });
+  const actBtn = el.querySelector('.toast-action');
+  if (actBtn && opts.onAction) {
+    actBtn.addEventListener('click', () => {
+      actioned = true;
+      dismiss();
+      opts.onAction();
+    });
+  }
+  area.appendChild(el);
+  if (duration > 0) setTimeout(() => {
+    if (!actioned) { timeoutFired = true; dismiss(); if (opts.onTimeout) opts.onTimeout(); }
+  }, duration);
+  return { dismiss };
+}
+
+// ── Sticky 액션바: 합산 카드 또는 결과 카드까지 스크롤되면 노출 ──────────────
+function updateStickyActionBar() {
+  const bar = document.getElementById('stickyActionBar');
+  if (!bar) return;
+  const aggregateCard = document.getElementById('aggregateCard');
+  const resultCard = document.getElementById('resultCard');
+  const aggBtn = document.getElementById('stickyAggregate');
+  const aggBadge = document.getElementById('stickyAggregateBadge');
+  const dlBtn = document.getElementById('stickyDownload');
+  const reBtn = document.getElementById('stickyReaggregate');
+
+  const aggVisible = aggregateCard && aggregateCard.style.display !== 'none';
+  const resVisible = resultCard && resultCard.style.display !== 'none';
+
+  // 표시 조건: 합산 카드가 화면 위로 스크롤된 경우 또는 결과 카드 보이는 경우
+  let show = false;
+  if (resVisible && window.scrollY > 300) {
+    show = true;
+  } else if (aggVisible) {
+    const aggBottom = aggregateCard.getBoundingClientRect().bottom;
+    if (aggBottom < 60) show = true;  // 합산 카드가 화면 위로 사라지면 노출
+  }
+  bar.classList.toggle('visible', show);
+
+  if (!show) return;
+
+  // 결과 모드 vs 합산 전 모드 구분
+  if (resVisible) {
+    if (aggBtn) aggBtn.style.display = 'none';
+    if (dlBtn) dlBtn.style.display = '';
+    if (reBtn) reBtn.style.display = '';
+  } else {
+    if (aggBtn) {
+      aggBtn.style.display = '';
+      const sel = (typeof getCheckedIds === 'function') ? getCheckedIds().length : 0;
+      if (aggBadge) {
+        if (sel > 0) {
+          aggBadge.style.display = '';
+          aggBadge.textContent = `${sel}개사`;
+        } else {
+          aggBadge.style.display = 'none';
+        }
+      }
+    }
+    if (dlBtn) dlBtn.style.display = 'none';
+    if (reBtn) reBtn.style.display = 'none';
+  }
+}
+window.addEventListener('scroll', updateStickyActionBar, { passive: true });
+window.addEventListener('resize', updateStickyActionBar, { passive: true });
+document.addEventListener('DOMContentLoaded', () => {
+  const reBtn = document.getElementById('stickyReaggregate');
+  const aggBtn = document.getElementById('stickyAggregate');
+  const topBtn = document.getElementById('stickyToTop');
+  const dlBtn = document.getElementById('stickyDownload');
+  if (reBtn) reBtn.addEventListener('click', () => {
+    window.scrollTo({ top: document.getElementById('aggregateCard').offsetTop - 20, behavior: 'smooth' });
+    setTimeout(() => runAggregate(), 400);
+  });
+  if (aggBtn) aggBtn.addEventListener('click', () => runAggregate());
+  if (topBtn) topBtn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+  // dlBtn의 href는 renderResult()에서 동기화됨
+
+  // 파일 목록 스크롤 영역 fade 토글 (끝까지 스크롤하면 fade 가림)
+  const scrollArea = document.getElementById('fileListScroll');
+  if (scrollArea) {
+    const fadeWrap = scrollArea.parentElement;
+    const onScroll = () => {
+      const atBottom = scrollArea.scrollTop + scrollArea.clientHeight >= scrollArea.scrollHeight - 4;
+      fadeWrap.classList.toggle('at-bottom', atBottom);
+    };
+    scrollArea.addEventListener('scroll', onScroll, { passive: true });
+    // 초기 상태 (스크롤 필요 없으면 fade 숨김)
+    setTimeout(() => {
+      if (scrollArea.scrollHeight <= scrollArea.clientHeight) {
+        fadeWrap.classList.add('at-bottom');
+      }
+    }, 100);
+  }
+
+  // ── 언어 토글 ──
+  document.querySelectorAll('.lang-btn').forEach(btn => {
+    btn.addEventListener('click', () => setLanguage(btn.dataset.lang));
+  });
+
+  // ── 정적 버튼 이벤트 바인딩 (CSP 호환: inline onclick 제거) ──
+  const bindings = [
+    ['#yearSelect', 'change', onYearChange],
+    ['#btnSubmissionStatus', 'click', showSubmissionStatus],
+    ['#btnFxRates', 'click', openFxRatesModal],
+    ['#btnFxAddRow', 'click', () => addFxRow('current')],
+    ['#btnFxPriorAddRow', 'click', () => addFxRow('prior')],
+    ['#btnFxTemplate', 'click', downloadFxTemplate],
+    ['#btnFxUpload', 'click', () => document.getElementById('fxUploadInput').click()],
+    ['#fxUploadInput', 'change', uploadFxExcel],
+    ['#btnFxReapply', 'click', reapplyFxRates],
+    ['#btnFxSave', 'click', saveFxRates],
+    ['#btnToggleLock', 'click', toggleLockCurrentYear],
+    ['#btnDeleteCurrentYear', 'click', deleteCurrentYear],
+    ['#btnSubmissionRefresh', 'click', showSubmissionStatus],
+    ['#btnSubmitAddPeriod', 'click', submitAddPeriod],
+    ['#submissionFilterAll', 'click', () => setSubmissionFilter('all')],
+    ['#submissionFilterSubmitted', 'click', () => setSubmissionFilter('submitted')],
+    ['#submissionFilterMissing', 'click', () => setSubmissionFilter('missing')],
+    ['#btnLoadFiles', 'click', loadFiles],
+    ['#btnReanalyzeAll', 'click', reanalyzeAll],
+    ['#btnDownloadZip', 'click', downloadUploadedZip],
+    ['#btnDeleteAllFiles', 'click', deleteAllFiles],
+    ['#btnClearGroupSelection', 'click', clearGroupSelection],
+    ['#selectAllChk', 'change', e => toggleSelectAll(e.target.checked)],
+    ['#aggregateBtn', 'click', runAggregate],
+    ['#dropZone', 'click', () => document.getElementById('fileInput').click()],
+  ];
+  bindings.forEach(([sel, evt, fn]) => {
+    const el = document.querySelector(sel);
+    if (el && typeof fn === 'function') el.addEventListener(evt, fn);
+  });
+
+  // 페이지 로드 시 초기 잠금 UI 반영
+  if (typeof refreshLockUI === 'function') refreshLockUI();
+
+  // 이벤트 위임: 동적 생성 요소들
+  document.addEventListener('click', e => {
+    // 파일 삭제
+    const delBtn = e.target.closest('.btn-delete-file');
+    if (delBtn) { deleteFile(delBtn.dataset.fileId); return; }
+    // 파일 코멘트 보기/편집
+    const cmtBtn = e.target.closest('.btn-comment');
+    if (cmtBtn) { openCommentModal(cmtBtn.dataset.fileId); return; }
+    // 그룹 버튼 토글
+    const groupBtn = e.target.closest('.group-btn');
+    if (groupBtn) { toggleGroup(groupBtn.dataset.group); return; }
+    // 파일 체크박스 변경
+  });
+  // 체크박스 변경은 change 이벤트로 위임
+  document.addEventListener('change', e => {
+    if (e.target.classList && e.target.classList.contains('file-chk')) {
+      onCheckChange();
+    }
+  });
+});
+
+// ── 결산연도 ──────────────────────────────────────────
+function currentYear() {
+  const sel = document.getElementById('yearSelect');
+  return sel ? sel.value : '';
+}
+
+function onYearChange() {
+  localStorage.setItem('selectedYear', currentYear());
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('dashboardCard').style.display = 'none';
+  refreshLockUI();
+  loadFiles();
+}
+
+// ── 결산기간 마감(잠금) 처리 ─────────────────────────────
+function isYearLocked(y) {
+  return Array.isArray(window._lockedYears) && window._lockedYears.includes(y);
+}
+
+function refreshLockUI() {
+  const y = currentYear();
+  const locked = isYearLocked(y);
+  const badge = document.getElementById('yearLockBadge');
+  if (badge) badge.classList.toggle('d-none', !locked);
+
+  // 옵션 텍스트(자물쇠 prefix) 갱신
+  const sel = document.getElementById('yearSelect');
+  if (sel) {
+    [...sel.options].forEach(o => {
+      const m = o.value.match(/^(\d{4})-([1-4])Q$/);
+      const base = m ? `${m[1]}년 ${m[2]}분기` : o.value;
+      o.textContent = isYearLocked(o.value) ? `🔒 ${base}` : base;
+    });
+  }
+
+  // 관리자 토글 버튼 라벨/스타일
+  const btn = document.getElementById('btnToggleLock');
+  if (btn) {
+    const lbl = document.getElementById('btnToggleLockLabel');
+    if (locked) {
+      btn.classList.remove('btn-outline-warning');
+      btn.classList.add('btn-warning');
+      btn.querySelector('i').className = 'bi bi-unlock me-1';
+      if (lbl) lbl.textContent = (typeof _lang !== 'undefined' && _lang === 'en') ? 'Unlock' : '마감 해제';
+    } else {
+      btn.classList.add('btn-outline-warning');
+      btn.classList.remove('btn-warning');
+      btn.querySelector('i').className = 'bi bi-lock me-1';
+      if (lbl) lbl.textContent = (typeof _lang !== 'undefined' && _lang === 'en') ? 'Lock' : '마감';
+    }
+  }
+
+  // 비관리자 + 마감 → 업로드 영역 비활성화
+  const dz = document.getElementById('dropZone');
+  if (dz) {
+    if (locked && !IS_ADMIN) {
+      dz.classList.add('disabled');
+      dz.setAttribute('aria-disabled', 'true');
+      dz.style.opacity = '0.5';
+      dz.style.pointerEvents = 'none';
+      let note = document.getElementById('dropZoneLockNote');
+      if (!note) {
+        note = document.createElement('div');
+        note.id = 'dropZoneLockNote';
+        note.className = 'alert alert-warning small mt-2 mb-0';
+        note.innerHTML = '<i class="bi bi-lock-fill me-1"></i>이 결산기간은 마감되어 업로드할 수 없습니다. (관리자 문의)';
+        dz.parentNode.insertBefore(note, dz.nextSibling);
+      } else {
+        note.classList.remove('d-none');
+      }
+    } else {
+      dz.classList.remove('disabled');
+      dz.removeAttribute('aria-disabled');
+      dz.style.opacity = '';
+      dz.style.pointerEvents = '';
+      const note = document.getElementById('dropZoneLockNote');
+      if (note) note.classList.add('d-none');
+    }
+  }
+}
+
+async function toggleLockCurrentYear() {
+  const y = currentYear();
+  if (!y) { showToast('결산기간을 선택해주세요.', 'warning'); return; }
+  const willLock = !isYearLocked(y);
+  const verb = willLock ? '마감' : '마감 해제';
+  const ok = await confirmModal({
+    title: `결산기간 ${verb}`,
+    body: `결산기간 "${formatPeriod(y)}"을(를) ${verb}하시겠습니까?` +
+          (willLock ? '\n(마감되면 관리자 외에는 해당 기간에 업로드할 수 없습니다.)' : ''),
+    okText: verb,
+    okClass: willLock ? 'btn-warning' : 'btn-success',
+  });
+  if (!ok) return;
+
+  const url = `/years/${encodeURIComponent(y)}/${willLock ? 'lock' : 'unlock'}`;
+  const res = await fetch(url, { method: 'POST' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    showToast(data.error || '처리에 실패했습니다.', 'danger');
+    return;
+  }
+  // 로컬 상태 갱신
+  window._lockedYears = window._lockedYears || [];
+  if (willLock) {
+    if (!window._lockedYears.includes(y)) window._lockedYears.push(y);
+  } else {
+    window._lockedYears = window._lockedYears.filter(x => x !== y);
+  }
+  refreshLockUI();
+  showToast(`${formatPeriod(y)} ${verb} 완료`, 'success');
+}
+
+function formatPeriod(p) {
+  const m = (p || '').match(/^(\d{4})-([1-4])Q$/);
+  return m ? `${m[1]}년 ${m[2]}분기` : p;
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+let _submissionData = null;
+let _submissionFilter = 'all';
+
+function setSubmissionFilter(filter) {
+  _submissionFilter = filter;
+  renderSubmissionStatus();
+}
+
+function updateSubmissionFilterButtons() {
+  const states = {
+    all: ['submissionFilterAll', 'btn-primary', 'btn-outline-primary'],
+    submitted: ['submissionFilterSubmitted', 'btn-success', 'btn-outline-success'],
+    missing: ['submissionFilterMissing', 'btn-danger', 'btn-outline-danger'],
+  };
+  Object.entries(states).forEach(([filter, [id, activeCls, inactiveCls]]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const active = _submissionFilter === filter;
+    btn.classList.toggle(activeCls, active);
+    btn.classList.toggle(inactiveCls, !active);
+  });
+}
+
+function renderSubmissionStatus() {
+  updateSubmissionFilterButtons();
+  const list = document.getElementById('submissionList');
+  if (!_submissionData || !list) return;
+
+  const items = (_submissionData.items || []).filter(item => {
+    if (_submissionFilter === 'submitted') return item.submitted;
+    if (_submissionFilter === 'missing') return !item.submitted;
+    return true;
+  });
+
+  if (!_submissionData.items.length) {
+    list.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">필수제출회사 목록이 비어 있습니다.</td></tr>';
+    return;
+  }
+  if (!items.length) {
+    list.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">현재 필터에 해당하는 회사가 없습니다.</td></tr>';
+    return;
+  }
+
+  list.innerHTML = items.map(item => {
+    const uploads = item.uploads || [];
+    const status = item.submitted
+      ? '<span class="badge bg-success">제출</span>'
+      : '<span class="badge bg-danger">미제출</span>';
+    const fileText = uploads.length
+      ? uploads.map(u => escapeHtml(u.name || u.company || '')).join('<br>')
+      : '<span class="text-muted">-</span>';
+    const timeText = uploads.length
+      ? uploads.map(u => escapeHtml(u.uploaded_at || '')).join('<br>')
+      : '<span class="text-muted">-</span>';
+    return `
+      <tr class="${item.submitted ? '' : 'table-warning'}">
+        <td>${status}</td>
+        <td class="fw-semibold">${escapeHtml(item.company)}</td>
+        <td class="small">${fileText}</td>
+        <td class="small text-muted">${timeText}</td>
+      </tr>`;
+  }).join('');
+}
+
+async function showSubmissionStatus() {
+  const year = currentYear();
+  if (!year) { showToast('먼저 결산기간을 선택하거나 추가해주세요.', 'warning'); return; }
+
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('submissionModal'));
+  const summary = document.getElementById('submissionSummary');
+  const list = document.getElementById('submissionList');
+  summary.className = 'alert alert-info small mb-3';
+  summary.textContent = `${formatPeriod(year)} 제출현황을 조회 중입니다...`;
+  list.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">조회 중...</td></tr>';
+  updateSubmissionFilterButtons();
+  modal.show();
+
+  try {
+    const res = await fetch('/submission-status?year=' + encodeURIComponent(year));
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '제출현황을 불러오지 못했습니다.');
+
+    summary.className = data.missing > 0 ? 'alert alert-warning small mb-3' : 'alert alert-success small mb-3';
+    summary.innerHTML =
+      `<b>${formatPeriod(data.year)}</b> 필수제출회사 ${data.total}개사 중 ` +
+      `<span class="text-success fw-bold">제출 ${data.submitted}개사</span>, ` +
+      `<span class="text-danger fw-bold">미제출 ${data.missing}개사</span>`;
+
+    _submissionData = data;
+    renderSubmissionStatus();
+  } catch (e) {
+    _submissionData = null;
+    summary.className = 'alert alert-danger small mb-3';
+    summary.textContent = e.message;
+    list.innerHTML = '<tr><td colspan="4" class="text-muted text-center py-4">조회 실패</td></tr>';
+  }
+}
+
+// ─── 환율 관리 (Admin) ─────────────────────────────────────────────────────
+function fmtRate(v) {
+  if (v == null || v === '' || isNaN(v)) return '';
+  const n = Number(v);
+  return n.toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+}
+function parseRate(s) {
+  if (s == null) return null;
+  const t = String(s).replace(/[,\s]/g, '').trim();
+  if (!t) return null;
+  const n = Number(t);
+  return isNaN(n) ? null : n;
+}
+function buildFxRow(cur, rates, section, editable) {
+  const isKrw = (cur === 'KRW');
+  const spotVal = isKrw ? '1.0000' : fmtRate(rates && rates.spot);
+  const avgVal  = isKrw ? '1.0000' : fmtRate(rates && rates.avg);
+  const ro = (isKrw || !editable) ? 'readonly' : '';
+  const tdAction = editable && !isKrw
+    ? `<td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="this.closest('tr').remove()" aria-label="삭제"><i class="bi bi-x"></i></button></td>`
+    : (editable ? '<td></td>' : '');
+  const badge = isKrw
+    ? '<span class="badge bg-warning text-dark" style="min-width:50px;">KRW</span>'
+    : `<span class="badge text-bg-light border" style="min-width:50px;font-family:monospace;">${cur}</span>`;
+  return `<tr data-currency="${cur}" data-section="${section}">
+    <td class="align-middle">${badge}</td>
+    <td><input type="text" class="form-control form-control-sm fx-input"
+               data-field="spot" value="${spotVal}" placeholder="0.0000" ${ro}
+               style="text-align:right;font-family:monospace;"></td>
+    <td><input type="text" class="form-control form-control-sm fx-input"
+               data-field="avg" value="${avgVal}" placeholder="0.0000" ${ro}
+               style="text-align:right;font-family:monospace;"></td>
+    ${tdAction}
+  </tr>`;
+}
+// 환율 모달이 현재 보고 있는 분기. 메인 페이지 결산기간과 분리.
+let __fxYear = null;
+let __fxOnlySet = new Set();   // 비교용 보조분기 코드 집합 (재환산 비활성화 판정용)
+
+function fxSelectedYear() { return __fxYear; }
+
+async function populateFxPeriodSelect(initialYear) {
+  const sel = document.getElementById('fxPeriodSelect');
+  sel.innerHTML = '<option>불러오는 중...</option>';
+  let years = [], fxOnly = [];
+  try {
+    const res = await fetch('/admin/fx-rates/periods');
+    const data = await res.json();
+    years = data.years || [];
+    fxOnly = data.fx_only_years || [];
+  } catch (e) { /* 빈 상태로 진행 */ }
+  __fxOnlySet = new Set(fxOnly);
+
+  const opts = [];
+  if (years.length) {
+    opts.push('<optgroup label="결산기간">');
+    years.forEach(y => opts.push(`<option value="${y}">${formatPeriod(y)}</option>`));
+    opts.push('</optgroup>');
+  }
+  if (fxOnly.length) {
+    opts.push('<optgroup label="비교용 (결산 미노출)">');
+    fxOnly.forEach(y => opts.push(`<option value="${y}">${formatPeriod(y)}</option>`));
+    opts.push('</optgroup>');
+  }
+  sel.innerHTML = opts.join('') || '<option value="">(분기 없음)</option>';
+
+  // 초기 선택: 인자 → 결산 default → 첫 옵션
+  const candidates = [initialYear, ...years, ...fxOnly];
+  const pick = candidates.find(y => y && [...years, ...fxOnly].includes(y)) || sel.options[0]?.value || '';
+  sel.value = pick;
+  return pick;
+}
+
+function applyFxModeForYear(year) {
+  // 보조분기는 패키지 재환산이 의미 없음 (결산 파일이 없는 분기)
+  const isFxOnly = __fxOnlySet.has(year);
+  const badge = document.getElementById('fxRatesYearBadge');
+  if (badge) badge.classList.toggle('d-none', !isFxOnly);
+  const reBtn = document.getElementById('btnFxReapply');
+  if (reBtn) {
+    reBtn.disabled = isFxOnly;
+    reBtn.title = isFxOnly
+      ? '비교용 분기는 결산 패키지가 없으므로 재환산할 대상이 없습니다'
+      : (reBtn.dataset.defaultTitle || reBtn.title);
+  }
+}
+
+async function loadFxData(year) {
+  __fxYear = year;
+  applyFxModeForYear(year);
+  document.getElementById('fxCurrentTbody').innerHTML =
+    '<tr><td colspan="4" class="text-muted text-center py-3">불러오는 중...</td></tr>';
+  document.getElementById('fxPriorTbody').innerHTML =
+    '<tr><td colspan="4" class="text-muted text-center py-3">-</td></tr>';
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}/data`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '환율 정보를 불러오지 못했습니다.');
+    renderFxModal(data);
+  } catch (e) {
+    showToast(e.message, 'danger', 4500);
+    document.getElementById('fxCurrentTbody').innerHTML =
+      `<tr><td colspan="4" class="text-danger text-center py-3">조회 실패: ${e.message}</td></tr>`;
+  }
+}
+
+async function openFxRatesModal() {
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('fxRatesModal'));
+
+  // 재환산 버튼 라벨 — 선택된 파일 수 반영
+  const reapplyBtn = document.getElementById('btnFxReapply');
+  if (reapplyBtn) {
+    const n = getCheckedIds().length;
+    reapplyBtn.innerHTML = n > 0
+      ? `<i class="bi bi-arrow-repeat me-1"></i>선택 <span class="badge bg-light text-dark ms-1">${n}</span>개 재환산`
+      : '<i class="bi bi-arrow-repeat me-1"></i>이 기간 패키지 재환산';
+    reapplyBtn.dataset.defaultTitle = n > 0
+      ? `선택된 ${n}개 파일을 중앙 환율로 다시 환산합니다`
+      : '이 기간 업로드된 모든 패키지를 중앙 환율로 다시 환산합니다 (선택 시 선택만)';
+    reapplyBtn.title = reapplyBtn.dataset.defaultTitle;
+  }
+
+  modal.show();
+
+  // 분기 셀렉터 채우고, 메인 결산기간을 초기값으로 시도
+  const sel = document.getElementById('fxPeriodSelect');
+  if (!sel.dataset.bound) {
+    sel.addEventListener('change', () => { loadFxData(sel.value); });
+    sel.dataset.bound = '1';
+  }
+  const pick = await populateFxPeriodSelect(currentYear());
+  if (!pick) { showToast('선택 가능한 분기가 없습니다.', 'warning'); return; }
+  await loadFxData(pick);
+}
+function renderFxModal(data) {
+  // 당기 (항상 편집 가능)
+  const currencies = data.all_currencies || [];
+  const rows = ['KRW', ...currencies].map(c =>
+    buildFxRow(c, (data.current_rates || {})[c] || {}, 'current', true)
+  ).join('');
+  document.getElementById('fxCurrentTbody').innerHTML = rows ||
+    '<tr><td colspan="4" class="text-muted text-center py-3">통화 없음 — "통화 추가"로 입력하세요</td></tr>';
+
+  // 전기
+  const priorBadge = document.getElementById('fxPriorBadge');
+  const priorNote  = document.getElementById('fxPriorNote');
+  const priorManualNote = document.getElementById('fxPriorManualNote');
+  const priorAddBtn = document.getElementById('btnFxPriorAddRow');
+  const priorActionTh = document.getElementById('fxPriorActionTh');
+  const priorTbody = document.getElementById('fxPriorTbody');
+
+  if (data.prior_auto) {
+    // 자동: 전년도 4Q에서 가져옴, readonly
+    priorBadge.textContent = `${data.prior_year_label || ''} 자동`;
+    priorBadge.className = 'badge bg-secondary fw-normal ms-2';
+    priorNote.classList.remove('d-none');
+    priorManualNote.classList.add('d-none');
+    priorAddBtn.classList.add('d-none');
+    priorActionTh.classList.add('d-none');
+    document.getElementById('fxPriorYearLabel').textContent = data.prior_year_label || '-';
+
+    const priorList = Object.keys(data.prior_rates || {}).sort();
+    if (priorList.length === 0) {
+      priorTbody.innerHTML =
+        `<tr><td colspan="3" class="text-muted text-center py-3">${data.prior_year_label || '전년도'} 환율이 아직 입력되지 않았습니다.</td></tr>`;
+    } else {
+      priorTbody.innerHTML = ['KRW', ...priorList].map(c =>
+        buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', false).replace(/<td><button[^]*?<\/td>/, '')
+      ).join('');
+    }
+  } else {
+    // 최초연도: 수동 입력
+    priorBadge.textContent = '수동 입력';
+    priorBadge.className = 'badge bg-warning text-dark fw-normal ms-2';
+    priorNote.classList.add('d-none');
+    priorManualNote.classList.remove('d-none');
+    priorAddBtn.classList.remove('d-none');
+    priorActionTh.classList.remove('d-none');
+
+    const rows2 = ['KRW', ...currencies].map(c =>
+      buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', true)
+    ).join('');
+    priorTbody.innerHTML = rows2 ||
+      '<tr><td colspan="4" class="text-muted text-center py-3">통화 없음</td></tr>';
+  }
+}
+function addFxRow(section) {
+  const cur = prompt('추가할 통화 코드를 입력하세요 (예: USD, VND, CNY)');
+  if (!cur) return;
+  const key = cur.trim().toUpperCase();
+  if (!key || key === 'KRW') { showToast('KRW는 추가할 수 없습니다 (자동 1.0).', 'warning'); return; }
+  const tbody = document.getElementById(section === 'prior' ? 'fxPriorTbody' : 'fxCurrentTbody');
+  if (tbody.querySelector(`tr[data-currency="${key}"]`)) {
+    showToast(`${key} 행이 이미 있습니다.`, 'warning'); return;
+  }
+  // placeholder 행 제거
+  const placeholder = tbody.querySelector('tr td[colspan]');
+  if (placeholder) placeholder.closest('tr').remove();
+  tbody.insertAdjacentHTML('beforeend', buildFxRow(key, {}, section, true));
+}
+function downloadFxTemplate() {
+  // 현재 모달에서 선택된 분기 기준 prefill (없으면 빈 양식).
+  const year = fxSelectedYear();
+  const qs = year ? ('?year=' + encodeURIComponent(year)) : '';
+  window.location.href = '/admin/fx-rates/template' + qs;
+}
+async function uploadFxExcel(ev) {
+  const year = fxSelectedYear() || currentYear();
+  if (!year) { showToast('환율을 등록할 분기를 선택해주세요.', 'warning'); return; }
+  const input = ev.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  const ok = await confirmModal({
+    title: '환율 엑셀 업로드',
+    body: `${formatPeriod(year)} 환율을 업로드한 파일로 대체합니다.\n\n` +
+          `· 시트 "당기환율" → 당기 환율\n` +
+          `· 시트 "전기환율" → 전기 환율 (최초연도만 반영)\n` +
+          `· 칼럼: 통화코드 | Spot Rate | Avg Rate`,
+    okText: '업로드 실행', okClass: 'btn-success'
+  });
+  if (!ok) { input.value = ''; return; }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  const btn = document.getElementById('btnFxUpload');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}/upload`, {
+      method: 'POST',
+      body: fd,
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '업로드 실패');
+    const priorMsg = data.is_first_year && data.prior_saved
+      ? `, 전기 ${data.prior_saved}개` : '';
+    showToast(`업로드 완료 — 당기 ${data.currencies_saved}개${priorMsg}`, 'success');
+    await loadFxData(year);   // 현재 분기 유지하며 새로고침
+  } catch (e) {
+    showToast(e.message, 'danger', 4500);
+  } finally {
+    btn.disabled = false;
+    input.value = '';
+  }
+}
+function collectFxSection(section) {
+  const out = {};
+  document.querySelectorAll(`#fx${section === 'prior' ? 'Prior' : 'Current'}Tbody tr[data-currency]`).forEach(tr => {
+    const cur = tr.dataset.currency;
+    if (cur === 'KRW') return;
+    const inputs = tr.querySelectorAll('input.fx-input');
+    const spot = parseRate(inputs[0]?.value);
+    const avg  = parseRate(inputs[1]?.value);
+    if (spot != null || avg != null) {
+      out[cur] = { spot, avg };
+    }
+  });
+  return out;
+}
+async function reapplyFxRates() {
+  const year = fxSelectedYear() || currentYear();
+  if (!year) return;
+  if (__fxOnlySet.has(year)) {
+    showToast('비교용 분기는 결산 패키지가 없어 재환산 대상이 없습니다.', 'info');
+    return;
+  }
+
+  // 합산/재분석과 동일: 선택된 파일이 있으면 그것만, 없으면 전체
+  const checkedIds = getCheckedIds();
+
+  // 1) 처리 대상 파일 목록 가져오기
+  const filesRes = await fetch('/files?year=' + encodeURIComponent(year));
+  let files = await filesRes.json();
+  if (checkedIds.length > 0) {
+    const idSet = new Set(checkedIds);
+    files = files.filter(f => idSet.has(f.id));
+  }
+  if (!files.length) { showToast('재환산할 파일이 없습니다.', 'info'); return; }
+
+  const total = files.length;
+  const scope = checkedIds.length > 0 ? `선택된 ${total}개 파일` : `${formatPeriod(year)} 전체 ${total}개 패키지`;
+
+  const ok = await confirmModal({
+    title: '패키지 재환산',
+    body: `${scope}을(를) 현재 저장된 중앙 환율로 다시 환산합니다.\n\n` +
+          `· KRW 회사는 자동 스킵\n· 중앙 환율 미입력 통화도 스킵\n· 파일당 1~3초 (총 약 ${Math.ceil(total*2)}초 예상)`,
+    okText: '재환산 실행', okClass: 'btn-warning'
+  });
+  if (!ok) return;
+
+  // 2) 환율 모달 닫고 진행 모달 띄우기 (재분석 모달 재사용)
+  const fxModal = bootstrap.Modal.getInstance(document.getElementById('fxRatesModal'));
+  if (fxModal) fxModal.hide();
+  await new Promise(r => setTimeout(r, 250));   // 모달 닫힘 transition 대기
+
+  const modal    = new bootstrap.Modal(document.getElementById('reanalyzeModal'));
+  const list     = document.getElementById('raFileList');
+  const bar      = document.getElementById('raProgressBar');
+  const counter  = document.getElementById('raCounter');
+  const curName  = document.getElementById('raCurFileName');
+  const doneEl   = document.getElementById('raDoneCount');
+  const errEl    = document.getElementById('raErrorCount');
+  const pendEl   = document.getElementById('raPendingCount');
+  const closeBtn = document.getElementById('raCloseBtn');
+  const titleEl  = document.getElementById('reanalyzeModalTitle');
+
+  // 모달 헤더 라벨 임시 변경
+  if (titleEl) titleEl.innerHTML = '<i class="bi bi-arrow-repeat me-2"></i>패키지 재환산 진행 중';
+
+  // 초기 목록 렌더
+  list.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const f = files[i];
+    list.innerHTML += `
+      <div class="upload-item" id="raItem${i}">
+        <span class="status-icon" id="raIcon${i}"><i class="bi bi-clock-history text-muted"></i></span>
+        <span class="filename">${f.name}</span>
+        <span class="company-tag" id="raCompany${i}">${f.company}</span>
+        <span class="small text-muted" id="raMsg${i}">대기</span>
+        <div class="small mt-1" id="raSignWarn${i}" style="display:none;"></div>
+      </div>`;
+  }
+
+  bar.style.width = '0%';
+  bar.classList.add('progress-bar-striped', 'progress-bar-animated');
+  counter.textContent = `0 / ${total}`;
+  doneEl.textContent  = '0';
+  errEl.textContent   = '0';
+  pendEl.textContent  = total;
+  closeBtn.disabled   = true;
+  closeBtn.innerHTML  = '<span class="spinner-border spinner-border-sm me-1"></span>처리 중...';
+  // 중단 셋업
+  const ctl = setupRaCancel(total);
+  modal.show();
+
+  let done = 0, err = 0, skipped = 0, cancelled = 0;
+
+  // 3) 각 파일별로 reapply API 호출 (이미 ids 배열 받음)
+  for (let i = 0; i < total; i++) {
+    if (ctl.aborted) {
+      cancelled = total - i;
+      for (let j = i; j < total; j++) {
+        const it = document.getElementById('raItem' + j);
+        it.classList.remove('processing');
+        document.getElementById('raIcon' + j).innerHTML = '<i class="bi bi-dash-circle text-muted"></i>';
+        document.getElementById('raMsg'  + j).textContent = '취소됨';
+      }
+      break;
+    }
+    const f = files[i];
+    curName.textContent = `재환산 중: ${f.name}`;
+    const item = document.getElementById('raItem' + i);
+    item.classList.add('processing');
+    document.getElementById('raIcon' + i).innerHTML = '<div class="spinner-sm"></div>';
+    document.getElementById('raMsg'  + i).textContent = '처리 중...';
+
+    try {
+      const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}/reapply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [f.id] }),
+        signal: ctl.signal,
+      });
+      const data = await res.json();
+      item.classList.remove('processing');
+
+      if (!res.ok || data.error) {
+        err++;
+        item.classList.add('error');
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+        document.getElementById('raMsg'  + i).textContent = (data.error || '실패');
+      } else if (data.updated > 0) {
+        done++;
+        item.classList.add('done');
+        const okDetail = (data.details && data.details.ok && data.details.ok[0]) || {};
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+        const fxInfo = okDetail.avg ? `· avg ${Number(okDetail.avg).toFixed(2)}` : '';
+        document.getElementById('raMsg'  + i).textContent = `갱신 ${okDetail.currency || ''} ${fxInfo}`;
+      } else if (data.skipped > 0) {
+        skipped++;
+        const skipDetail = (data.details && data.details.skipped && data.details.skipped[0]) || {};
+        item.classList.add('done');
+        item.style.opacity = '0.6';
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-skip-forward-fill text-secondary"></i>';
+        document.getElementById('raMsg'  + i).textContent = `스킵 (${skipDetail.reason || ''})`;
+      } else {
+        // updated=0, skipped=0, failed=0 (특이 케이스)
+        item.classList.add('done');
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-dash-circle text-muted"></i>';
+        document.getElementById('raMsg'  + i).textContent = '변경 없음';
+      }
+    } catch (e) {
+      item.classList.remove('processing');
+      if (e.name === 'AbortError') {
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-dash-circle text-muted"></i>';
+        document.getElementById('raMsg'  + i).textContent = '중단됨';
+      } else {
+        err++;
+        item.classList.add('error');
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+        document.getElementById('raMsg'  + i).textContent = '실패: ' + e.message;
+      }
+    }
+
+    const progressed = i + 1;
+    bar.style.width = (progressed / total * 100) + '%';
+    counter.textContent = `${progressed} / ${total}`;
+    doneEl.textContent  = done;
+    errEl.textContent   = err;
+    pendEl.textContent  = total - progressed;
+  }
+
+  ctl.teardown();
+  const summary = `갱신 ${done}, 스킵 ${skipped}, 실패 ${err}` + (cancelled ? `, 취소 ${cancelled}` : '');
+  curName.textContent = `재환산 ${ctl.aborted ? '중단' : '완료'} — ${summary}`;
+  bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+  closeBtn.disabled  = false;
+  closeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>완료';
+  showToast(`재환산 ${ctl.aborted ? '중단' : '완료'} — ${summary}`,
+            (err || ctl.aborted) ? 'warning' : 'success', 4500);
+  loadFiles();
+}
+
+async function saveFxRates() {
+  const year = fxSelectedYear() || currentYear();
+  if (!year) return;
+  const payload = { current: collectFxSection('current') };
+  // 전기 입력 가능한 경우(최초연도)만 전송
+  if (!document.getElementById('btnFxPriorAddRow').classList.contains('d-none')) {
+    payload.prior = collectFxSection('prior');
+  }
+  const btn = document.getElementById('btnFxSave');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '저장 실패');
+    showToast(`저장 완료 — ${data.currencies_saved}개 통화`, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('fxRatesModal')).hide();
+  } catch (e) {
+    showToast(e.message, 'danger', 4500);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function submitAddPeriod() {
+  const yr = document.getElementById('periodYearInput').value.trim();
+  const qt = document.getElementById('periodQuarterInput').value;
+  if (!/^\d{4}$/.test(yr)) { showToast('연도는 4자리 숫자여야 합니다.', 'warning'); return; }
+
+  const fd = new FormData();
+  fd.append('year', yr);
+  fd.append('quarter', qt);
+  const res = await fetch('/years', { method: 'POST', body: fd });
+  const data = await res.json();
+  if (data.error) { showToast(data.error, 'danger', 4500); return; }
+
+  const newPeriod = `${yr}-${qt}Q`;
+  rebuildYearOptions(data.years, newPeriod);
+  bootstrap.Modal.getInstance(document.getElementById('addPeriodModal')).hide();
+  onYearChange();
+  showToast(`결산기간 ${formatPeriod(newPeriod)}을(를) 추가했습니다`, 'success');
+}
+
+async function deleteCurrentYear() {
+  const y = currentYear();
+  if (!y) return;
+  const ok = await confirmModal({
+    title: '결산기간 삭제',
+    body: `결산기간 "${formatPeriod(y)}"를 삭제하시겠습니까?\n(해당 기간에 업로드된 파일이 있으면 삭제 불가)`,
+    okText: '삭제', okClass: 'btn-danger'
+  });
+  if (!ok) return;
+  const res = await fetch('/years/' + encodeURIComponent(y), { method: 'DELETE' });
+  const data = await res.json();
+  if (data.error) { showToast(data.error, 'danger', 4500); return; }
+  rebuildYearOptions(data.years, data.default);
+  onYearChange();
+  showToast('결산기간을 삭제했습니다', 'success');
+}
+
+function rebuildYearOptions(years, selected) {
+  const sel = document.getElementById('yearSelect');
+  sel.innerHTML = years.map(y =>
+    `<option value="${y}"${y === selected ? ' selected' : ''}>${formatPeriod(y)}</option>`
+  ).join('');
+}
+
+// localStorage에서 마지막 선택 복원
+(function restoreYear() {
+  const saved = localStorage.getItem('selectedYear');
+  const sel = document.getElementById('yearSelect');
+  if (saved && sel && [...sel.options].some(o => o.value === saved)) {
+    sel.value = saved;
+  }
+})();
+
+// ── 부호 경고 렌더 ────────────────────────────────────
+// 서버가 sign_warnings 배열을 내려주면 모달의 해당 행에 펼침 형태로 표시.
+function renderSignWarnings(containerId, warnings) {
+  const el = document.getElementById(containerId);
+  if (!el || !warnings || !warnings.length) return;
+  const fmtNum = n => {
+    if (n === null || n === undefined) return '';
+    const v = Math.round(Number(n));
+    return v.toLocaleString('ko-KR');
+  };
+  const kindLabel = k => ({
+    'sign_flip':           '부호 반대',
+    'one_side_zero':       '한쪽만 0',
+    'krw_amount_mismatch': 'KRW 금액 불일치',
+  }[k] || k);
+  const kindBadge = k => ({
+    'sign_flip':           'bg-danger',
+    'one_side_zero':       'bg-warning text-dark',
+    'krw_amount_mismatch': 'bg-warning text-dark',
+  }[k] || 'bg-secondary');
+  const rows = warnings.map(w => `
+    <tr>
+      <td><code>${escapeHtml(w.code || '')}</code></td>
+      <td>${escapeHtml(w.kor || '')}</td>
+      <td class="text-muted small">${escapeHtml(w.sheet || '')}</td>
+      <td class="text-end font-monospace">${fmtNum(w.local_value)}</td>
+      <td class="text-end font-monospace">${fmtNum(w.value)}</td>
+      <td><span class="badge ${kindBadge(w.kind)}">${kindLabel(w.kind)}</span></td>
+    </tr>`).join('');
+  el.style.display = '';
+  el.innerHTML = `
+    <details class="border rounded p-2 bg-warning-subtle">
+      <summary class="text-warning-emphasis fw-semibold" style="cursor:pointer;">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        현지통화·환산값 부호 또는 금액 불일치 <strong>${warnings.length}건</strong> — 패키지 셀/수식 확인 권장
+      </summary>
+      <div class="table-responsive mt-2">
+        <table class="table table-sm table-bordered mb-0" style="font-size:0.82rem;">
+          <thead class="table-light">
+            <tr>
+              <th>코드</th><th>계정명</th><th>시트</th>
+              <th class="text-end">현지통화(F)</th>
+              <th class="text-end">환산값(G·KRW)</th>
+              <th>유형</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </details>`;
+}
+
+// ── 업로드 사전 검증 ───────────────────────────────────
+// 드래그드롭은 <input accept=...> 필터를 우회하므로 여기서 직접 검사한다.
+// 서버 openpyxl의 BadZipFile 에러("File is not a zip file")가 발생할 케이스를
+// 미리 차단하고 사용자에게 원인을 명시한다.
+async function _preValidateUploadFile(f) {
+  const name = (f && f.name) || '';
+  const lower = name.toLowerCase();
+  // 1) 확장자 — .xlsm/.xlsx만 허용 (.xls 구버전 바이너리는 openpyxl이 못 읽음)
+  if (!lower.endsWith('.xlsm') && !lower.endsWith('.xlsx')) {
+    if (lower.endsWith('.xls')) {
+      return '구버전 .xls 파일은 지원하지 않습니다. Excel에서 .xlsm으로 다시 저장하세요.';
+    }
+    return '지원하지 않는 형식입니다. (.xlsm 또는 .xlsx만 가능)';
+  }
+  // 2) 크기 0 — OneDrive "온라인 전용" 자리표시자, 동기화 미완 등
+  if (!f.size || f.size === 0) {
+    return '파일이 비어있습니다(0바이트). OneDrive 동기화 미완료이거나 자리표시자 파일일 수 있습니다. 파일을 우클릭 → "이 장치에 항상 보관" 후 다시 시도하세요.';
+  }
+  // 3) 매직바이트 검사 — OOXML(.xlsx/.xlsm)은 ZIP 헤더 "PK\x03\x04"로 시작.
+  //    Excel에서 열려 있는 파일을 드래그한 경우 잠긴 스냅샷이 와서 매직바이트가
+  //    어긋날 수 있다.
+  try {
+    const head = new Uint8Array(await f.slice(0, 4).arrayBuffer());
+    const isPK = head.length >= 2 && head[0] === 0x50 && head[1] === 0x4B;
+    if (!isPK) {
+      return 'Excel 파일 헤더가 올바르지 않습니다. 파일이 현재 Excel에서 열려 있다면 닫고 다시 드래그하세요. (또는 메일/압축파일 미리보기에서 드래그한 경우라면 먼저 디스크에 저장 후 업로드)';
+    }
+  } catch (e) {
+    return '파일을 읽을 수 없습니다: ' + (e && e.message ? e.message : e);
+  }
+  return null;  // 통과
+}
+
+// ── 드래그 앤 드롭 ─────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  uploadFiles(e.dataTransfer.files);
+});
+// 키보드(Enter/Space)로도 파일 선택 가능
+dropZone.addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') {
+    e.preventDefault();
+    document.getElementById('fileInput').click();
+  }
+});
+document.getElementById('fileInput').addEventListener('change', e => {
+  // FileList 를 배열로 복사한 뒤 input 값을 초기화 — 같은 파일을 연속 선택해도
+  // change 이벤트가 다시 발화되도록 함(미초기화 시 동일 파일 재선택은 무반응).
+  const picked = Array.from(e.target.files);
+  e.target.value = '';
+  uploadFiles(picked);
+});
+
+// ── 파일 업로드 (순차 처리 + 모달 실시간 진행 표시) ───────
+async function uploadFiles(files) {
+  if (!files.length) return;
+  const year = currentYear();
+  if (!year) { showToast('먼저 결산기간을 선택하거나 추가해주세요.', 'warning'); return; }
+  if (isYearLocked(year) && !IS_ADMIN) {
+    showToast(`${formatPeriod(year)}은(는) 마감되어 업로드할 수 없습니다.`, 'warning');
+    return;
+  }
+
+  const total = files.length;
+  const modal = new bootstrap.Modal(document.getElementById('uploadModal'));
+  const list = document.getElementById('modalFileList');
+  const bar = document.getElementById('modalProgressBar');
+  const counter = document.getElementById('modalCounter');
+  const curName = document.getElementById('modalCurFileName');
+  const doneEl = document.getElementById('modalDoneCount');
+  const errEl = document.getElementById('modalErrorCount');
+  const pendEl = document.getElementById('modalPendingCount');
+  const closeBtn = document.getElementById('modalCloseBtn');
+
+  // 초기 리스트 렌더 (모두 대기 상태)
+  list.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const f = files[i];
+    list.innerHTML += `
+      <div class="upload-item" id="upItem${i}">
+        <span class="status-icon" id="upIcon${i}"><i class="bi bi-clock-history text-muted"></i></span>
+        <span class="filename">${f.name}</span>
+        <span class="company-tag" id="upCompany${i}"></span>
+        <span class="small text-muted" id="upMsg${i}">대기</span>
+        <div class="small mt-1" id="upSignWarn${i}" style="display:none;"></div>
+      </div>`;
+  }
+
+  bar.style.width = '0%';
+  counter.textContent = `0 / ${total}`;
+  doneEl.textContent = '0';
+  errEl.textContent = '0';
+  pendEl.textContent = total;
+  closeBtn.disabled = true;
+  closeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>처리 중...';
+  modal.show();
+
+  let done = 0, err = 0;
+
+  // 파일을 한 건씩 업로드
+  for (let i = 0; i < total; i++) {
+    const f = files[i];
+    curName.textContent = `업로드 중: ${f.name}`;
+
+    // 처리 중 상태로 전환
+    document.getElementById('upItem' + i).classList.add('processing');
+    document.getElementById('upIcon' + i).innerHTML = '<div class="spinner-sm"></div>';
+    document.getElementById('upMsg' + i).textContent = '분석 중...';
+
+    // ── 클라이언트 측 사전 검증 (드래그드롭은 accept 속성을 무시하므로 여기서 필터) ──
+    // 확장자 / 크기 / 매직바이트(PK = OOXML zip) 검사로 서버 BadZipFile을
+    // 친절한 한국어 메시지로 미리 차단한다.
+    const preErr = await _preValidateUploadFile(f);
+    if (preErr) {
+      err++;
+      const item = document.getElementById('upItem' + i);
+      item.classList.remove('processing');
+      item.classList.add('error');
+      document.getElementById('upIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+      document.getElementById('upMsg' + i).textContent = preErr;
+      const progressed = i + 1;
+      bar.style.width = (progressed / total * 100) + '%';
+      counter.textContent = `${progressed} / ${total}`;
+      doneEl.textContent = done;
+      errEl.textContent = err;
+      pendEl.textContent = total - progressed;
+      continue;
+    }
+
+    const fd = new FormData();
+    fd.append('files', f);
+    // 관리자 강제 업로드(토큰 검증 우회) 옵션 — 체크된 경우만 전송
+    const forceEl = document.getElementById('forceUploadToggle');
+    if (forceEl && forceEl.checked) fd.append('force_upload', 'true');
+
+    try {
+      const res = await fetch('/upload?year=' + encodeURIComponent(year), { method: 'POST', body: fd });
+      let data;
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = { error: `서버 오류 (HTTP ${res.status})` };
+      }
+      // 서버가 최상위 error 만 반환하는 경우(예: 마감/권한/연도 검증 실패)도 표시
+      const r = (data.uploaded && data.uploaded[0])
+              || (data.error ? { error: data.error } : { error: '응답 없음' });
+
+      const item = document.getElementById('upItem' + i);
+      item.classList.remove('processing');
+
+      if (r.error) {
+        err++;
+        item.classList.add('error');
+        document.getElementById('upIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+        document.getElementById('upMsg' + i).textContent = r.error;
+      } else {
+        done++;
+        item.classList.add('done');
+        const iconEl = document.getElementById('upIcon' + i);
+        const hasSignWarn = Array.isArray(r.sign_warnings) && r.sign_warnings.length > 0;
+        if (r.warning || hasSignWarn) {
+          // 관리자 우회 업로드 또는 부호 경고 — 노란 경고 아이콘
+          iconEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i>';
+        } else {
+          iconEl.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
+        }
+        document.getElementById('upCompany' + i).textContent = r.company || '';
+        const sheetInfo = Object.entries(r.sheets || {}).map(([s, n]) => `${s}:${n}`).join(' · ');
+        const fx = r.currency ? ` · ${r.currency} @ ${Number(r.fx_rate).toFixed(4)}` : '';
+        const warnSuffix = r.warning ? ` · ⚠ ${r.warning}` : '';
+        document.getElementById('upMsg' + i).textContent = (sheetInfo || '완료') + fx + warnSuffix;
+        // 부호 경고 상세 표시 — 펼치기 details 로
+        if (hasSignWarn) {
+          renderSignWarnings('upSignWarn' + i, r.sign_warnings);
+        }
+      }
+    } catch (e) {
+      err++;
+      const item = document.getElementById('upItem' + i);
+      item.classList.remove('processing');
+      item.classList.add('error');
+      document.getElementById('upIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+      document.getElementById('upMsg' + i).textContent = '업로드 실패: ' + e.message;
+    }
+
+    // 진행률 갱신
+    const progressed = i + 1;
+    bar.style.width = (progressed / total * 100) + '%';
+    counter.textContent = `${progressed} / ${total}`;
+    doneEl.textContent = done;
+    errEl.textContent = err;
+    pendEl.textContent = total - progressed;
+  }
+
+  // 완료 처리
+  curName.textContent = `업로드 완료 — 성공 ${done}건, 실패 ${err}건`;
+  bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+  closeBtn.disabled = false;
+  closeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>완료';
+
+  // 파일 리스트 새로고침
+  loadFiles();
+}
+
+// ── 파일 목록 로드 ────────────────────────────────────
+async function loadFiles() {
+  const year = currentYear();
+  const res = await fetch('/files?year=' + encodeURIComponent(year));
+  const files = await res.json();
+
+  const card = document.getElementById('fileListCard');
+  const agg = document.getElementById('aggregateCard');
+  document.getElementById('fileCount').textContent = files.length;
+
+  if (files.length === 0) {
+    // 업로드된 파일이 없으면 Step 2/3 숨김 — 빈 상태는 Step 1(드롭존) 자체가 담당
+    card.style.display = 'none';
+    agg.style.display = 'none';
+    return;
+  }
+
+  card.style.display = '';
+  agg.style.display = '';
+
+  const list = document.getElementById('fileList');
+  list.innerHTML = files.map(f => {
+    const fx = f.currency
+      ? `<span class="badge bg-info text-dark border file-badge ms-1">${f.currency} × ${Number(f.fx_rate).toFixed(4)}</span>`
+      : '';
+    const uploadedAt = f.uploaded_at
+      ? `<span class="text-muted small ms-2"><i class="bi bi-clock me-1"></i>${f.uploaded_at}</span>`
+      : '';
+    // 코멘트 — 있으면 채워진 말풍선 + 미리보기(첫 30자), 없으면 빈 말풍선(권한자에게만 노출)
+    const hasComment = !!(f.comment && f.comment.trim());
+    const canEdit = !!f.can_edit_comment;
+    const commentPreview = hasComment
+      ? escapeHtml(f.comment.slice(0, 30)) + (f.comment.length > 30 ? '…' : '')
+      : '';
+    const commentBtn = (hasComment || canEdit)
+      ? `<button class="btn btn-sm ${hasComment ? 'btn-outline-info' : 'btn-outline-secondary'} btn-comment ms-1"
+                 data-file-id="${f.id}"
+                 title="${hasComment ? '코멘트 보기/편집' : '코멘트 추가'}"
+                 aria-label="코멘트">
+           <i class="bi ${hasComment ? 'bi-chat-left-text-fill' : 'bi-chat-left'}" aria-hidden="true"></i>
+           ${hasComment ? `<span class="ms-1 small">${commentPreview}</span>` : ''}
+         </button>`
+      : '';
+    return `
+    <div class="d-flex align-items-center justify-content-between border rounded px-3 py-2 mb-2 bg-white">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <input class="form-check-input file-chk flex-shrink-0" type="checkbox"
+               value="${f.id}" data-company="${f.company.replace(/"/g,'&quot;')}"
+               aria-label="${f.company} 선택"
+               style="width:18px;height:18px;cursor:pointer;">
+        <div>
+          <i class="bi bi-file-earmark-excel text-success me-1"></i>
+          <b>${f.company}</b>
+          <span class="text-muted small ms-2">${f.name}</span>
+          ${fx}
+          ${uploadedAt}
+          ${commentBtn}
+        </div>
+      </div>
+      ${IS_ADMIN ? `<div class="d-flex gap-1 flex-shrink-0">
+        <a href="/files/${f.id}/download" class="btn btn-sm btn-outline-secondary" title="원본 파일 다운로드" download aria-label="원본 파일 다운로드">
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </a>
+        <button class="btn btn-sm btn-outline-danger btn-delete-file" data-file-id="${f.id}" title="삭제" aria-label="파일 삭제">
+          <i class="bi bi-trash" aria-hidden="true"></i>
+        </button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+  // 캐시 — 모달에서 사용
+  window._fileListCache = files;
+
+  // 체크박스 상태 및 그룹 배지 갱신
+  updateSelectionUI();
+  updateGroupBadges();
+
+  // 스크롤 영역 fade 힌트 재계산 (목록 길이 변경 후)
+  const scrollArea = document.getElementById('fileListScroll');
+  if (scrollArea) {
+    const fadeWrap = scrollArea.parentElement;
+    const hasOverflow = scrollArea.scrollHeight > scrollArea.clientHeight + 2;
+    fadeWrap.classList.toggle('at-bottom', !hasOverflow);
+    // "스크롤" 힌트 라벨 표시/숨김
+    const hint = document.getElementById('fileListHint');
+    if (hint) hint.style.display = hasOverflow ? '' : 'none';
+  }
+  // sticky 액션바 갱신
+  if (typeof updateStickyActionBar === 'function') updateStickyActionBar();
+}
+
+// ── 파일 코멘트 보기/편집 ─────────────────────────────────
+// 업로드 후 시점에 특이사항을 기록·조회. 본인 또는 관리자만 수정 가능 (서버 권한 체크 별도).
+let _currentCommentFileId = null;
+
+function openCommentModal(fileId) {
+  const files = window._fileListCache || [];
+  const f = files.find(x => x.id === fileId);
+  if (!f) { showToast('파일 정보를 찾을 수 없습니다.', 'warning'); return; }
+  _currentCommentFileId = fileId;
+
+  const titleEl = document.getElementById('commentModalTitle');
+  const metaEl = document.getElementById('commentMeta');
+  const ta = document.getElementById('commentTextarea');
+  const saveBtn = document.getElementById('commentSaveBtn');
+  const roNote = document.getElementById('commentReadOnlyNote');
+  const charEl = document.getElementById('commentCharCount');
+
+  titleEl.innerHTML = `<i class="bi bi-chat-left-text me-2"></i>${escapeHtml(f.company)} — ${escapeHtml(f.name)}`;
+
+  const metaParts = [];
+  if (f.uploaded_by) metaParts.push(`<i class="bi bi-person"></i> 업로드: ${escapeHtml(f.uploaded_by)}`);
+  if (f.uploaded_at) metaParts.push(`<i class="bi bi-clock"></i> ${escapeHtml(f.uploaded_at)}`);
+  if (f.comment_updated_by) metaParts.push(`<i class="bi bi-pencil"></i> 코멘트 수정: ${escapeHtml(f.comment_updated_by)}`);
+  if (f.comment_updated_at) metaParts.push(`<i class="bi bi-clock-history"></i> ${escapeHtml(f.comment_updated_at)}`);
+  metaEl.innerHTML = metaParts.join(' · ') || '<span class="text-muted">메타데이터 없음</span>';
+
+  ta.value = f.comment || '';
+  charEl.textContent = ta.value.length;
+
+  const canEdit = !!f.can_edit_comment;
+  ta.readOnly = !canEdit;
+  saveBtn.style.display = canEdit ? '' : 'none';
+  roNote.style.display = canEdit ? 'none' : '';
+
+  new bootstrap.Modal(document.getElementById('commentModal')).show();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('commentTextarea');
+  const charEl = document.getElementById('commentCharCount');
+  if (ta && charEl) {
+    ta.addEventListener('input', () => { charEl.textContent = ta.value.length; });
+  }
+  const saveBtn = document.getElementById('commentSaveBtn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', saveComment);
+  }
+});
+
+async function saveComment() {
+  if (!_currentCommentFileId) return;
+  const ta = document.getElementById('commentTextarea');
+  const saveBtn = document.getElementById('commentSaveBtn');
+  const newText = ta.value || '';
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+  try {
+    const r = await fetch(`/files/${encodeURIComponent(_currentCommentFileId)}/comment`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment: newText }),
+    });
+    const j = await r.json();
+    if (!r.ok) { showToast(j.error || '저장 실패', 'danger'); return; }
+    // 캐시 갱신
+    const files = window._fileListCache || [];
+    const f = files.find(x => x.id === _currentCommentFileId);
+    if (f) {
+      f.comment = j.comment || '';
+      f.comment_updated_at = j.comment_updated_at || '';
+      f.comment_updated_by = j.comment_updated_by || '';
+    }
+    showToast('코멘트가 저장되었습니다.', 'success');
+    bootstrap.Modal.getInstance(document.getElementById('commentModal'))?.hide();
+    // 리스트 다시 렌더 (아이콘/미리보기 갱신)
+    loadFiles();
+  } catch (e) {
+    showToast('저장 실패: ' + (e?.message || e), 'danger');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="bi bi-save me-1"></i>저장';
+  }
+}
+
+// ── 그룹 필터 ─────────────────────────────────────────
+let _groups = {};
+const _norm = s => (s || '').trim().toLowerCase();
+const _gid  = g => 'gbadge_' + g.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+
+async function loadGroups() {
+  try {
+    const res = await fetch('/groups');
+    const data = await res.json();
+    _groups = data.groups || {};
+    renderGroupButtons();
+  } catch(e) { /* 그룹 정보 없으면 무시 */ }
+}
+
+function renderGroupButtons() {
+  const area = document.getElementById('groupFilterArea');
+  const btns = document.getElementById('groupBtns');
+  const names = Object.keys(_groups);
+  if (!names.length) { area.style.display = 'none'; return; }
+  area.style.display = '';
+  btns.innerHTML = names.map(g =>
+    `<button class="btn btn-sm btn-outline-secondary group-btn" data-group="${g}">`+
+    `${g} <span class="badge bg-secondary ms-1" id="${_gid(g)}">0</span></button>`
+  ).join('');
+  updateGroupBadges();
+}
+
+function toggleGroup(groupName) {
+  const companies = new Set((_groups[groupName] || []).map(_norm));
+  const chks = [...document.querySelectorAll('.file-chk')];
+  const matching = chks.filter(c => companies.has(_norm(c.dataset.company || '')));
+  if (!matching.length) { showToast(`"${groupName}" 그룹에 해당하는 파일이 없습니다.`, 'info'); return; }
+  // 모두 체크돼있으면 해제, 아니면 추가 체크
+  const allChecked = matching.every(c => c.checked);
+  matching.forEach(c => c.checked = !allChecked);
+  updateSelectionUI();
+  updateGroupBadges();
+}
+
+function clearGroupSelection() {
+  document.querySelectorAll('.file-chk').forEach(c => c.checked = false);
+  updateSelectionUI();
+  updateGroupBadges();
+}
+
+function updateGroupBadges() {
+  const chks = [...document.querySelectorAll('.file-chk')];
+  const uploadedNorms = new Set(chks.map(c => _norm(c.dataset.company || '')));
+
+  Object.entries(_groups).forEach(([g, companies]) => {
+    const badgeEl = document.getElementById(_gid(g));
+    const btnEl = document.querySelector(`.group-btn[data-group="${g}"]`);
+    if (!badgeEl || !btnEl) return;
+
+    const normCompanies = companies.map(_norm);
+    // 업로드된 파일 중 이 그룹에 해당하는 것
+    const matchingChks = chks.filter(c => normCompanies.includes(_norm(c.dataset.company || '')));
+    const matchCount = matchingChks.length;
+    badgeEl.textContent = matchCount;
+
+    // 버튼 활성 상태: 매칭 파일이 모두 체크돼 있을 때
+    const allChecked = matchCount > 0 && matchingChks.every(c => c.checked);
+    const anyChecked = matchingChks.some(c => c.checked);
+    btnEl.classList.toggle('btn-primary', allChecked);
+    btnEl.classList.toggle('btn-outline-primary', anyChecked && !allChecked);
+    btnEl.classList.toggle('btn-outline-secondary', !anyChecked);
+  });
+}
+
+// ── 파일 선택 ─────────────────────────────────────────
+function getCheckedIds() {
+  return [...document.querySelectorAll('.file-chk:checked')].map(c => c.value);
+}
+
+async function downloadUploadedZip() {
+  const year = currentYear();
+  if (!year) { showToast('결산기간을 선택해주세요.', 'warning'); return; }
+
+  const checkedIds = getCheckedIds();
+  const total = document.querySelectorAll('.file-chk').length;
+  if (total === 0) { showToast('다운로드할 파일이 없습니다.', 'info'); return; }
+
+  const scope = checkedIds.length > 0
+    ? `선택된 ${checkedIds.length}개 파일`
+    : `${formatPeriod(year)} 전체 ${total}개 파일`;
+  const ok = await confirmModal({
+    title: '패키지 일괄 다운로드',
+    body: `${scope}을(를) ZIP으로 묶어 다운로드합니다.`,
+    okText: '다운로드', okClass: 'btn-success'
+  });
+  if (!ok) return;
+
+  const params = new URLSearchParams({ year });
+  if (checkedIds.length > 0) params.set('ids', JSON.stringify(checkedIds));
+  // 새 탭이 아니라 같은 창에서 — 브라우저가 파일 저장 다이얼로그를 띄움
+  window.location.href = `/files/download-zip?${params.toString()}`;
+}
+
+function onCheckChange() {
+  updateSelectionUI();
+  updateGroupBadges();
+}
+
+function toggleSelectAll(checked) {
+  document.querySelectorAll('.file-chk').forEach(c => c.checked = checked);
+  updateSelectionUI();
+  updateGroupBadges();
+}
+
+function updateSelectionUI() {
+  const all = document.querySelectorAll('.file-chk');
+  const checked = document.querySelectorAll('.file-chk:checked');
+  const selAllChk = document.getElementById('selectAllChk');
+  const selCount = document.getElementById('selectedCount');
+  const badge = document.getElementById('aggregateBadge');
+  const selInfo = document.getElementById('aggregateSelInfo');
+
+  if (selAllChk) {
+    selAllChk.checked = all.length > 0 && checked.length === all.length;
+    selAllChk.indeterminate = checked.length > 0 && checked.length < all.length;
+  }
+  if (selCount) selCount.textContent = checked.length;
+
+  if (badge && selInfo) {
+    if (checked.length > 0) {
+      badge.style.display = '';
+      badge.textContent = checked.length + '개사';
+      selInfo.textContent = t('step3.selInfo', checked.length);
+    } else {
+      badge.style.display = 'none';
+      selInfo.textContent = t('step3.nosel');
+    }
+  }
+
+  // sticky 합산 버튼의 배지도 동기화
+  const stickyBadge = document.getElementById('stickyAggregateBadge');
+  if (stickyBadge) {
+    if (checked.length > 0) {
+      stickyBadge.style.display = '';
+      stickyBadge.textContent = `${checked.length}개사`;
+    } else {
+      stickyBadge.style.display = 'none';
+    }
+  }
+
+  // 재분석 버튼 라벨 동기화 — 합산과 동일하게 선택 기반
+  const reBtn = document.getElementById('btnReanalyzeAll');
+  if (reBtn) {
+    if (checked.length > 0) {
+      reBtn.innerHTML =
+        `<i class="bi bi-arrow-repeat" aria-hidden="true"></i> 선택 <span class="badge bg-primary">${checked.length}</span>개 재분석`;
+      reBtn.title = `선택된 ${checked.length}개 파일을 중앙 환율로 재분석합니다`;
+    } else {
+      reBtn.innerHTML =
+        `<i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span data-i18n="step2.reanalyze">전체 재분석</span>`;
+      reBtn.title = '업로드된 전체 파일을 중앙 환율로 재분석합니다 (선택 시 선택만)';
+    }
+  }
+}
+
+// ── 파일 삭제 ─────────────────────────────────────────
+// 파일 삭제 — 6초 지연 실행 + 실행취소 토스트
+function deleteFile(id) {
+  // 해당 파일 row를 즉시 시각적으로 희미하게 처리 (optimistic UI)
+  const row = document.querySelector(`.file-chk[value="${id}"]`)?.closest('.d-flex.border');
+  const companyName = row?.querySelector('b')?.textContent || '파일';
+  if (row) {
+    row.style.opacity = '0.35';
+    row.style.pointerEvents = 'none';
+  }
+
+  let cancelled = false;
+  const timer = setTimeout(async () => {
+    if (cancelled) return;
+    await fetch('/files/' + id, { method: 'DELETE' });
+    document.getElementById('resultCard').style.display = 'none';
+    document.getElementById('dashboardCard').style.display = 'none';
+    loadFiles();
+  }, 6000);
+
+  showToast(`${companyName} 파일을 삭제합니다`, 'warning', 6000, {
+    actionText: '실행취소',
+    onAction: () => {
+      cancelled = true;
+      clearTimeout(timer);
+      if (row) {
+        row.style.opacity = '';
+        row.style.pointerEvents = '';
+      }
+      showToast('삭제가 취소되었습니다', 'info', 2500);
+    }
+  });
+}
+
+async function deleteAllFiles() {
+  const year = currentYear();
+  const ok = await confirmModal({
+    title: '전체 삭제',
+    body: `결산기간 "${formatPeriod(year)}"에 업로드된 모든 파일을 삭제하시겠습니까?`,
+    okText: '모두 삭제', okClass: 'btn-danger'
+  });
+  if (!ok) return;
+  await fetch('/files?year=' + encodeURIComponent(year), { method: 'DELETE' });
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('dashboardCard').style.display = 'none';
+  loadFiles();
+  showToast('모든 파일이 삭제되었습니다', 'success');
+}
+
+async function reanalyzeAll() {
+  const year = currentYear();
+
+  // 현재 연도의 파일 목록 먼저 조회
+  const filesRes = await fetch('/files?year=' + encodeURIComponent(year));
+  let files = await filesRes.json();
+  if (!files.length) { showToast('재분석할 파일이 없습니다.', 'info'); return; }
+
+  // 합산 기능과 동일: 선택된 파일이 있으면 그것만, 없으면 전체
+  const checkedIds = getCheckedIds();
+  if (checkedIds.length > 0) {
+    const idSet = new Set(checkedIds);
+    files = files.filter(f => idSet.has(f.id));
+    if (!files.length) { showToast('선택된 파일이 없습니다.', 'warning'); return; }
+  }
+
+  const total = files.length;
+  const modal    = new bootstrap.Modal(document.getElementById('reanalyzeModal'));
+  const list     = document.getElementById('raFileList');
+  const bar      = document.getElementById('raProgressBar');
+  const counter  = document.getElementById('raCounter');
+  const curName  = document.getElementById('raCurFileName');
+  const doneEl   = document.getElementById('raDoneCount');
+  const errEl    = document.getElementById('raErrorCount');
+  const pendEl   = document.getElementById('raPendingCount');
+  const closeBtn = document.getElementById('raCloseBtn');
+
+  // 초기 목록 렌더
+  list.innerHTML = '';
+  for (let i = 0; i < total; i++) {
+    const f = files[i];
+    list.innerHTML += `
+      <div class="upload-item" id="raItem${i}">
+        <span class="status-icon" id="raIcon${i}"><i class="bi bi-clock-history text-muted"></i></span>
+        <span class="filename">${f.name}</span>
+        <span class="company-tag" id="raCompany${i}">${f.company}</span>
+        <span class="small text-muted" id="raMsg${i}">대기</span>
+        <div class="small mt-1" id="raSignWarn${i}" style="display:none;"></div>
+      </div>`;
+  }
+
+  bar.style.width = '0%';
+  bar.classList.add('progress-bar-striped', 'progress-bar-animated');
+  counter.textContent = `0 / ${total}`;
+  doneEl.textContent  = '0';
+  errEl.textContent   = '0';
+  pendEl.textContent  = total;
+  closeBtn.disabled   = true;
+  closeBtn.innerHTML  = '<span class="spinner-border spinner-border-sm me-1"></span>처리 중...';
+
+  // 중단 셋업 (재분석/재환산 공통 헬퍼)
+  const ctl = setupRaCancel(total);
+  modal.show();
+
+  let done = 0, err = 0, cancelled = 0;
+
+  for (let i = 0; i < total; i++) {
+    if (ctl.aborted) {
+      cancelled = total - i;
+      // 남은 항목 모두 취소 표시
+      for (let j = i; j < total; j++) {
+        const it = document.getElementById('raItem' + j);
+        it.classList.remove('processing');
+        document.getElementById('raIcon' + j).innerHTML = '<i class="bi bi-dash-circle text-muted"></i>';
+        document.getElementById('raMsg'  + j).textContent = '취소됨';
+      }
+      break;
+    }
+    const f = files[i];
+    curName.textContent = `재분석 중: ${f.name}`;
+
+    document.getElementById('raItem' + i).classList.add('processing');
+    document.getElementById('raIcon' + i).innerHTML = '<div class="spinner-sm"></div>';
+    document.getElementById('raMsg'  + i).textContent = '분석 중...';
+
+    try {
+      const res  = await fetch(`/files/${f.id}/reanalyze`, { method: 'POST', signal: ctl.signal });
+      const data = await res.json();
+      const item = document.getElementById('raItem' + i);
+      item.classList.remove('processing');
+
+      if (data.error) {
+        err++;
+        item.classList.add('error');
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+        document.getElementById('raMsg'  + i).textContent = data.error;
+      } else {
+        done++;
+        item.classList.add('done');
+        const hasSignWarn = Array.isArray(data.sign_warnings) && data.sign_warnings.length > 0;
+        document.getElementById('raIcon' + i).innerHTML = hasSignWarn
+          ? '<i class="bi bi-exclamation-triangle-fill text-warning"></i>'
+          : '<i class="bi bi-check-circle-fill text-success"></i>';
+        document.getElementById('raCompany' + i).textContent = data.company || f.company;
+        const sheetInfo = Object.entries(data.sheets || {}).map(([s, n]) => `${s}:${n}`).join(' · ');
+        const fx = data.currency ? ` · ${data.currency} @ ${Number(data.fx_rate).toFixed(4)}` : '';
+        document.getElementById('raMsg' + i).textContent = (sheetInfo || '완료') + fx;
+        if (hasSignWarn) {
+          renderSignWarnings('raSignWarn' + i, data.sign_warnings);
+        }
+      }
+    } catch (e) {
+      const item = document.getElementById('raItem' + i);
+      item.classList.remove('processing');
+      if (e.name === 'AbortError') {
+        // 중단 인 플라이트 → 다음 iteration에서 ctl.aborted로 분기
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-dash-circle text-muted"></i>';
+        document.getElementById('raMsg'  + i).textContent = '중단됨';
+      } else {
+        err++;
+        item.classList.add('error');
+        document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
+        document.getElementById('raMsg'  + i).textContent = '실패: ' + e.message;
+      }
+    }
+
+    const progressed = i + 1;
+    bar.style.width   = (progressed / total * 100) + '%';
+    counter.textContent = `${progressed} / ${total}`;
+    doneEl.textContent  = done;
+    errEl.textContent   = err;
+    pendEl.textContent  = total - progressed;
+  }
+
+  ctl.teardown();
+  const summaryParts = [`성공 ${done}건`, `실패 ${err}건`];
+  if (cancelled > 0) summaryParts.push(`취소 ${cancelled}건`);
+  curName.textContent = `재분석 ${ctl.aborted ? '중단' : '완료'} — ` + summaryParts.join(', ');
+  bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
+  closeBtn.disabled  = false;
+  closeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>완료';
+
+  document.getElementById('resultCard').style.display = 'none';
+  document.getElementById('dashboardCard').style.display = 'none';
+  loadFiles();
+}
+
+// 진행 모달용 취소/AbortController 셋업
+//   반환: { signal, aborted, teardown() }
+function setupRaCancel(total) {
+  const cancelBtn = document.getElementById('raCancelBtn');
+  const ctrl = new AbortController();
+  const state = { signal: ctrl.signal, aborted: false, teardown: () => {} };
+
+  if (!cancelBtn) return state;
+
+  cancelBtn.disabled = false;
+  cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>중단';
+  cancelBtn.style.display = '';
+
+  const onClick = async () => {
+    if (state.aborted) return;
+    const ok = await confirmModal({
+      title: '중단 확인',
+      body: '진행 중인 작업을 중단하시겠습니까?\n\n· 이미 처리된 파일은 그대로 유지됩니다\n· 처리 중인 파일은 취소를 시도합니다',
+      okText: '중단', okClass: 'btn-danger'
+    });
+    if (!ok) return;
+    state.aborted = true;
+    try { ctrl.abort(); } catch(_) {}
+    cancelBtn.disabled = true;
+    cancelBtn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>중단 중...';
+  };
+
+  cancelBtn.addEventListener('click', onClick);
+
+  state.teardown = () => {
+    cancelBtn.removeEventListener('click', onClick);
+    cancelBtn.disabled = true;
+    cancelBtn.style.display = 'none';
+  };
+  return state;
+}
+
+// ── 합산 실행 ─────────────────────────────────────────
+async function runAggregate() {
+  const btn = document.getElementById('aggregateBtn');
+  const status = document.getElementById('aggregateStatus');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>합산 중...';
+  status.innerHTML = '';
+
+  try {
+    const checkedIds = getCheckedIds();
+    const fd = new FormData();
+    if (checkedIds.length > 0) {
+      fd.append('ids', JSON.stringify(checkedIds));
+    }
+    const res = await fetch('/aggregate?year=' + encodeURIComponent(currentYear()),
+                            { method: 'POST', body: fd });
+    const data = await res.json();
+
+    if (data.error) {
+      status.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-calculator me-2" aria-hidden="true"></i>합산 실행';
+      return;
+    }
+
+    renderResult(data);
+
+    // WCE 자본 조정 내역 토스트
+    const adj = data.wce_adj || [];
+    if (adj.length > 0) {
+      const unbalanced = adj.filter(a => !a.balanced);
+      if (unbalanced.length) {
+        showToast(
+          `WCE 자본 적용 완료. ${adj.length}개사 중 ${unbalanced.length}개사 잔액 불일치 → 3400104 자동 조정`,
+          'warning'
+        );
+      } else {
+        showToast(`WCE 자본 적용 완료 (${adj.length}개사, 차대 균형 확인됨)`, 'success');
+      }
+    }
+  } catch (e) {
+    status.innerHTML = `<div class="alert alert-danger">오류: ${e.message}</div>`;
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-calculator me-2"></i>합산 실행';
+}
+
+// ── 결과 렌더링 ───────────────────────────────────────
+const EOK = 1e8;
+// 억원 포맷 (정수). null/NaN/0 → '-'
+function fmtEok(n) {
+  if (n == null || !isFinite(n) || n === 0) return '-';
+  return new Intl.NumberFormat('ko-KR', {
+    maximumFractionDigits: 0, minimumFractionDigits: 0
+  }).format(Math.round(n / EOK));
+}
+// 비율 포맷
+function fmtPct(n) {
+  if (n == null || !isFinite(n)) return '-';
+  return n.toFixed(1) + '%';
+}
+// 회사별 셀 포맷 (비율 행은 %, 그 외 억)
+function fmtCell(v, isRatio) {
+  if (v == null || !isFinite(v)) return '-';
+  return isRatio ? fmtPct(v) : fmtEok(v);
+}
+// 전기 대비 증감%
+function growth(cur, cmp) {
+  if (cmp == null || !isFinite(cmp) || cmp === 0) return null;
+  return (cur - cmp) / Math.abs(cmp) * 100;
+}
+function growthHtml(cur, cmp) {
+  const g = growth(cur, cmp);
+  if (g == null) return '<span class="text-muted">-</span>';
+  const sign = g >= 0 ? '+' : '';
+  const color = g >= 0 ? 'text-success' : 'text-danger';
+  return `<span class="${color} small">${sign}${g.toFixed(1)}%</span>`;
+}
+
+function renderPreviewTable(head, body, companies, rows) {
+  const coStyle = 'width:70px; min-width:60px; max-width:80px; font-size:0.75rem; text-align:center; vertical-align:middle;';
+  head.innerHTML = `<tr>
+    <th scope="col" style="min-width:180px; width:200px;">${t('table.account')}</th>
+    ${companies.map(c => `<th scope="col" class="company-col" style="${coStyle}">${c}</th>`).join('')}
+    <th scope="col" class="total-col" style="width:80px; text-align:center !important;">${t('table.total')}</th>
+    <th scope="col" style="background:#FFF2CC; color:#212529; width:80px; text-align:center !important;">${t('table.compare')}</th>
+  </tr>`;
+  body.innerHTML = rows.map(row => {
+    const isRatio = !!row.is_ratio;
+    const rowCls = row.derived || isRatio ? 'table-light fw-bold' : '';
+    const name = rowName(row);
+    const sub  = _lang === 'en' ? (row.kor || '') : (row.eng || '');
+    return `
+    <tr class="${rowCls}">
+      <td>
+        <span class="badge bg-light text-dark border">${row.code}</span>
+        ${name}
+        <br><small class="text-muted">${sub}</small>
+      </td>
+      ${companies.map(c => `<td class="text-end company-col" style="width:70px;">${fmtCell(row.companies[c], isRatio)}</td>`).join('')}
+      <td class="text-end total-col">${fmtCell(row.total, isRatio)}</td>
+      <td class="text-end" style="background:#FFF8E1; color:#212529;">${fmtCell(row.compare_total, isRatio)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// 값 포맷 (카드/히어로 공용)
+function fmtKpiValue(row) {
+  const v = row.total;
+  if (v == null || !isFinite(v)) return '-';
+  if (row.is_multiple) return v.toFixed(1) + 'x';
+  if (row.is_ratio)    return v.toFixed(1) + '%';
+  return fmtN(Math.round(v / EOK));
+}
+function fmtKpiCmp(row) {
+  const v = row.compare_total;
+  if (v == null || !isFinite(v)) return '-';
+  if (row.is_multiple) return v.toFixed(1) + 'x';
+  if (row.is_ratio)    return v.toFixed(1) + '%';
+  return fmtN(Math.round(v / EOK));
+}
+function kpiUnit(row) {
+  if (row.is_ratio || row.is_multiple) return '';
+  return _lang === 'en' ? '100M' : '억';
+}
+
+// ICR(이자보상배율) 신호등 CSS 클래스
+function icrAlertCls(row) {
+  if (row.code !== '이자보상배율') return '';
+  const v = row.total;
+  if (v == null || !isFinite(v)) return '';
+  return v >= 3 ? 'icr-green' : v >= 1 ? 'icr-amber' : 'icr-red';
+}
+
+function renderKpiCards(container, rows) {
+  const rowKey = r => (r.dash_row != null ? r.dash_row : (r.derived || r.is_ratio ? 1 : 0));
+  const groups = {};
+  rows.forEach(r => { const k = rowKey(r); (groups[k] ||= []).push(r); });
+  const sortedKeys = Object.keys(groups).map(Number).sort((a, b) => a - b);
+
+  const colClassFor = count => {
+    if (count === 1) return 'col-12 col-md-6 col-xl-4';
+    if (count === 2) return 'col-6 col-md-4 col-xl-3';
+    if (count === 3) return 'col-6 col-md-4';
+    if (count === 4) return 'col-6 col-md-3';
+    return 'col-6 col-md-4 col-lg-3';
+  };
+
+  const cardHtml = (row, colCls) => {
+    const delta = chartDelta(row);
+    const valStr = fmtKpiValue(row);
+    const cmpStr = fmtKpiCmp(row);
+    const unit   = kpiUnit(row);
+    const alertCls = icrAlertCls(row);
+    const priorLbl = _lang === 'en' ? 'Prior' : '전기';
+    return `
+    <div class="${colCls}">
+      <div class="kpi-card ${alertCls}">
+        <div class="kpi-card-name">${rowName(row)}</div>
+        <div class="kpi-card-value">${valStr}<span class="kpi-card-unit">${unit}</span></div>
+        <div class="kpi-card-cmp">
+          ${priorLbl} <b>${cmpStr}${unit ? ' ' + unit : ''}</b>
+          &nbsp;
+          <span class="dashboard-delta ${delta.cls}" style="font-size:.72rem;padding:1px 6px">
+            <i class="bi ${delta.icon}" aria-hidden="true"></i>${delta.text}
+          </span>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  const html = sortedKeys.map((k, idx) => {
+    const grp = groups[k];
+    const col = colClassFor(grp.length);
+    const brk = idx > 0 ? '<div class="w-100 mb-1"></div>' : '';
+    return brk + grp.map(r => cardHtml(r, col)).join('');
+  }).join('');
+  container.innerHTML = html;
+}
+
+// Chart.js 전역 플러그인 등록
+Chart.register(ChartDataLabels);
+
+const fmtN = v => new Intl.NumberFormat('ko-KR').format(Math.round(v));
+const COMPARE_COLOR = '#94A3B8';
+const CURRENT_COLOR = '#1F3864';
+const RATIO_COLOR = '#C55A11';
+const PERIOD_LABELS = () => _lang === 'en' ? ['Prior', 'Current'] : ['전기(비교)', '당기'];
+// 섹션별 차트 스토어
+let _chartsProfit = [], _chartsSafety = [], _chartsCashflow = [];
+
+function destroyCharts(charts) {
+  charts.forEach(chart => chart && chart.destroy());
+  return [];
+}
+
+function sanitizeId(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
+function chartValue(row, field) {
+  if (!row || row[field] == null || !isFinite(row[field])) return null;
+  if (row.is_ratio || row.is_multiple) return +row[field].toFixed(2);
+  return Math.round(row[field] / EOK);
+}
+
+function chartPointLabel(value, row) {
+  if (value == null || !isFinite(value)) return '';
+  if (row.is_multiple) return value.toFixed(1) + 'x';
+  if (row.is_ratio)    return value.toFixed(1) + '%';
+  return fmtN(value) + '억';
+}
+
+function chartTooltipLabel(ctx, row) {
+  return `${ctx.dataset.label}: ${chartPointLabel(ctx.parsed.y, row)}`;
+}
+
+function chartDelta(row) {
+  const cur = row.total;
+  const cmp = row.compare_total;
+  if (cur == null || cmp == null || !isFinite(cur) || !isFinite(cmp)) {
+    return { text: '-', cls: '', icon: 'bi-dash-lg' };
+  }
+  const diff = (row.is_ratio || row.is_multiple) ? cur - cmp : growth(cur, cmp);
+  if (diff == null || !isFinite(diff)) return { text: '-', cls: '', icon: 'bi-dash-lg' };
+  const sign = diff >= 0 ? '+' : '';
+  const text = row.is_multiple ? `${sign}${diff.toFixed(1)}x`
+             : row.is_ratio    ? `${sign}${diff.toFixed(1)}%p`
+             :                   `${sign}${diff.toFixed(1)}%`;
+  if (diff === 0) return { text, cls: '', icon: 'bi-arrow-right' };
+  return {
+    text,
+    cls: diff > 0 ? 'up' : 'down',
+    icon: diff > 0 ? 'bi-arrow-up-right' : 'bi-arrow-down-right',
+  };
+}
+
+function chartOptions(row) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'nearest', intersect: true },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { boxWidth: 10, boxHeight: 10, usePointStyle: true, padding: 14 },
+      },
+      tooltip: { callbacks: { label: ctx => chartTooltipLabel(ctx, row) } },
+      datalabels: {
+        anchor: 'end',
+        align: 'top',
+        offset: 2,
+        color: '#334155',
+        font: { size: 10, weight: 'bold' },
+        formatter: value => chartPointLabel(value, row),
+        clip: false,
+      }
+    },
+    layout: { padding: { top: 18, right: 8, left: 4 } },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        border: { display: false },
+        grid: { color: '#e6edf5' },
+        ticks: {
+          color: '#6c757d',
+          callback: value => row.is_multiple ? Number(value).toFixed(1) + 'x'
+                            : row.is_ratio  ? Number(value).toFixed(1) + '%'
+                            : fmtN(value),
+        },
+      },
+    },
+  };
+}
+
+function renderMetricChart(canvas, row) {
+  const currentColor = row.is_ratio ? RATIO_COLOR : CURRENT_COLOR;
+  return new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [rowName(row)],
+      datasets: [
+        {
+          label: PERIOD_LABELS()[0],
+          data: [chartValue(row, 'compare_total')],
+          backgroundColor: COMPARE_COLOR,
+          borderRadius: 7,
+          maxBarThickness: 52,
+        },
+        {
+          label: PERIOD_LABELS()[1],
+          data: [chartValue(row, 'total')],
+          backgroundColor: currentColor,
+          borderRadius: 7,
+          maxBarThickness: 52,
+        }
+      ],
+    },
+    options: chartOptions(row),
+  });
+}
+
+// ── 이익률 비교 합산 패널 렌더러 ──────────────────────────────────────────
+function renderMarginComboInPanel(containerId, panel, opRow, netRow, chartStore) {
+  const priorLbl = _lang === 'en' ? 'Prior'   : '전기';
+  const curLbl   = _lang === 'en' ? 'Current' : '당기';
+  const opName   = rowName(opRow);
+  const netName  = rowName(netRow);
+  const opDelta  = chartDelta(opRow);
+  const netDelta = chartDelta(netRow);
+
+  const fmt1 = v => (v != null && isFinite(v)) ? v.toFixed(1) + '%' : '-';
+
+  const canvasId = `${containerId}_margincombo_canvas`;
+  panel.innerHTML = `
+    <div class="debt-comp-header">
+      <div>
+        <div class="debt-comp-title">${_lang === 'en' ? 'Profit Margins' : '이익률 비교'}</div>
+        <span class="dashboard-chart-subtitle">${curLbl}: ${opName} ${fmt1(opRow.total)} / ${netName} ${fmt1(netRow.total)}</span>
+      </div>
+      <div class="debt-comp-kpis">
+        <div class="debt-comp-stat-item">
+          <span class="debt-color-dot" style="background:#4472C4"></span>
+          <span>${opName}</span>
+          <span class="dashboard-delta ${opDelta.cls}" style="font-size:.75rem;padding:1px 6px">
+            <i class="bi ${opDelta.icon}" aria-hidden="true"></i>${opDelta.text}
+          </span>
+        </div>
+        <div class="debt-comp-stat-item">
+          <span class="debt-color-dot" style="background:#70AD47"></span>
+          <span>${netName}</span>
+          <span class="dashboard-delta ${netDelta.cls}" style="font-size:.75rem;padding:1px 6px">
+            <i class="bi ${netDelta.icon}" aria-hidden="true"></i>${netDelta.text}
+          </span>
+        </div>
+      </div>
+    </div>
+    <div class="debt-comp-canvas">
+      <canvas id="${canvasId}" role="img" aria-label="profit margin comparison chart"></canvas>
+    </div>`;
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return chartStore;
+
+  const opCmp  = opRow.compare_total  != null ? +opRow.compare_total.toFixed(2)  : null;
+  const opCur  = opRow.total          != null ? +opRow.total.toFixed(2)           : null;
+  const netCmp = netRow.compare_total != null ? +netRow.compare_total.toFixed(2)  : null;
+  const netCur = netRow.total         != null ? +netRow.total.toFixed(2)          : null;
+
+  chartStore.push(new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [priorLbl, curLbl],
+      datasets: [
+        {
+          label: opName,
+          data: [opCmp, opCur],
+          backgroundColor: 'rgba(68,114,196,0.85)',
+          hoverBackgroundColor: '#5585d5',
+          borderRadius: 6, maxBarThickness: 64,
+          datalabels: {
+            anchor: 'end', align: 'top', offset: 2,
+            color: '#1F3864', font: { size: 11, weight: 'bold' },
+            formatter: v => v != null ? v.toFixed(1) + '%' : null,
+          },
+        },
+        {
+          label: netName,
+          data: [netCmp, netCur],
+          backgroundColor: 'rgba(112,173,71,0.85)',
+          hoverBackgroundColor: '#8bc55a',
+          borderRadius: 6, maxBarThickness: 64,
+          datalabels: {
+            anchor: 'end', align: 'top', offset: 2,
+            color: '#375623', font: { size: 11, weight: 'bold' },
+            formatter: v => v != null ? v.toFixed(1) + '%' : null,
+          },
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, padding: 14 } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y != null ? ctx.parsed.y.toFixed(1) + '%' : '-'}` } },
+      },
+      layout: { padding: { top: 22, right: 8, bottom: 4, left: 4 } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#6c757d', font: { size: 12, weight: '600' } } },
+        y: {
+          beginAtZero: true, border: { display: false }, grid: { color: '#e6edf5' },
+          ticks: { color: '#6c757d', callback: v => v.toFixed(1) + '%' },
+        },
+      },
+    },
+  }));
+  return chartStore;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── 차입금 구성 합산 패널 렌더러 ──────────────────────────────────────────
+function renderDebtCompositionInPanel(containerId, panel, totalRow, internalRow, externalRow, chartStore) {
+  const toAeok = v => Math.round((v || 0) / EOK);
+  const intCmp = toAeok(internalRow.compare_total);
+  const intCur = toAeok(internalRow.total);
+  const extCmp = toAeok(externalRow.compare_total);
+  const extCur = toAeok(externalRow.total);
+  const totCmp = toAeok(totalRow.compare_total);
+  const totCur = toAeok(totalRow.total);
+
+  const extPctCmp = totCmp ? extCmp / totCmp * 100 : 0;
+  const extPctCur = totCur ? extCur / totCur * 100 : 0;
+  const intPctCur = totCur ? intCur / totCur * 100 : 0;
+  const extPctDiff = (totCmp && totCur) ? (extCur / totCur - extCmp / totCmp) * 100 : 0;
+
+  const intName  = rowName(internalRow);
+  const extName  = rowName(externalRow);
+  const totName  = rowName(totalRow);
+  const delta    = chartDelta(totalRow);
+  const unitSfx  = _lang === 'en' ? 'B' : '억';
+  const priorLbl = _lang === 'en' ? 'Prior'   : '전기';
+  const curLbl   = _lang === 'en' ? 'Current' : '당기';
+  const ratioLbl = _lang === 'en' ? `${extName} ratio` : `${extName} 비중`;
+  const totLbl   = _lang === 'en' ? 'Total'   : '합계';
+
+  const propCls   = extPctDiff >  0.1 ? 'up' : extPctDiff < -0.1 ? 'down' : '';
+  const propArrow = extPctDiff >  0.1 ? '▲'  : extPctDiff < -0.1 ? '▼'   : '─';
+  const propColor = propCls === 'up'  ? '#C55A11' : propCls === 'down' ? '#2563EB' : 'var(--text-muted)';
+
+  const canvasId = `${containerId}_debtcomp_canvas`;
+  const fmt = v => fmtN(v) + unitSfx;
+
+  panel.innerHTML = `
+    <div class="debt-comp-header">
+      <div>
+        <div class="debt-comp-title">${totName}</div>
+        <span class="dashboard-chart-subtitle">${curLbl}&nbsp;${fmt(totCur)}</span>
+      </div>
+      <div class="debt-comp-kpis">
+        <div>
+          <div class="debt-comp-kpi-label">${priorLbl}</div>
+          <div class="debt-comp-kpi-prior">${fmt(totCmp)}</div>
+        </div>
+        <span class="dashboard-delta ${delta.cls}"><i class="bi ${delta.icon}" aria-hidden="true"></i>${delta.text}</span>
+      </div>
+    </div>
+    <div class="debt-comp-canvas">
+      <canvas id="${canvasId}" role="img"
+        aria-label="${totName}: ${priorLbl} ${fmt(totCmp)}, ${curLbl} ${fmt(totCur)}"></canvas>
+    </div>
+    <div class="debt-comp-stats">
+      <div class="debt-comp-stat-item">
+        <span class="debt-color-dot" style="background:#4472C4"></span>
+        <strong>${intName}</strong>&thinsp;${fmt(intCur)}&nbsp;(${intPctCur.toFixed(1)}%)
+      </div>
+      <div class="debt-comp-stat-item">
+        <span class="debt-color-dot" style="background:#ED7D31"></span>
+        <strong>${extName}</strong>&thinsp;${fmt(extCur)}&nbsp;(${extPctCur.toFixed(1)}%)
+      </div>
+      <div class="debt-comp-stat-ratio">
+        <span>${ratioLbl}:</span>
+        <span style="font-weight:600">${priorLbl} ${extPctCmp.toFixed(1)}%</span>
+        <span style="color:${propColor};font-weight:700;font-size:.9rem">${propArrow}</span>
+        <span style="font-weight:700;color:${propColor}">${curLbl} ${extPctCur.toFixed(1)}%</span>
+      </div>
+    </div>`;
+
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return chartStore;
+
+  const chart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: [priorLbl, curLbl],
+      datasets: [
+        {
+          label: intName,
+          data: [intCmp, intCur],
+          backgroundColor: '#4472C4',
+          hoverBackgroundColor: '#5585d5',
+          stack: 'debt',
+          maxBarThickness: 80,
+          borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 6, bottomRight: 6 },
+          datalabels: {
+            display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+            anchor: 'center', align: 'center',
+            color: '#fff',
+            font: { size: 11, weight: 'bold' },
+            formatter: v => v > 0 ? fmt(v) : null,
+          },
+        },
+        {
+          label: extName,
+          data: [extCmp, extCur],
+          backgroundColor: '#ED7D31',
+          hoverBackgroundColor: '#f59550',
+          stack: 'debt',
+          maxBarThickness: 80,
+          borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
+          datalabels: {
+            display: ctx => (ctx.dataset.data[ctx.dataIndex] || 0) > 0,
+            labels: {
+              // 세그먼트 값 (바 중앙, 흰색)
+              value: {
+                anchor: 'center', align: 'center',
+                color: '#fff',
+                font: { size: 11, weight: 'bold' },
+                formatter: v => v > 0 ? fmt(v) : null,
+              },
+              // 총계 레이블 (바 상단, 짙은 네이비)
+              total: {
+                anchor: 'end', align: 'top', offset: 4,
+                color: '#1F3864',
+                font: { size: 12, weight: 'bold' },
+                formatter: (v, ctx) => {
+                  const idx = ctx.dataIndex;
+                  const intV = ctx.chart.data.datasets[0].data[idx] || 0;
+                  const tot  = (v || 0) + intV;
+                  return tot > 0 ? fmt(tot) : null;
+                },
+              },
+            },
+          },
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { boxWidth: 12, boxHeight: 12, usePointStyle: true, padding: 16 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`,
+            footer: items => {
+              if (!items.length) return '';
+              const idx  = items[0].dataIndex;
+              return `${totLbl}: ${fmt([totCmp, totCur][idx])}`;
+            },
+          },
+        },
+      },
+      layout: { padding: { top: 26, right: 16, bottom: 4, left: 8 } },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { display: false },
+          ticks: { color: '#6c757d', font: { size: 12, weight: '600' } },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          border: { display: false },
+          grid: { color: '#e6edf5' },
+          ticks: { color: '#6c757d', callback: v => fmtN(v) },
+        },
+      },
+    },
+  });
+
+  chartStore.push(chart);
+  return chartStore;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+function renderChartGrid(containerId, rows, chartStore, options = {}) {
+  const container = document.getElementById(containerId);
+  chartStore = destroyCharts(chartStore);
+  const allowedCodes = options.codes || null;
+  const allowedKors  = options.kors  || null;
+
+  // chart_group 있는 행은 항상 포함; 없는 행은 allowedCodes/allowedKors 필터 적용
+  const chartRows = rows.filter(row => {
+    if (row.chart_group) return true;
+    const codeMatch = !allowedCodes || allowedCodes.includes(row.code);
+    const korMatch  = !allowedKors  || allowedKors.includes(row.kor);
+    return codeMatch && korMatch;
+  });
+
+  if (!chartRows.length) {
+    container.innerHTML = '<div class="text-muted small py-3">표시할 차트 데이터가 없습니다.</div>';
+    return chartStore;
+  }
+
+  // dash_row 기준으로 줄 그룹핑 (fallback: primary=0, derived/ratio=1)
+  const rowKey = r => (r.dash_row != null ? r.dash_row : (r.derived || r.is_ratio ? 1 : 0));
+  const groups = {};
+  chartRows.forEach(r => { const k = rowKey(r); (groups[k] ||= []).push(r); });
+  const sortedKeys = Object.keys(groups).map(Number).sort((a, b) => a - b);
+
+  const priorLbl = _lang === 'en' ? 'Prior'   : '전기';
+  const curLbl   = _lang === 'en' ? 'Current' : '당기';
+
+  const panelHtml = (row, idx) => {
+    const canvasId = `${containerId}_${sanitizeId(row.code || row.kor)}_${idx}`;
+    const cur = chartPointLabel(chartValue(row, 'total'), row) || '-';
+    const cmp = chartPointLabel(chartValue(row, 'compare_total'), row) || '-';
+    const delta = chartDelta(row);
+    const name = rowName(row);
+    const ariaLabel = `${name} trend chart — ${priorLbl}: ${cmp}, ${curLbl}: ${cur}, Change: ${delta.text}`;
+    return `
+      <div class="dashboard-chart-panel">
+        <div class="dashboard-chart-title">
+          <h6>${name}</h6>
+          <span class="dashboard-chart-subtitle">${curLbl} ${cur}</span>
+        </div>
+        <div class="dashboard-chart-meta">
+          <span>${priorLbl} ${cmp}</span>
+          <span class="dashboard-delta ${delta.cls}"><i class="bi ${delta.icon}" aria-hidden="true"></i>${delta.text}</span>
+        </div>
+        <div class="dashboard-chart-canvas">
+          <canvas id="${canvasId}" role="img" aria-label="${ariaLabel.replace(/"/g,'&quot;')}"></canvas>
+        </div>
+      </div>`;
+  };
+
+  // 그룹별 하위 grid 렌더 (위→아래 순)
+  let idxCounter = 0;
+  const orderedRows      = [];
+  const debtCompPending  = []; // { panelId, rows }
+  const marginComboPend  = []; // { panelId, rows }
+
+  const html = sortedKeys.map((k, gIdx) => {
+    const grp    = groups[k];
+    const dcRows = grp.filter(r => r.chart_group === 'debt_composition');
+    const mcRows = grp.filter(r => r.chart_group === 'margin_combo');
+    const regular= grp.filter(r => !r.chart_group);
+
+    let panelsHtml = '';
+
+    // 차입금 구성 합산 패널 (전폭)
+    if (dcRows.length) {
+      const panelId = `${containerId}_debtcomp_${k}`;
+      panelsHtml += `<div class="debt-comp-panel" id="${panelId}"></div>`;
+      debtCompPending.push({ panelId, rows: dcRows });
+    }
+
+    // 이익률 비교 합산 패널 (전폭)
+    if (mcRows.length >= 2) {
+      const panelId = `${containerId}_margincombo_${k}`;
+      panelsHtml += `<div class="debt-comp-panel" id="${panelId}"></div>`;
+      marginComboPend.push({ panelId, rows: mcRows });
+    }
+
+    // 일반 개별 패널
+    panelsHtml += regular.map(r => {
+      orderedRows.push(r);
+      return panelHtml(r, idxCounter++);
+    }).join('');
+
+    if (!panelsHtml) return '';
+    const mtCls = gIdx > 0 ? ' mt-3' : '';
+    return `<div class="dashboard-chart-grid${mtCls}">${panelsHtml}</div>`;
+  }).join('');
+
+  container.innerHTML = html;
+
+  // 일반 차트 부착
+  orderedRows.forEach((row, idx) => {
+    const canvasId = `${containerId}_${sanitizeId(row.code || row.kor)}_${idx}`;
+    const canvas = document.getElementById(canvasId);
+    if (canvas) chartStore.push(renderMetricChart(canvas, row));
+  });
+
+  // 차입금 구성 합산 차트
+  debtCompPending.forEach(({ panelId, rows: dcRows }) => {
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    const totalRow    = dcRows.find(r => r.code === '차입금총계');
+    const internalRow = dcRows.find(r => r.code === '내부차입금');
+    const externalRow = dcRows.find(r => r.code === '외부차입금');
+    if (totalRow && internalRow && externalRow) {
+      chartStore = renderDebtCompositionInPanel(
+        containerId, panel, totalRow, internalRow, externalRow, chartStore
+      );
+    }
+  });
+
+  // 이익률 비교 합산 차트
+  marginComboPend.forEach(({ panelId, rows: mcRows }) => {
+    const panel  = document.getElementById(panelId);
+    if (!panel) return;
+    const opRow  = mcRows.find(r => r.code === '영업이익률');
+    const netRow = mcRows.find(r => r.code === '당기순이익률');
+    if (opRow && netRow) {
+      chartStore = renderMarginComboInPanel(containerId, panel, opRow, netRow, chartStore);
+    }
+  });
+
+  return chartStore;
+}
+
+function renderResult(data) {
+  document.getElementById('resultCard').style.display = '';
+  document.getElementById('dashboardCard').style.display = '';
+  document.getElementById('downloadBtn').href = data.download_url;
+  const sDl = document.getElementById('stickyDownload');
+  if (sDl) sDl.href = data.download_url;
+
+  // 회사별 전기비교: 생성됐으면 버튼 노출
+  const cmpBtn = document.getElementById('downloadCompareBtn');
+  if (cmpBtn) {
+    if (data.compare_download_url) {
+      cmpBtn.href = data.compare_download_url;
+      cmpBtn.classList.remove('d-none');
+      const lbl = data.compare_prior_label ? ` (vs ${data.compare_prior_label})` : '';
+      cmpBtn.title = '회사별 전기 비교 — 동기 환율 기준' + lbl;
+    } else {
+      cmpBtn.classList.add('d-none');
+    }
+  }
+  _lastRenderData = data;
+  updateStickyActionBar();
+  showToast(_lang === 'en'
+    ? `Aggregation of ${data.companies.length} companies complete`
+    : `${data.companies.length}개사 합산이 완료되었습니다`, 'success');
+
+  document.getElementById('resultSummary').innerHTML =
+    `<i class="bi bi-info-circle me-1" aria-hidden="true"></i>
+     ${t('summary.prefix', data.companies.length, data.companies.join(', '))}`;
+
+  const companies = data.companies;
+  renderPreviewTable(
+    document.getElementById('bsPreviewHead'),
+    document.getElementById('bsPreviewBody'),
+    companies, data.bs_preview || []
+  );
+  renderPreviewTable(
+    document.getElementById('plPreviewHead'),
+    document.getElementById('plPreviewBody'),
+    companies, data.pl_preview || []
+  );
+
+  // ── 경영 대시보드 3섹션 렌더 ──
+  const db = data.dashboard || {};
+  const profit   = db.profitability || [];
+  const safety   = db.safety        || [];
+  const cashflow = db.cashflow       || [];
+
+  // 수익성 섹션
+  renderKpiCards(document.getElementById('dbCardsProfitability'), profit);
+  _chartsProfit = renderChartGrid('dbChartsProfitability', profit, _chartsProfit);
+
+  // 재무안전성 섹션 (차트: 부채비율·순차입금 개별 + 차입금 구성 full-width)
+  renderKpiCards(document.getElementById('dbCardsSafety'), safety);
+  _chartsSafety = renderChartGrid('dbChartsSafety', safety, _chartsSafety,
+    { codes: ['부채비율', '순차입금'] });
+
+  // 현금흐름 섹션
+  renderKpiCards(document.getElementById('dbCardsCashflow'), cashflow);
+  _chartsCashflow = renderChartGrid('dbChartsCashflow', cashflow, _chartsCashflow);
+}
+
+async function downloadDashboardExcel(btn) {
+  const data = _lastRenderData;
+  if (!data || !data.dashboard) {
+    showToast('먼저 합산을 실행해주세요.', 'warning');
+    return;
+  }
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>생성 중…';
+  }
+  try {
+    const res = await fetch('/dashboard/excel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        dashboard: data.dashboard,
+        companies: data.companies || [],
+        period: currentYear(),
+      }),
+    });
+    if (!res.ok) {
+      let msg = '엑셀 생성 실패';
+      try { const j = await res.json(); if (j && j.error) msg = j.error; } catch (_) {}
+      showToast(msg, 'danger');
+      return;
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    let fname = `경영대시보드_${currentYear()}.xlsx`;
+    const m = cd.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)/i);
+    if (m) { try { fname = decodeURIComponent(m[1]); } catch (_) { fname = m[1]; } }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    showToast('엑셀 다운로드 실패: ' + e.message, 'danger');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+// 초기 로드
+loadGroups();
+loadFiles();
+</script>
+</body>
+</html>

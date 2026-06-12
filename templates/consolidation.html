@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연결실행 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6; --total-bg:#FFE699; --total-fg:#9C5700;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+    --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+    --border:#334155; --total-bg:#4a3a1a; --total-fg:#f0d08e;
+  }
+  body { color-scheme: dark; }
+  .card, .modal-content { background:var(--card-bg); color:var(--text-body); }
+  .table { color:var(--text-body); --bs-table-bg:var(--card-bg); }
+  .form-control, .form-select { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+  .table-light, thead.table-light { --bs-table-bg:#2a3548; color:var(--text-body); }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Arial,sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border-radius:10px; border:none; box-shadow:0 1px 6px rgba(0,0,0,0.10); background:var(--card-bg); }
+.group-card { border-left:5px solid var(--brand-500); }
+.group-card.empty { border-left-color:#dc3545; }
+/* ─── 결과 표 ─── */
+.scroll-x {
+  overflow-x: scroll;       /* 항상 스크롤바 표시 */
+  overflow-y: auto;
+  max-height: 75vh;
+  width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-x::-webkit-scrollbar { height: 14px; width: 14px; }
+.scroll-x::-webkit-scrollbar-thumb { background:#888; border-radius:7px; }
+.scroll-x::-webkit-scrollbar-thumb:hover { background:#555; }
+.scroll-x::-webkit-scrollbar-track { background:#eee; }
+
+.preview-table {
+  font-size: 0.83rem;
+  width: auto !important;            /* 100% 강제 해제 */
+  min-width: 100%;
+  border-collapse: separate;          /* sticky 작동 위해 */
+  border-spacing: 0;
+  margin-bottom: 0;
+}
+.preview-table th, .preview-table td {
+  white-space: nowrap;
+  border: 1px solid #dee2e6;
+}
+.preview-table th {
+  background: var(--brand-900); color:#fff; text-align:center;
+  position: sticky; top: 0; z-index: 2;
+  padding: 6px 10px;
+}
+.preview-table td { padding: 4px 8px; }
+.preview-table td.num { text-align:right; font-variant-numeric:tabular-nums; min-width:120px; }
+.preview-table td:nth-child(1) { min-width: 80px; }
+.preview-table td:nth-child(2) { min-width: 200px; }
+.preview-table tr.total td { background:var(--total-bg); color:var(--total-fg); font-weight:700; }
+.preview-table tr.subheader td { background:var(--brand-050); font-weight:700; }
+.preview-table tr.check td { background:#f8d7da; color:#842029; font-weight:600; }
+.preview-table tr.blank td { background:transparent; height:8px; padding:0; border:0; }
+
+/* 좌측 2개 컬럼 sticky 고정 */
+.preview-table th:nth-child(1), .preview-table td:nth-child(1) {
+  position: sticky; left: 0; z-index: 3; background: var(--card-bg);
+}
+.preview-table th:nth-child(2), .preview-table td:nth-child(2) {
+  position: sticky; left: 80px; z-index: 3; background: var(--card-bg);
+}
+.preview-table thead th:nth-child(1),
+.preview-table thead th:nth-child(2) { background: var(--brand-900); z-index: 5; }
+.preview-table tr.total td:nth-child(1),
+.preview-table tr.total td:nth-child(2) { background:var(--total-bg); }
+.preview-table tr.subheader td:nth-child(1),
+.preview-table tr.subheader td:nth-child(2) { background:var(--brand-050); }
+.preview-table tr.check td:nth-child(1),
+.preview-table tr.check td:nth-child(2) { background:#f8d7da; }
+.badge-co { font-size:0.72rem; margin:2px; }
+.dropzone { border:2px dashed var(--brand-500); border-radius:10px; padding:24px;
+            background:var(--brand-050); text-align:center; cursor:pointer; transition:0.15s; }
+.dropzone.dragover { background:#D6E4FF; }
+.code-mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:0.85em; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'consolidation' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <!-- 결산기간 선택 -->
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:200px">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{% if y in locked_years %}🔒 {% endif %}{{ y }}</option>
+        {% endfor %}
+      </select>
+      <span id="periodLockBadge" class="badge bg-warning text-dark d-none">
+        <i class="bi bi-lock-fill"></i> 마감됨
+      </span>
+      <span class="text-muted ms-2">선택한 기간 기준으로 각사 패키지자료를 합산하고 연결조정분개를 적용합니다.</span>
+      {% if is_admin %}
+      <button class="btn btn-outline-primary btn-sm ms-auto" onclick="openGroupModal()">
+        <i class="bi bi-plus-circle"></i> 그룹 추가
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 그룹 목록 -->
+  <div id="groupList"></div>
+
+</div>
+
+<!-- 그룹 편집 모달 -->
+<div class="modal fade" id="groupModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:var(--brand-900); color:#fff;">
+        <h5 class="modal-title" id="groupModalTitle">그룹 추가</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="grpId">
+        <div class="mb-3">
+          <label class="form-label">그룹명</label>
+          <input type="text" id="grpName" class="form-control" placeholder="예: 태림, 세아 등">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">소속 회사 <small class="text-muted">(아래에서 체크)</small></label>
+          <div class="d-flex justify-content-between mb-2">
+            <input type="text" id="grpFilter" class="form-control form-control-sm" placeholder="회사명 검색…" style="max-width:240px">
+            <div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="grpCheckAll(true)">전체선택</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="grpCheckAll(false)">전체해제</button>
+            </div>
+          </div>
+          <div id="grpCompanyList" class="border rounded p-2" style="max-height:280px; overflow-y:auto;"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">
+            포함 그룹 <small class="text-muted">(다른 연결그룹의 결과를 1개 컬럼으로 끌어옴)</small>
+          </label>
+          <div id="grpIncludesList" class="border rounded p-2" style="max-height:180px; overflow-y:auto;"></div>
+          <small class="text-muted">예: 세아상역 그룹에 태림 그룹을 포함하면 태림 연결 결과가 "태림(연결)" 컬럼으로 자동 추가됩니다.</small>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-primary" onclick="saveGroup()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 차/대 불일치 모달 -->
+<div class="modal fade" id="imbalanceModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#842029; color:#fff;">
+        <h5 class="modal-title" id="imbalanceTitle"><i class="bi bi-exclamation-octagon-fill"></i> 분개 업로드 거부 — 차변·대변 불일치</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="imbalanceBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 결과 미리보기 모달 -->
+<div class="modal fade" id="resultModal" tabindex="-1">
+  <div class="modal-dialog" style="max-width:98vw; margin:1vh auto;">
+    <div class="modal-content" style="height:98vh; display:flex; flex-direction:column;">
+      <div class="modal-header" style="background:var(--brand-900); color:#fff; flex-shrink:0;">
+        <h5 class="modal-title" id="resultTitle">연결실행 결과</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" style="flex:1; min-height:0; display:flex; flex-direction:column; padding:1rem; overflow:hidden;">
+        <div id="resultSummary" class="mb-2" style="flex-shrink:0;"></div>
+        <div class="scroll-x" style="flex:1; min-height:0;">
+          <table class="preview-table" id="resultTable">
+            <thead><tr id="resultHead"></tr></thead>
+            <tbody id="resultBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a id="dlBtn" class="btn btn-success" href="#" download>
+          <i class="bi bi-download"></i> 엑셀 다운로드
+        </a>
+        <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const LOCKED_PERIODS = {{ locked_years|tojson }};
+let ALL_COMPANIES = [];   // 시스템 전체 회사 목록 (admin/all-companies)
+let CURRENT_GROUPS = [];
+
+function isPeriodLocked(p) {
+  return Array.isArray(LOCKED_PERIODS) && LOCKED_PERIODS.includes(p || currentPeriod());
+}
+
+function refreshPeriodLockBadge() {
+  const badge = document.getElementById('periodLockBadge');
+  if (badge) badge.classList.toggle('d-none', !isPeriodLocked());
+}
+
+function fmt(n) {
+  if (n === null || n === undefined || n === '') return '';
+  const v = Math.round(Number(n));
+  if (v === 0) return '';
+  return v < 0 ? '(' + (-v).toLocaleString('ko-KR') + ')' : v.toLocaleString('ko-KR');
+}
+
+function currentPeriod() { return document.getElementById('periodSelect').value; }
+
+async function loadAllCompanies() {
+  if (!IS_ADMIN) return;
+  try {
+    const r = await fetch('/admin/all-companies');
+    const j = await r.json();
+    ALL_COMPANIES = j.companies || [];
+  } catch (e) { console.error(e); }
+}
+
+async function loadGroups() {
+  const r = await fetch('/consolidation/groups?year=' + encodeURIComponent(currentPeriod()));
+  const j = await r.json();
+  CURRENT_GROUPS = j.groups || [];
+  renderGroups();
+}
+
+function renderGroups() {
+  const wrap = document.getElementById('groupList');
+  if (CURRENT_GROUPS.length === 0) {
+    wrap.innerHTML = `
+      <div class="card section-card">
+        <div class="card-body text-center text-muted py-5">
+          <i class="bi bi-diagram-3 fs-1 d-block mb-2"></i>
+          등록된 연결그룹이 없습니다.
+          ${IS_ADMIN ? '<br><small>우측 상단의 [그룹 추가] 버튼으로 새 그룹을 만드세요.</small>' : ''}
+        </div>
+      </div>`;
+    return;
+  }
+  wrap.innerHTML = CURRENT_GROUPS.map(g => groupCardHtml(g)).join('');
+}
+
+function groupCardHtml(g) {
+  const fileCount = g.file_count || 0;
+  // 해당 기간 멤버였던 회사 (서버가 company_periods로 필터해서 내려줌).
+  // 미지정 시(구버전 응답)는 전체 companies 사용.
+  const activeCompanies = Array.isArray(g.active_companies) ? g.active_companies : (g.companies || []);
+  const matched = (g.matched_companies || []).map(c => `<span class="badge bg-success badge-co">${escapeHtml(c)}</span>`).join('');
+  const missing = activeCompanies.filter(c =>
+    !(g.matched_companies || []).some(m => normCo(m) === normCo(c))
+  ).map(c => `<span class="badge bg-danger badge-co" title="해당 기간에 업로드된 파일 없음">${escapeHtml(c)}</span>`).join('');
+  const includedIds = g.included_groups || [];
+  const includesBadges = includedIds.map(iid => {
+    const ig = CURRENT_GROUPS.find(x => x.id === iid);
+    const label = ig ? ig.name : '(삭제된 그룹)';
+    return `<span class="badge bg-info badge-co" title="포함 그룹: ${escapeHtml(label)} 결과를 1개 컬럼으로 끌어옴"><i class="bi bi-diagram-2"></i> ${escapeHtml(label)}(연결)</span>`;
+  }).join('');
+  const isEmpty = fileCount === 0 && includedIds.length === 0;
+  return `
+  <div class="card section-card group-card ${isEmpty ? 'empty' : ''} mb-3" data-gid="${g.id}">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <h5 class="mb-1"><i class="bi bi-building-fill"></i> ${escapeHtml(g.name)}
+            <small class="text-muted ms-2">${g.companies.length}개사 등록 · ${fileCount}개사 업로드 완료</small>
+          </h5>
+        </div>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-primary" onclick="downloadJournalTemplate('${g.id}')">
+            <i class="bi bi-file-earmark-arrow-down"></i> 분개양식 다운로드
+          </button>
+          <button class="btn btn-outline-info" id="jd-${g.id}" onclick="downloadJournalFile('${g.id}')"
+                  title="업로드된 분개 파일 원본 다시 받기" disabled>
+            <i class="bi bi-file-earmark-excel"></i> 분개 다운로드
+          </button>
+          <button class="btn btn-outline-primary" onclick="triggerJournalUpload('${g.id}', ${g.can_manage_journal})"
+                  ${(isPeriodLocked() && !IS_ADMIN)
+                      ? 'disabled title="이 결산기간은 마감되어 업로드할 수 없습니다. (관리자 문의)"'
+                      : (g.can_manage_journal ? 'title="분개 엑셀 업로드"' : 'title="담당 그룹이 아니면 업로드할 수 없습니다"')}>
+            <i class="bi bi-file-earmark-arrow-up"></i> 분개 업로드
+          </button>
+          <button class="btn btn-outline-danger" onclick="deleteJournal('${g.id}')"
+                  ${(isPeriodLocked() && !IS_ADMIN)
+                      ? 'disabled title="이 결산기간은 마감되어 삭제할 수 없습니다. (관리자 문의)"'
+                      : (g.can_manage_journal ? 'title="등록된 연결조정분개 삭제"' : 'title="담당 그룹이 아니면 삭제할 수 없습니다"')}>
+            <i class="bi bi-trash"></i> 분개 삭제
+          </button>
+          <button class="btn btn-primary" onclick="runCompute('${g.id}')" ${isEmpty ? 'disabled' : ''}>
+            <i class="bi bi-calculator-fill"></i> 연결실행
+          </button>
+          <a class="btn btn-outline-success" href="/consolidation/dashboard?group=${g.id}&year=${encodeURIComponent(currentPeriod())}" title="이 그룹의 대시보드 보기">
+            <i class="bi bi-speedometer2"></i> 대시보드
+          </a>
+          ${IS_ADMIN ? `
+            <button class="btn btn-outline-secondary" onclick="editGroup('${g.id}')"><i class="bi bi-pencil"></i></button>
+            <button class="btn btn-outline-danger" onclick="deleteGroup('${g.id}')"><i class="bi bi-trash"></i></button>
+          ` : ''}
+        </div>
+      </div>
+      <div class="mt-2 small">
+        ${missing
+          ? `<strong>미업로드:</strong> ${missing}`
+          : `<span class="text-success"><i class="bi bi-check2-circle"></i> 등록 회사 전체 업로드 완료</span>`}
+        ${includesBadges ? `<br><strong>포함 그룹:</strong> ${includesBadges}` : ''}
+      </div>
+      <div class="mt-2 small text-muted journal-status" id="js-${g.id}">분개 상태 확인 중…</div>
+      <input type="file" id="jf-${g.id}" accept=".xlsx,.xlsm" style="display:none"
+             onchange="onJournalFileSelected(event, '${g.id}')">
+    </div>
+  </div>`;
+}
+
+function normCo(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9가-힣]+/g, '');
+}
+
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function refreshJournalStatuses() {
+  for (const g of CURRENT_GROUPS) {
+    fetch(`/consolidation/journal/${g.id}/${encodeURIComponent(currentPeriod())}`)
+      .then(r => r.json())
+      .then(j => {
+        const el = document.getElementById('js-' + g.id);
+        if (!el) return;
+        const adj = (j.adjustment_entries || []).length;
+        const inter = (j.intercompany_entries || []).length;
+        const dlBtn = document.getElementById('jd-' + g.id);
+        if (dlBtn) dlBtn.disabled = (adj === 0 && inter === 0);
+        if (adj === 0 && inter === 0) {
+          el.innerHTML = '<i class="bi bi-info-circle"></i> 등록된 분개가 없습니다.';
+        } else {
+          el.innerHTML = `<i class="bi bi-check-circle text-success"></i> ` +
+            `연결조정 <strong>${adj}건</strong> + 내부거래 <strong>${inter}건</strong> · ` +
+            `최종수정: ${escapeHtml(j.updated_at || '')} (${escapeHtml(j.updated_by || '')})`;
+        }
+      });
+  }
+}
+
+// ─── 그룹 CRUD ───────────────────────────────────────────────────
+function openGroupModal() {
+  document.getElementById('groupModalTitle').textContent = '그룹 추가';
+  document.getElementById('grpId').value = '';
+  document.getElementById('grpName').value = '';
+  document.getElementById('grpFilter').value = '';
+  renderCompanyChecklist([]);
+  renderIncludesChecklist(null, []);
+  new bootstrap.Modal(document.getElementById('groupModal')).show();
+}
+
+function editGroup(gid) {
+  const g = CURRENT_GROUPS.find(x => x.id === gid);
+  if (!g) return;
+  document.getElementById('groupModalTitle').textContent = '그룹 수정 — ' + g.name;
+  document.getElementById('grpId').value = g.id;
+  document.getElementById('grpName').value = g.name;
+  document.getElementById('grpFilter').value = '';
+  renderCompanyChecklist(g.companies || []);
+  renderIncludesChecklist(g.id, g.included_groups || []);
+  new bootstrap.Modal(document.getElementById('groupModal')).show();
+}
+
+function renderIncludesChecklist(selfId, checked) {
+  const checkedSet = new Set(checked);
+  // 자기 자신 + 자기를 직간접 포함하는 그룹은 선택 불가 (서버에서도 검증)
+  const banned = new Set(selfId ? [selfId] : []);
+  if (selfId) {
+    // 자기를 includes로 가진 그룹 ID 모두 ban (순환참조 방지)
+    const collect = (gid) => {
+      for (const og of CURRENT_GROUPS) {
+        if ((og.included_groups || []).includes(gid) && !banned.has(og.id)) {
+          banned.add(og.id);
+          collect(og.id);
+        }
+      }
+    };
+    collect(selfId);
+  }
+  const html = CURRENT_GROUPS
+    .filter(og => og.id !== selfId)
+    .map(og => {
+      const disabled = banned.has(og.id);
+      const incCount = (og.included_groups || []).length;
+      return `
+      <div class="form-check ${disabled ? 'text-muted' : ''}">
+        <input class="form-check-input grp-inc" type="checkbox" value="${og.id}"
+               id="grpinc-${og.id}" ${checkedSet.has(og.id) ? 'checked' : ''}
+               ${disabled ? 'disabled' : ''}>
+        <label class="form-check-label" for="grpinc-${og.id}">
+          ${escapeHtml(og.name)}
+          <small class="text-muted">(${og.companies.length}개사${incCount ? ', +' + incCount + '개 포함그룹' : ''})</small>
+          ${disabled ? '<span class="badge bg-secondary ms-1">순환참조</span>' : ''}
+        </label>
+      </div>`;
+    }).join('') || '<div class="text-muted p-2 small">선택할 수 있는 다른 그룹이 없습니다.</div>';
+  document.getElementById('grpIncludesList').innerHTML = html;
+}
+
+// 회사 목록 — 한 번 렌더링하고 필터는 시각적으로만 적용 (체크상태 보존)
+function renderCompanyChecklist(checked) {
+  const checkedSet = new Set(checked);
+  // 등록된 회사 + 시스템에서 인식한 회사 모두 표시
+  const all = Array.from(new Set([...ALL_COMPANIES, ...checked])).sort((a,b)=>a.localeCompare(b,'ko'));
+  // 인덱스 기반 id (회사명에 포함된 특수문자로 인한 HTML id 이슈 차단)
+  const html = all.map((c, idx) => `
+    <div class="form-check grp-row" data-co="${escapeHtml(c.toLowerCase())}">
+      <input class="form-check-input grp-co" type="checkbox" value="${escapeHtml(c)}"
+             id="grpco-${idx}" ${checkedSet.has(c) ? 'checked' : ''}>
+      <label class="form-check-label" for="grpco-${idx}">${escapeHtml(c)}</label>
+    </div>
+  `).join('') || '<div class="text-muted p-2">표시할 회사가 없습니다.</div>';
+  document.getElementById('grpCompanyList').innerHTML = html;
+  applyGrpFilter();
+}
+
+function applyGrpFilter() {
+  const f = (document.getElementById('grpFilter').value || '').toLowerCase();
+  document.querySelectorAll('#grpCompanyList .grp-row').forEach(row => {
+    const co = row.getAttribute('data-co') || '';
+    row.style.display = (!f || co.includes(f)) ? '' : 'none';
+  });
+}
+
+function grpCheckAll(on) {
+  // 현재 화면에 보이는 항목만 일괄 적용 (필터 적용 중에는 보이는 것만)
+  document.querySelectorAll('#grpCompanyList .grp-row').forEach(row => {
+    if (row.style.display !== 'none') {
+      const cb = row.querySelector('.grp-co');
+      if (cb) cb.checked = on;
+    }
+  });
+}
+
+document.addEventListener('input', e => {
+  if (e.target && e.target.id === 'grpFilter') {
+    applyGrpFilter();  // 시각적 필터링만 — 체크 상태 보존
+  }
+});
+
+async function saveGroup() {
+  const id = document.getElementById('grpId').value || null;
+  const name = document.getElementById('grpName').value.trim();
+  // 체크된 회사만 추출 (필터 영향 받지 않음 — 모든 .grp-co를 스캔)
+  const companies = Array.from(document.querySelectorAll('#grpCompanyList .grp-co:checked'))
+                         .map(cb => cb.value);
+  const included_groups = Array.from(document.querySelectorAll('#grpIncludesList .grp-inc:checked'))
+                               .map(cb => cb.value);
+  if (!name) { alert('그룹명을 입력하세요.'); return; }
+  console.log('[saveGroup] id=', id, 'name=', name, 'companies=', companies, 'included=', included_groups);
+
+  const btn = event && event.target ? event.target : null;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 저장 중…'; }
+
+  try {
+    const r = await fetch('/consolidation/groups', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, companies, included_groups }),
+    });
+    const j = await r.json();
+    if (!r.ok) { alert(j.error || '저장 실패'); return; }
+    bootstrap.Modal.getInstance(document.getElementById('groupModal')).hide();
+    await loadGroups();
+    await refreshJournalStatuses();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '저장'; }
+  }
+}
+
+async function deleteGroup(gid) {
+  const g = CURRENT_GROUPS.find(x => x.id === gid);
+  if (!confirm(`그룹 "${g?.name}"을(를) 삭제하시겠습니까?\n등록된 분개도 더 이상 조회되지 않습니다.`)) return;
+  await fetch('/consolidation/groups/' + gid, { method: 'DELETE' });
+  await loadGroups();
+}
+
+// ─── 분개 ────────────────────────────────────────────────────────
+async function downloadJournalTemplate(gid) {
+  const url = `/consolidation/journal/${gid}/${encodeURIComponent(currentPeriod())}/template`;
+  window.location.href = url;
+}
+
+async function downloadJournalFile(gid) {
+  // 업로드된 원본 분개 파일 다시 다운로드 (원본이 없으면 entries로 재생성된 양식이 폴백)
+  const url = `/consolidation/journal/${gid}/${encodeURIComponent(currentPeriod())}/download`;
+  window.location.href = url;
+}
+
+function triggerJournalUpload(gid, canManage) {
+  if (canManage === false) {
+    alert('담당 그룹이 아닙니다.\n배정된 연결그룹의 분개만 업로드할 수 있습니다.\n(담당 그룹 지정은 관리자에게 문의하세요)');
+    return;
+  }
+  document.getElementById('jf-' + gid).click();
+}
+
+async function deleteJournal(gid) {
+  const g = CURRENT_GROUPS.find(x => x.id === gid);
+  if (g && g.can_manage_journal === false) {
+    alert('담당 그룹이 아닙니다.\n배정된 연결그룹의 분개만 삭제할 수 있습니다.\n(담당 그룹 지정은 관리자에게 문의하세요)');
+    return;
+  }
+  const period = currentPeriod();
+  // 먼저 분개 건수 확인
+  let adj=0, inter=0;
+  try {
+    const rj = await (await fetch(`/consolidation/journal/${gid}/${encodeURIComponent(period)}`)).json();
+    adj = (rj.adjustment_entries || []).length;
+    inter = (rj.intercompany_entries || []).length;
+  } catch (e) {}
+  if (adj === 0 && inter === 0) {
+    alert(`그룹 "${g?.name}"의 ${period} 등록된 분개가 없습니다.`);
+    return;
+  }
+  const msg = `그룹 "${g?.name}" / ${period}\n\n` +
+              `어떤 분개를 삭제할까요?\n` +
+              `[확인] = 전체 삭제 (연결조정 ${adj}건 + 내부거래 ${inter}건)\n` +
+              `[취소] = 종류 선택`;
+  const fullDelete = confirm(msg);
+  const _doDelete = async (url) => {
+    const r = await fetch(url, { method: 'DELETE' });
+    if (!r.ok) {
+      let msg = '삭제 실패';
+      try { const j = await r.json(); if (j && j.error) msg = j.error; } catch (_) {}
+      alert(msg);
+      return false;
+    }
+    return true;
+  };
+  if (fullDelete) {
+    if (!await _doDelete(`/consolidation/journal/${gid}/${encodeURIComponent(period)}`)) return;
+  } else {
+    // 종류 선택
+    const choice = prompt(`삭제할 종류를 입력하세요:\n  1 = 연결조정만\n  2 = 내부거래만\n  (취소: 아무것도 안 함)`);
+    if (choice === '1') {
+      if (!await _doDelete(`/consolidation/journal/${gid}/${encodeURIComponent(period)}?type=adjustment`)) return;
+    } else if (choice === '2') {
+      if (!await _doDelete(`/consolidation/journal/${gid}/${encodeURIComponent(period)}?type=intercompany`)) return;
+    } else {
+      return;
+    }
+  }
+  await refreshJournalStatuses();
+}
+
+async function onJournalFileSelected(ev, gid) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file);
+  const statusEl = document.getElementById('js-' + gid);
+  statusEl.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 업로드 중…';
+  const r = await fetch(`/consolidation/journal/${gid}/${encodeURIComponent(currentPeriod())}/upload`, {
+    method: 'POST', body: fd
+  });
+  const j = await r.json();
+  ev.target.value = '';
+  if (!r.ok) {
+    if (j.missing_codes) {
+      showMissingCodesModal(j);
+      statusEl.innerHTML = '<i class="bi bi-x-circle text-danger"></i> 업로드 거부됨: 금액 있는 행에 코드 누락';
+    } else if (j.adjustment !== undefined || j.intercompany !== undefined) {
+      showImbalanceModal2(j);
+      statusEl.innerHTML = '<i class="bi bi-x-circle text-danger"></i> 업로드 거부됨: 차/대 불일치';
+    } else {
+      alert(j.error || '업로드 실패');
+      statusEl.textContent = '업로드 실패';
+    }
+    return;
+  }
+  await refreshJournalStatuses();
+}
+
+function showMissingCodesModal(j) {
+  const fmtN = n => Math.round(Number(n||0)).toLocaleString('ko-KR');
+  const block = (title, items) => {
+    if (!items || items.length === 0) return '';
+    return `
+      <h6 class="mt-3">${title} <span class="badge bg-danger">${items.length}건</span></h6>
+      <table class="table table-sm table-bordered">
+        <thead class="table-light">
+          <tr>
+            <th>엑셀 행</th><th>분개번호</th><th>구분</th>
+            <th class="text-end">금액</th>
+          </tr>
+        </thead>
+        <tbody>${items.map(it => `
+          <tr>
+            <td>${it.row || '-'}</td>
+            <td>${escapeHtml(it.no || '')}</td>
+            <td><span class="badge ${it.side === '차변' ? 'bg-primary' : 'bg-warning text-dark'}">${escapeHtml(it.side)} 코드 누락</span></td>
+            <td class="text-end font-monospace">${fmtN(it.amount)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+  };
+  const html = `
+    <div class="alert alert-danger mb-3">
+      <strong><i class="bi bi-exclamation-triangle-fill"></i> 금액이 입력된 행 중 코드가 비어 있는 셀이 있습니다.</strong><br>
+      <small>해당 행에 계정코드를 입력한 뒤 다시 업로드해 주세요. 업로드가 거부되어 기존 분개는 유지됩니다.</small>
+    </div>
+    ${block('연결조정 시트', j.missing_codes.adjustment)}
+    ${block('내부거래 시트', j.missing_codes.intercompany)}`;
+  document.getElementById('imbalanceTitle').innerHTML =
+    '<i class="bi bi-exclamation-octagon-fill"></i> 분개 업로드 거부 — 코드 누락';
+  document.getElementById('imbalanceBody').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('imbalanceModal')).show();
+}
+
+function showImbalanceModal2(j) {
+  document.getElementById('imbalanceTitle').innerHTML =
+    '<i class="bi bi-exclamation-octagon-fill"></i> 분개 업로드 거부 — 차변·대변 불일치';
+  const fmtN = n => Math.round(Number(n||0)).toLocaleString('ko-KR');
+  const block = (title, b) => `
+    <h6 class="mt-3">${title}</h6>
+    <table class="table table-sm">
+      <tr><th class="text-end" style="width:30%">총 분개 건수</th><td>${b.entry_count} 건</td></tr>
+      <tr><th class="text-end">차변 합계</th><td class="text-end font-monospace">${fmtN(b.total_debit)}</td></tr>
+      <tr><th class="text-end">대변 합계</th><td class="text-end font-monospace">${fmtN(b.total_credit)}</td></tr>
+      <tr class="${b.ok ? 'table-success' : 'table-danger'}">
+        <th class="text-end">차이</th>
+        <td class="text-end font-monospace fw-bold">${fmtN(b.diff)} ${b.ok ? '✓' : '✗'}</td>
+      </tr>
+    </table>`;
+  let html = `
+    <div class="alert alert-danger mb-3">
+      <strong><i class="bi bi-exclamation-triangle-fill"></i> 차변과 대변의 합이 일치하지 않습니다.</strong><br>
+      <small>업로드가 거부되어 기존 분개는 그대로 유지됩니다. 시트별로 차/대를 확인해 주세요.</small>
+    </div>`;
+  if (j.adjustment) html += block('연결조정 시트', j.adjustment);
+  if (j.intercompany) html += block('내부거래 시트', j.intercompany);
+  document.getElementById('imbalanceBody').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('imbalanceModal')).show();
+}
+
+function showImbalanceModal(j) {
+  const fmtN = n => Math.round(Number(n||0)).toLocaleString('ko-KR');
+  const sign = (j.diff || 0) > 0 ? '차변 초과' : '대변 초과';
+  let html = `
+    <div class="alert alert-danger mb-3">
+      <strong><i class="bi bi-exclamation-triangle-fill"></i> 차변과 대변의 합이 일치하지 않습니다.</strong><br>
+      <small>업로드가 거부되어 기존 분개는 그대로 유지됩니다. 양식을 수정한 뒤 다시 업로드해 주세요.</small>
+    </div>
+    <table class="table table-sm">
+      <tr><th class="text-end" style="width:30%">총 분개 건수</th><td>${j.entry_count} 건</td></tr>
+      <tr><th class="text-end">차변 합계</th><td class="text-end font-monospace">${fmtN(j.total_debit)}</td></tr>
+      <tr><th class="text-end">대변 합계</th><td class="text-end font-monospace">${fmtN(j.total_credit)}</td></tr>
+      <tr class="table-danger"><th class="text-end">차이 (차-대)</th>
+        <td class="text-end font-monospace fw-bold">${fmtN(j.diff)} <small class="text-muted">(${sign})</small></td></tr>
+    </table>`;
+  if (j.unbalanced_journals && j.unbalanced_journals.length > 0) {
+    html += `<h6 class="mt-3">불균형 분개번호 (상위 ${j.unbalanced_journals.length}건${j.unbalanced_count > j.unbalanced_journals.length ? ' / 전체 ' + j.unbalanced_count + '건' : ''})</h6>
+    <table class="table table-sm table-bordered">
+      <thead class="table-light">
+        <tr><th>분개번호</th><th class="text-end">차변</th><th class="text-end">대변</th><th class="text-end">차이</th></tr>
+      </thead>
+      <tbody>${j.unbalanced_journals.map(u => `
+        <tr><td>${escapeHtml(u.no)}</td>
+          <td class="text-end font-monospace">${fmtN(u.debit)}</td>
+          <td class="text-end font-monospace">${fmtN(u.credit)}</td>
+          <td class="text-end font-monospace text-danger">${fmtN(u.diff)}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+  } else {
+    html += `<p class="text-muted small">분개번호별 검증은 불가능합니다 (분개번호가 비어있음). 전체 합 기준으로만 검증되었습니다.</p>`;
+  }
+  document.getElementById('imbalanceBody').innerHTML = html;
+  new bootstrap.Modal(document.getElementById('imbalanceModal')).show();
+}
+
+// ─── 연결실행 ───────────────────────────────────────────────────
+async function runCompute(gid) {
+  const g = CURRENT_GROUPS.find(x => x.id === gid);
+  const period = currentPeriod();
+  // loading
+  const modal = new bootstrap.Modal(document.getElementById('resultModal'));
+  document.getElementById('resultTitle').textContent = `연결실행 결과 — ${g.name} / ${period}`;
+  document.getElementById('resultSummary').innerHTML = '<div class="text-center py-4"><span class="spinner-border"></span> 계산 중…</div>';
+  document.getElementById('resultHead').innerHTML = '';
+  document.getElementById('resultBody').innerHTML = '';
+  document.getElementById('dlBtn').style.display = 'none';
+  modal.show();
+
+  const r = await fetch(`/consolidation/compute/${gid}/${encodeURIComponent(period)}`, { method: 'POST' });
+  const j = await r.json();
+  if (!r.ok) {
+    document.getElementById('resultSummary').innerHTML = `<div class="alert alert-danger">${escapeHtml(j.error || '오류')}</div>`;
+    return;
+  }
+  renderResult(j);
+}
+
+function renderResult(j) {
+  const companies = j.companies;
+  const fmtN = n => Math.round(Number(n||0)).toLocaleString('ko-KR');
+  let bridgeHtml = '';
+  if (j.bridge && j.bridge.applied) {
+    const amt = j.bridge.amount;
+    const sign = amt < 0 ? '자본 감소' : '자본 증가';
+    bridgeHtml = `
+      <div class="alert alert-warning py-2 px-3 mb-2 small">
+        <strong><i class="bi bi-magic"></i> PL→BS 자동 매듭 분개 적용</strong> —
+        BS 차변(${fmtN(j.bridge.bs_dr)}) vs BS 대변(${fmtN(j.bridge.bs_cr)}) =
+        <span class="fw-bold">${fmtN(amt)}</span> 차이를 흡수했습니다.
+        <details class="mt-1">
+          <summary class="text-decoration-underline" style="cursor:pointer">자동 추가된 분개 보기</summary>
+          <table class="table table-sm mt-2 mb-0">
+            <thead class="table-light"><tr><th>차변</th><th class="text-end">차변금액</th><th>대변</th><th class="text-end">대변금액</th><th>적요</th></tr></thead>
+            <tbody>${(j.bridge.entries||[]).map(b => `
+              <tr><td>${b.debit_code} ${escapeHtml(b.debit_name||'')}</td>
+                  <td class="text-end font-monospace">${fmtN(b.debit_amt)}</td>
+                  <td>${b.credit_code} ${escapeHtml(b.credit_name||'')}</td>
+                  <td class="text-end font-monospace">${fmtN(b.credit_amt)}</td>
+                  <td>${escapeHtml(b.memo||'')}</td></tr>`).join('')}
+            </tbody>
+          </table>
+        </details>
+      </div>`;
+  } else if (j.bridge && !j.bridge.applied) {
+    bridgeHtml = `<div class="alert alert-success py-2 px-3 mb-2 small">
+      <i class="bi bi-check2-circle"></i> BS 차/대 균형 완벽 — 매듭 분개 불필요
+    </div>`;
+  }
+  // 포함 그룹 (rollup) 정보
+  let rollupHtml = '';
+  if (j.rollups && j.rollups.length > 0) {
+    rollupHtml = `
+      <div class="alert alert-info py-2 px-3 mb-2 small">
+        <strong><i class="bi bi-diagram-2-fill"></i> 포함 그룹 ${j.rollups.length}개 sub-consolidation 결과 합산됨</strong>
+        <ul class="mb-0 mt-1">
+          ${j.rollups.map(r => `
+            <li><strong>${escapeHtml(r.group_name)}</strong> →
+              "${escapeHtml(r.name)}" 컬럼으로 추가
+              (${r.companies_count}개사, 분개 ${r.journal_count}건${r.bridge_applied ? ' +자동매듭' : ''})
+            </li>`).join('')}
+        </ul>
+      </div>`;
+  }
+  // 요약
+  const rollupCount = (j.rollups || []).length;
+  document.getElementById('resultSummary').innerHTML = `
+    ${rollupHtml}
+    ${bridgeHtml}
+    <div class="d-flex gap-3 flex-wrap small">
+      <span class="badge bg-primary">${companies.length}개 컬럼 합산${rollupCount ? ' (포함 그룹 ' + rollupCount + '개)' : ''}</span>
+      <span class="badge bg-warning text-dark">연결조정 ${j.adjustment_count}건${j.bridge && j.bridge.applied ? ' (+자동매듭 1)' : ''}</span>
+      <span class="badge bg-info">내부거래 ${j.intercompany_count}건</span>
+      <span class="text-muted">파일: ${j.matched_files.map(f => escapeHtml(f.company)).join(', ')}</span>
+    </div>`;
+  // 헤더 — 4개 분개 컬럼 (+ 전년 4Q 비교 컬럼)
+  const head = document.getElementById('resultHead');
+  const showPrior = !!j.prior_period;
+  const priorLabel = j.prior_period ? `${j.prior_period} 최종` : '';
+  const extraCols = ['합산', '연결조정(차)', '연결조정(대)', '내부거래(차)', '내부거래(대)', '최종'];
+  if (showPrior) {
+    extraCols.push('');           // 구분용 빈 컬럼
+    extraCols.push(priorLabel);   // 전년 4Q 최종
+  }
+  const totalCols = companies.length + 2 + extraCols.length;
+  head.innerHTML = '<th>코드</th><th>계정명</th>'
+    + companies.map(c => `<th>${escapeHtml(c)}</th>`).join('')
+    + extraCols.map(h => `<th>${h}</th>`).join('');
+  // 본문
+  const body = document.getElementById('resultBody');
+  body.innerHTML = j.rows.map(r => {
+    if (r.kind === 'blank') return `<tr class="blank"><td colspan="${totalCols}"></td></tr>`;
+    if (r.kind === 'subheader') {
+      return `<tr class="subheader"><td>Code</td><td>계정명</td>${companies.map(c => `<td>${escapeHtml(c)}</td>`).join('')}${extraCols.map(h=>`<td>${h}</td>`).join('')}</tr>`;
+    }
+    if (r.kind === 'header') return '';
+    const cls = (r.kind === 'subtotal' || r.kind === 'formula') ? 'total'
+              : (r.kind === 'check') ? 'check' : '';
+    const tds = [
+      `<td class="code-mono">${escapeHtml(r.code || '')}</td>`,
+      `<td>${escapeHtml(r.name || '')}</td>`,
+    ];
+    for (const c of companies) {
+      tds.push(`<td class="num">${fmt((r.companies || {})[c])}</td>`);
+    }
+    tds.push(`<td class="num">${fmt(r.sum)}</td>`);
+    tds.push(`<td class="num">${fmt(r.dr_adj)}</td>`);
+    tds.push(`<td class="num">${fmt(r.cr_adj)}</td>`);
+    tds.push(`<td class="num">${fmt(r.dr_int)}</td>`);
+    tds.push(`<td class="num">${fmt(r.cr_int)}</td>`);
+    tds.push(`<td class="num"><strong>${fmt(r.final)}</strong></td>`);
+    if (showPrior) {
+      tds.push(`<td></td>`);
+      tds.push(`<td class="num">${fmt(r.prior_final)}</td>`);
+    }
+    return `<tr class="${cls}">${tds.join('')}</tr>`;
+  }).join('');
+
+  const dl = document.getElementById('dlBtn');
+  dl.href = j.download_url;
+  dl.style.display = 'inline-block';
+}
+
+// ─── 초기화 ────────────────────────────────────────────────────
+document.getElementById('periodSelect').addEventListener('change', async () => {
+  refreshPeriodLockBadge();
+  await loadGroups();
+  await refreshJournalStatuses();
+});
+
+(async () => {
+  refreshPeriodLockBadge();
+  await loadAllCompanies();
+  await loadGroups();
+  await refreshJournalStatuses();
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

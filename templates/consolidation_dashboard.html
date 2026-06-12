@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연결 대시보드 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+          --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+          --border:#334155; }
+  body { color-scheme: dark; }
+  .card { background:var(--card-bg); color:var(--text-body); }
+  .form-select, .form-control { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+  .table-light, thead.table-light { --bs-table-bg:#2a3548; color:var(--text-body); }
+  .text-muted { color:var(--text-muted) !important; }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Arial,sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border-radius:10px; border:none; box-shadow:0 1px 6px rgba(0,0,0,0.08); background:var(--card-bg); }
+.kpi-card { padding:1rem; border-left:5px solid var(--brand-500); border-radius:8px;
+            background:var(--card-bg); box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+.kpi-card .kpi-label { font-size:0.78rem; color:var(--text-muted); margin-bottom:4px; }
+.kpi-card .kpi-value { font-size:1.45rem; font-weight:700; color:var(--brand-900); font-variant-numeric:tabular-nums; }
+.kpi-card .kpi-unit  { font-size:0.78rem; color:var(--text-muted); font-weight:500; margin-left:3px; }
+.kpi-card .kpi-sub   { font-size:0.74rem; color:var(--text-muted); margin-top:4px; }
+.unit-badge { background:#fff3cd; color:#664d03; padding:3px 10px; border-radius:6px;
+              font-size:0.85rem; font-weight:600; display:inline-block; }
+.section-title { display:flex; align-items:center; gap:10px; margin-bottom:0.5rem; }
+.section-title h5 { margin:0; }
+.section-title .unit-note { font-size:0.78rem; color:var(--text-muted); font-weight:500; }
+.kpi-card.is-positive { border-left-color:#28a745; }
+.kpi-card.is-positive .kpi-value { color:#28a745; }
+.kpi-card.is-negative { border-left-color:#dc3545; }
+.kpi-card.is-negative .kpi-value { color:#dc3545; }
+.kpi-card .delta { font-weight:600; }
+.kpi-card .delta.up   { color:#28a745; }
+.kpi-card .delta.down { color:#dc3545; }
+.chart-box { background:var(--card-bg); border-radius:10px; padding:1rem; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+.chart-box h6 { color:var(--text-muted); font-size:0.85rem; margin-bottom:0.75rem; }
+.chart-canvas-wrap { position:relative; height:280px; }
+.chart-canvas-wrap.tall { height:340px; }
+.status-pill { display:inline-block; padding:2px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; }
+.status-pill.ok { background:#d1e7dd; color:#0a3622; }
+.status-pill.warn { background:#fff3cd; color:#664d03; }
+.status-pill.danger { background:#f8d7da; color:#58151c; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'consol_dashboard' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<!-- 전년 연결값 입력 모달 -->
+<div class="modal fade" id="priorModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header" style="background:#1F3864; color:#fff;">
+        <h5 class="modal-title"><i class="bi bi-pencil-square"></i> <span id="priorModalTitle">전년 연결값 입력</span></h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info py-2 small mb-3">
+          <i class="bi bi-info-circle"></i>
+          실무상 전년도 연결을 재실행할 수 없으므로 핵심지표만 수기로 입력합니다.
+          <strong>금액 단위는 억원</strong> (소수점 입력 가능, 예: 1234.5). 빈 칸은 미입력으로 처리되어 KPI 카드에 "미입력"으로 표시됩니다.
+        </div>
+
+        <!-- BS (전년말 기준) -->
+        <h6 class="mb-2"><i class="bi bi-clipboard-data text-primary"></i> 재무상태표 — <span id="priorBsYearLabel">전년말</span> 기준 (단위: 억원)</h6>
+        <div class="table-responsive mb-4">
+          <table class="table table-sm table-bordered" id="priorBsTable" style="max-width:760px">
+            <thead class="table-light">
+              <tr><th style="width:30%">항목</th><th class="text-end">금액 (억원)</th></tr>
+            </thead>
+            <tbody><!-- JS로 채움 --></tbody>
+          </table>
+        </div>
+
+        <!-- PL (분기별 YTD 누계) -->
+        <h6 class="mb-2"><i class="bi bi-graph-up-arrow text-success"></i> 손익계산서 — 분기별 YTD 누계 (단위: 억원)</h6>
+        <p class="small text-muted mb-2">
+          ※ 1Q = 1.1~3.31, 2Q = 1.1~6.30, 3Q = 1.1~9.30, 4Q = 1.1~12.31 누적 기준
+        </p>
+        <div class="table-responsive">
+          <table class="table table-sm table-bordered" id="priorPlTable">
+            <thead class="table-light">
+              <tr>
+                <th style="width:20%">항목</th>
+                <th class="text-end" id="priorPlH1">-</th>
+                <th class="text-end" id="priorPlH2">-</th>
+                <th class="text-end" id="priorPlH3">-</th>
+                <th class="text-end" id="priorPlH4">-</th>
+              </tr>
+            </thead>
+            <tbody><!-- JS로 채움 --></tbody>
+          </table>
+        </div>
+
+        <div class="text-muted small mt-2" id="priorUpdatedInfo"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
+        <button class="btn btn-primary" onclick="savePrior()">
+          <i class="bi bi-save"></i> 저장
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container-fluid mt-3">
+
+  <!-- 선택 -->
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:180px">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <label class="fw-bold mb-0 ms-3"><i class="bi bi-diagram-3"></i> 그룹</label>
+      <select id="groupSelect" class="form-select" style="max-width:260px">
+        <option value="">— 그룹 선택 —</option>
+      </select>
+      <button class="btn btn-primary" onclick="loadDashboard()">
+        <i class="bi bi-arrow-clockwise"></i> 새로고침
+      </button>
+      <button class="btn btn-outline-success" id="dashboardExcelBtn" onclick="downloadDashboardExcel()"
+              style="display:none" title="대시보드 내용을 엑셀(.xlsx)로 다운로드">
+        <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+      </button>
+      <a class="btn btn-outline-secondary ms-auto" id="executeBtn" href="#" style="display:none">
+        <i class="bi bi-calculator"></i> 연결실행 페이지로
+      </a>
+    </div>
+  </div>
+
+  <!-- 본문 -->
+  <div id="dashboardBody">
+    <div class="card section-card">
+      <div class="card-body text-center text-muted py-5">
+        <i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i>
+        그룹과 기간을 선택해 주세요.
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let CHARTS = {};
+
+// 모든 금액은 억원(1억=1e8원) 단위로 표시. 음수는 "-" 접두사.
+function fmt(n, frac=0) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  const v = Number(n) / 1e8;   // 원 → 억원
+  const abs = Math.abs(v);
+  const digits = abs < 10 ? 1 : 0;
+  const formatted = abs.toLocaleString('ko-KR', {
+    maximumFractionDigits: digits, minimumFractionDigits: digits,
+  });
+  return v < 0 ? '-' + formatted : formatted;
+}
+// 원본 단위 (원) 그대로 표시할 때 사용
+function fmtRaw(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return Math.round(Number(n)).toLocaleString('ko-KR');
+}
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return (n * 100).toFixed(1) + '%';
+}
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function destroyCharts() {
+  for (const k in CHARTS) { try { CHARTS[k].destroy(); } catch(e) {} }
+  CHARTS = {};
+}
+
+async function loadGroups() {
+  const r = await fetch('/consolidation/groups?year=' + encodeURIComponent(document.getElementById('periodSelect').value));
+  const j = await r.json();
+  const sel = document.getElementById('groupSelect');
+  const cur = sel.value || '{{ group_id }}';
+  sel.innerHTML = '<option value="">— 그룹 선택 —</option>' +
+    (j.groups || []).map(g => `<option value="${g.id}" ${g.id === cur ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('');
+}
+
+async function loadDashboard() {
+  const period = document.getElementById('periodSelect').value;
+  const gid = document.getElementById('groupSelect').value;
+  const body = document.getElementById('dashboardBody');
+  const xlBtn = document.getElementById('dashboardExcelBtn');
+  if (!gid) {
+    body.innerHTML = `<div class="card section-card"><div class="card-body text-center text-muted py-5">
+      <i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i>그룹을 선택해 주세요.</div></div>`;
+    if (xlBtn) xlBtn.style.display = 'none';
+    return;
+  }
+  document.getElementById('executeBtn').style.display = 'inline-block';
+  document.getElementById('executeBtn').href = '/consolidation?year=' + encodeURIComponent(period);
+
+  body.innerHTML = `<div class="card section-card"><div class="card-body text-center text-muted py-5">
+    <span class="spinner-border"></span><br>계산 중…</div></div>`;
+  destroyCharts();
+  if (xlBtn) xlBtn.style.display = 'none';
+
+  const r = await fetch(`/consolidation/dashboard/${gid}/data?period=${encodeURIComponent(period)}`);
+  const j = await r.json();
+  if (!r.ok) {
+    body.innerHTML = `<div class="alert alert-danger">${escapeHtml(j.error || '오류')}</div>`;
+    return;
+  }
+  renderDashboard(j);
+  if (xlBtn) xlBtn.style.display = 'inline-block';
+}
+
+function downloadDashboardExcel() {
+  const period = document.getElementById('periodSelect').value;
+  const gid = document.getElementById('groupSelect').value;
+  if (!gid || !period) return;
+  window.location.href = `/consolidation/dashboard/${encodeURIComponent(gid)}/excel?period=${encodeURIComponent(period)}`;
+}
+
+function buildDashboardSectionHtml(d, prefix, opts) {
+  // 한 그룹의 본문 HTML (헤더 ~ 차트 4섹션). prefix는 canvas/radio ID 격리용.
+  const { showDonutToggle = true } = opts || {};
+  const k = d.kpi, m = d.metrics, b = d.breakdown;
+  const checkOk = Math.abs(d.check_imbalance) < 1;
+  const bridgeNote = d.bridge && d.bridge.applied
+    ? `<span class="status-pill warn" title="${fmt(d.bridge.amount)} 자동 흡수"><i class="bi bi-magic"></i> 자동매듭 적용</span>`
+    : `<span class="status-pill ok"><i class="bi bi-check2-circle"></i> 자동매듭 불필요</span>`;
+  const balancePill = checkOk
+    ? `<span class="status-pill ok">✓ 검증식 균형</span>`
+    : `<span class="status-pill danger">✗ 불균형 ${fmt(d.check_imbalance)}</span>`;
+  const rollupsHtml = (d.rollups || []).length
+    ? `<div class="alert alert-info py-2 mb-3 small">
+        <strong><i class="bi bi-diagram-2-fill"></i> 포함 그룹</strong>:
+        ${d.rollups.map(r => `<span class="badge bg-info">${escapeHtml(r.group_name)}</span>`).join(' ')}
+       </div>` : '';
+  const donutModeName = `${prefix}donutMode`;
+  const donutToggleHtml = showDonutToggle ? `
+        <div class="d-flex justify-content-end mb-2">
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="${donutModeName}" id="${prefix}dmGrouped" value="grouped" checked>
+            <label class="btn btn-outline-primary" for="${prefix}dmGrouped">
+              <i class="bi bi-collection"></i> 묶음 표시 (본사/포함그룹/국내/해외)
+            </label>
+            <input type="radio" class="btn-check" name="${donutModeName}" id="${prefix}dmIndividual" value="individual">
+            <label class="btn btn-outline-primary" for="${prefix}dmIndividual">
+              <i class="bi bi-list-ul"></i> 회사별 개별 표시
+            </label>
+          </div>
+        </div>` : '';
+  return `
+    <!-- 그룹 헤더 -->
+    <div class="card section-card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start flex-wrap">
+          <div>
+            <h4 class="mb-1"><i class="bi bi-building-fill text-primary"></i> ${escapeHtml(d.group.name)}
+              <small class="text-muted ms-2">${escapeHtml(d.period)}</small>
+              <span class="unit-badge ms-2"><i class="bi bi-calculator"></i> 단위: 억원</span>
+            </h4>
+            <small class="text-muted">
+              ${d.matched_files_count}개사 매칭 ·
+              연결조정 ${d.adjustment_count}건 + 내부거래 ${d.intercompany_count}건
+            </small>
+          </div>
+          <div class="d-flex gap-2 flex-wrap align-items-center">
+            ${bridgeNote} ${balancePill}
+            ${prefix === '' ? `
+              <button class="btn btn-sm btn-outline-primary ms-1" onclick="openPriorModal('${escapeHtml(d.group.id)}','${escapeHtml(d.group.name)}','${escapeHtml(d.prior_year || '')}')"
+                      title="전년 연결값 수기 입력/수정">
+                <i class="bi bi-pencil-square"></i> 전년 연결값 입력
+              </button>` : ''}
+          </div>
+        </div>
+        ${rollupsHtml}
+      </div>
+    </div>
+
+    <!-- BS KPI -->
+    <div class="section-title mb-2">
+      <h5><i class="bi bi-clipboard-data text-primary"></i> 재무상태표 핵심 지표</h5>
+      <span class="unit-note">(단위: 억원)</span>
+    </div>
+    <div class="row g-3 mb-4">
+      ${kpiCard('자산총계', k.bs_assets)}
+      ${kpiCard('부채총계', k.bs_liab)}
+      ${kpiCard('자본총계', k.bs_equity)}
+      ${kpiRatio('부채비율', m.debt_ratio_compare, m.debt_ratio_final, false)}
+    </div>
+    <div class="row g-3 mb-4">
+      ${kpiCard('총차입금', k.bs_debt_total)}
+      ${kpiCard('은행차입금', k.bs_debt_bank)}
+    </div>
+
+    <!-- PL KPI -->
+    <div class="section-title mb-2">
+      <h5><i class="bi bi-graph-up-arrow text-success"></i> 손익계산서 핵심 지표</h5>
+      <span class="unit-note">(단위: 억원)</span>
+    </div>
+    <div class="row g-3 mb-4">
+      ${kpiCard('매출액', k.pl_sales)}
+      ${kpiCard('영업이익', k.pl_op)}
+      ${kpiCard('당기순이익', k.pl_ni)}
+      ${kpiRatio('매출총이익률',
+          (k.pl_gross.compare != null && k.pl_sales.compare) ? (k.pl_gross.compare / k.pl_sales.compare) : null,
+          safeDiv(k.pl_gross.final, k.pl_sales.final), true)}
+    </div>
+    <div class="row g-3 mb-4">
+      ${kpiRatio('영업이익률', m.op_margin_compare, m.op_margin_final, true)}
+      ${kpiRatio('순이익률', m.net_margin_compare, m.net_margin_final, true)}
+    </div>
+
+    <!-- 차트 행 1 — 회사별 도넛 + 그룹화 토글 (sub-dashboard는 토글 없이 grouped 고정) -->
+    <div class="row g-3 mb-4">
+      ${showDonutToggle ? `<div class="col-12">${donutToggleHtml}</div>` : ''}
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h6><i class="bi bi-pie-chart-fill"></i> 회사별 자산 구성 (최종) <span class="text-muted ms-1">· 단위: 억원</span></h6>
+          <div class="chart-canvas-wrap tall"><canvas id="${prefix}chartAssetsByCo"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="chart-box">
+          <h6><i class="bi bi-pie-chart"></i> 회사별 매출 구성 (최종) <span class="text-muted ms-1">· 단위: 억원</span></h6>
+          <div class="chart-canvas-wrap tall"><canvas id="${prefix}chartSalesByCo"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+  `;
+}
+
+function drawDashboardCharts(d, prefix, opts) {
+  const { useDonutToggle = true } = opts || {};
+
+  // 도넛 (회사별 자산/매출). 토글이 없으면 grouped 모드 고정.
+  drawDonutsForPrefix(d, prefix, useDonutToggle);
+}
+
+function renderDashboard(d) {
+  // 비교 기간 라벨 갱신 — kpiCard에서 참조
+  PRIOR_LABEL_BS = d.prior_year   ? `${d.prior_year}년말`        : '전년말';
+  PRIOR_LABEL_PL = d.prior_period ? `${d.prior_period} 누계`      : '전년동기';
+
+  const body = document.getElementById('dashboardBody');
+  body.innerHTML = buildDashboardSectionHtml(d, '', { showDonutToggle: true });
+  window._DASHBOARD_DATA = d;
+  drawDashboardCharts(d, '', { useDonutToggle: true });
+}
+
+function safeDiv(a, b) { return b ? a/b : 0; }
+
+// ─── 전년 연결값 입력 모달 ──────────────────────────────────────
+const PRIOR_BS_FIELDS_DEFAULT = ['자산총계', '부채총계', '자본총계', '차입금총계', '은행차입금'];
+const PRIOR_PL_FIELDS_DEFAULT = ['매출액', '매출원가', '매출총이익', '영업이익', '당기순이익'];
+let _PRIOR_CTX = null;   // { groupId, groupName, priorYear, bsFields, plFields, periods }
+
+function _toEok(rawWon) {
+  if (rawWon === null || rawWon === undefined) return '';
+  return (Number(rawWon) / 1e8);
+}
+function _fromEok(eokStr) {
+  // 입력값(억원, 소수점 OK) → 원 raw (정수). 공란/NaN은 null.
+  if (eokStr === null || eokStr === undefined || String(eokStr).trim() === '') return null;
+  const n = parseFloat(String(eokStr).replace(/,/g, '').trim());
+  if (isNaN(n)) return null;
+  return Math.round(n * 1e8);
+}
+
+async function openPriorModal(groupId, groupName, priorYear) {
+  // priorYear가 비어있을 수 있음 — 현재 기간을 알면 그걸 기반으로 보정
+  const period = document.getElementById('periodSelect').value || '';
+  const parts = period.split('-');
+  const py = priorYear || (parts[0] ? String(parseInt(parts[0], 10) - 1) : '');
+  const qSuffix = parts[1] || '';
+  const periods = ['1Q','2Q','3Q','4Q'].map(q => `${py}-${q}`);
+
+  const r = await fetch(`/consolidation/prior/${groupId}`);
+  const j = await r.json();
+  if (!r.ok) { alert(j.error || '조회 실패'); return; }
+
+  const bsFields = j.bs_fields || PRIOR_BS_FIELDS_DEFAULT;
+  const plFields = j.pl_fields || PRIOR_PL_FIELDS_DEFAULT;
+  _PRIOR_CTX = { groupId, groupName, priorYear: py, bsFields, plFields, periods };
+
+  document.getElementById('priorModalTitle').textContent =
+    `전년 연결값 입력 — ${groupName} (${py}년 기준)`;
+  document.getElementById('priorBsYearLabel').textContent = `${py}년말`;
+
+  // BS 테이블 채우기
+  const bsRec = (j.bs_by_year || {})[py] || {};
+  const bsTbody = document.querySelector('#priorBsTable tbody');
+  bsTbody.innerHTML = bsFields.map(f => `
+    <tr>
+      <td>${escapeHtml(f)}</td>
+      <td class="text-end">
+        <input type="text" class="form-control form-control-sm text-end font-monospace"
+               data-bs-field="${escapeHtml(f)}"
+               value="${bsRec[f] != null ? _toEok(bsRec[f]) : ''}"
+               placeholder="0">
+      </td>
+    </tr>`).join('');
+
+  // PL 테이블 헤더 갱신
+  periods.forEach((p, i) => {
+    document.getElementById(`priorPlH${i+1}`).textContent = p;
+  });
+
+  // PL 테이블 채우기
+  const plBy = j.pl_by_period || {};
+  const plTbody = document.querySelector('#priorPlTable tbody');
+  plTbody.innerHTML = plFields.map(f => `
+    <tr>
+      <td>${escapeHtml(f)}</td>
+      ${periods.map(p => {
+        const v = (plBy[p] || {})[f];
+        return `<td class="text-end">
+          <input type="text" class="form-control form-control-sm text-end font-monospace"
+                 data-pl-period="${escapeHtml(p)}" data-pl-field="${escapeHtml(f)}"
+                 value="${v != null ? _toEok(v) : ''}" placeholder="0">
+        </td>`;
+      }).join('')}
+    </tr>`).join('');
+
+  const info = document.getElementById('priorUpdatedInfo');
+  info.textContent = j.updated_at ? `최종수정: ${j.updated_at} (${j.updated_by || ''})` : '';
+
+  new bootstrap.Modal(document.getElementById('priorModal')).show();
+}
+
+async function savePrior() {
+  if (!_PRIOR_CTX) return;
+  const { groupId, priorYear, bsFields, plFields, periods } = _PRIOR_CTX;
+
+  // BS 수집 — 한 해 한 세트
+  const bsRow = {};
+  document.querySelectorAll('#priorBsTable input[data-bs-field]').forEach(el => {
+    bsRow[el.dataset.bsField] = _fromEok(el.value);
+  });
+  const bs_by_year = { [priorYear]: bsRow };
+
+  // PL 수집 — 분기별
+  const pl_by_period = {};
+  periods.forEach(p => { pl_by_period[p] = {}; });
+  document.querySelectorAll('#priorPlTable input[data-pl-period]').forEach(el => {
+    const p = el.dataset.plPeriod;
+    const f = el.dataset.plField;
+    if (!pl_by_period[p]) pl_by_period[p] = {};
+    pl_by_period[p][f] = _fromEok(el.value);
+  });
+
+  const r = await fetch(`/consolidation/prior/${groupId}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bs_by_year, pl_by_period }),
+  });
+  const j = await r.json();
+  if (!r.ok) { alert(j.error || '저장 실패'); return; }
+
+  bootstrap.Modal.getInstance(document.getElementById('priorModal')).hide();
+  // 대시보드 새로고침해서 새 비교값 반영
+  loadDashboard();
+}
+
+// ─── 도넛 차트 (그룹화/개별 토글) ───────────────────────────
+// 24색 hue-rotated 팔레트: 인접한 슬라이스가 항상 다른 색상 계열이 되도록
+// 8개 hue family (Blue/Orange/Green/Red/Purple/Yellow/Teal/Pink) × 3 lightness 사이클로 구성.
+// Material Design 700 → 400 → 300 순으로 명도를 낮춰가며 회전.
+const PALETTE = [
+  // 사이클 1 — 진한 톤 (Material 700)
+  '#1976D2', // 1. Blue 700
+  '#F57C00', // 2. Orange 700
+  '#388E3C', // 3. Green 700
+  '#D32F2F', // 4. Red 700
+  '#7B1FA2', // 5. Purple 700
+  '#FBC02D', // 6. Yellow 700
+  '#00897B', // 7. Teal 600
+  '#C2185B', // 8. Pink 700
+  // 사이클 2 — 중간 톤 (Material 400)
+  '#5C6BC0', // 9. Indigo 400
+  '#FF7043', // 10. Deep Orange 400
+  '#66BB6A', // 11. Green 400
+  '#EF5350', // 12. Red 400
+  '#AB47BC', // 13. Purple 400
+  '#FFCA28', // 14. Amber 400
+  '#26A69A', // 15. Teal 400
+  '#EC407A', // 16. Pink 400
+  // 사이클 3 — 밝은 톤 (Material 300)
+  '#64B5F6', // 17. Blue 300
+  '#FFB74D', // 18. Orange 300
+  '#81C784', // 19. Green 300
+  '#E57373', // 20. Red 300
+  '#BA68C8', // 21. Purple 300
+  '#DCE775', // 22. Lime 300
+  '#4DB6AC', // 23. Teal 300
+  '#F06292', // 24. Pink 300
+];
+
+function drawDonut(canvasId, items, isGrouped) {
+  const filtered = items.filter(x => Math.abs(x.value || 0) > 0);
+  if (CHARTS[canvasId]) { try { CHARTS[canvasId].destroy(); } catch(e) {} }
+  const labels = filtered.map(x => isGrouped ? x.label : x.company);
+  // 모드에 관계없이 슬라이스 순서대로 팔레트 회전 — 인접 슬라이스는 항상 다른 hue
+  const colors = filtered.map((_, i) => PALETTE[i % PALETTE.length]);
+  CHARTS[canvasId] = new Chart(document.getElementById(canvasId), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: filtered.map(x => Math.abs(x.value)), backgroundColor: colors }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const v = ctx.parsed;
+              const pct = total ? (v / total * 100).toFixed(1) : 0;
+              const eok = (v / 1e8).toLocaleString('ko-KR', {maximumFractionDigits: 1});
+              return `${ctx.label}: ${eok} 억원 (${pct}%)`;
+            }
+          }
+        }
+      },
+    },
+  });
+}
+
+function drawDonutsForPrefix(d, prefix, useToggle) {
+  if (!d) return;
+  let isGrouped = true;
+  if (useToggle) {
+    const sel = document.querySelector(`input[name="${prefix}donutMode"]:checked`);
+    isGrouped = !sel || sel.value === 'grouped';
+  }
+  const assetData = isGrouped ? d.by_company_grouped.assets : d.by_company.assets;
+  const salesData = isGrouped ? d.by_company_grouped.sales  : d.by_company.sales;
+  drawDonut(`${prefix}chartAssetsByCo`, assetData, isGrouped);
+  drawDonut(`${prefix}chartSalesByCo`, salesData, isGrouped);
+}
+
+// 도넛 토글 이벤트 (메인 대시보드 전용)
+document.addEventListener('change', e => {
+  if (e.target && e.target.name === 'donutMode') {
+    drawDonutsForPrefix(window._DASHBOARD_DATA, '', true);
+  }
+});
+
+// 비교 기간 라벨 (예: "전년 2025-1Q") — 데이터 로드 시 갱신
+let PRIOR_LABEL_BS = '전년말';
+let PRIOR_LABEL_PL = '전년동기';
+
+function kpiCard(label, item) {
+  item = item || {};
+  // 손익계산서 항목인지 판정 — PL 항목명은 라벨 기반으로 매칭
+  const isPL = /매출|영업이익|당기순이익|영업외|법인세|매출총이익/.test(label);
+  const compareLabel = isPL ? PRIOR_LABEL_PL : PRIOR_LABEL_BS;
+  const hasCompare = item.compare !== null && item.compare !== undefined;
+  let subHtml;
+  if (hasCompare) {
+    const delta = (item.final || 0) - (item.compare || 0);
+    const pct = item.compare ? (delta / Math.abs(item.compare) * 100) : null;
+    const deltaCls = delta > 0 ? 'up' : (delta < 0 ? 'down' : '');
+    const deltaSym = delta > 0 ? '▲' : (delta < 0 ? '▼' : '·');
+    const pctTxt = (pct === null || !isFinite(pct)) ? '' :
+      ` <small>(${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</small>`;
+    subHtml = `${escapeHtml(compareLabel)} ${fmt(item.compare)} →
+        <span class="delta ${deltaCls}">${deltaSym} ${fmt(Math.abs(delta))}${pctTxt}</span>`;
+  } else {
+    subHtml = `<span class="text-muted">${escapeHtml(compareLabel)} 미입력
+        <small>(설정에서 전년값을 입력하세요)</small></span>`;
+  }
+  return `
+    <div class="col-md-6 col-lg-3">
+      <div class="kpi-card" title="원본: ${fmtRaw(item.final)}원">
+        <div class="kpi-label">${escapeHtml(label)}</div>
+        <div class="kpi-value">${fmt(item.final)}<span class="kpi-unit">억원</span></div>
+        <div class="kpi-sub">${subHtml}</div>
+      </div>
+    </div>`;
+}
+
+function kpiRatio(label, compareVal, finalVal, isPL) {
+  // compareVal: 전년 비율 (없으면 null/undefined), finalVal: 당기 비율
+  const compareLabel = isPL ? PRIOR_LABEL_PL : PRIOR_LABEL_BS;
+  const hasCompare = compareVal !== null && compareVal !== undefined;
+  let subHtml;
+  if (hasCompare) {
+    const delta = (finalVal || 0) - (compareVal || 0);
+    const deltaCls = delta > 0 ? 'up' : (delta < 0 ? 'down' : '');
+    const deltaSym = delta > 0 ? '▲' : (delta < 0 ? '▼' : '·');
+    subHtml = `${escapeHtml(compareLabel)} ${fmtPct(compareVal)} →
+        <span class="delta ${deltaCls}">${deltaSym} ${fmtPct(Math.abs(delta))}</span>`;
+  } else {
+    subHtml = `<span class="text-muted">${escapeHtml(compareLabel)} 미입력</span>`;
+  }
+  return `
+    <div class="col-md-6 col-lg-3">
+      <div class="kpi-card">
+        <div class="kpi-label">${escapeHtml(label)}</div>
+        <div class="kpi-value">${fmtPct(finalVal)}</div>
+        <div class="kpi-sub">${subHtml}</div>
+      </div>
+    </div>`;
+}
+
+// 초기화
+document.getElementById('periodSelect').addEventListener('change', async () => {
+  await loadGroups();
+  loadDashboard();
+});
+document.getElementById('groupSelect').addEventListener('change', loadDashboard);
+
+(async () => {
+  await loadGroups();
+  // 쿼리스트링이나 기본 그룹 자동 로드
+  if (document.getElementById('groupSelect').value) {
+    loadDashboard();
+  }
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

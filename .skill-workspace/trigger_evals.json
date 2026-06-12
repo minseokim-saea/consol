@@ -1,0 +1,23 @@
+[
+  {"query": "패키지 검증 페이지에 CF2 시트 일반대차입금 상환금액이 음수인 회사 찾아서 보여주는 항목 하나 추가해줘", "should_trigger": true},
+  {"query": "현금흐름표 검증 그룹에 하위메뉴 하나 더 만들고 싶어. WCF 시트에서 감가상각비 부호 틀린 회사 표시", "should_trigger": true},
+  {"query": "주석 검증에 L3-1 사외적립자산이 비어있는 회사 표시하는 검증 카드 추가해줘", "should_trigger": true},
+  {"query": "CF1 시트 단기대여금 블록에서 신규대여 금액이 0이 아닌 회사들 추려서 검증 메뉴로 만들어줘", "should_trigger": true},
+  {"query": "패키지들 일괄 스캔해서 Cover B27 회계기준이랑 안 맞는 회사 골라내는 기능 만들자", "should_trigger": true},
+  {"query": "검증 항목 새로 하나 추가하려고 하는데, L2 시트 사채 만기분석 합계가 본문이랑 차이나는 회사 보여주면 돼", "should_trigger": true},
+  {"query": "업로드된 회사 패키지들에서 CF3 장기차입금 기말금액이랑 BS 금액 불일치하는 데 표시하는 검증 만들어줘", "should_trigger": true},
+  {"query": "package_verify 화면에 새 검증 카드 하나 붙여줘. WCF U열 투자활동 코드 중복 입력된 회사 찾는거", "should_trigger": true},
+  {"query": "회사별 패키지 검사해서 퇴직급여 관련 시트 잘못 입력한 곳 추려주는 하위메뉴 추가", "should_trigger": true},
+  {"query": "현금흐름 쪽 검증 하나 더. 유동성사채 신규발행 금액 들어간 회사만 리스트업 되게", "should_trigger": true},
+
+  {"query": "패키지 검증 페이지에서 WCF 부호 검증 한번 돌려서 결과 보여줘", "should_trigger": false},
+  {"query": "이번 분기 업로드된 패키지 파일들 목록 좀 보여줘. 누가 아직 안 냈는지도", "should_trigger": false},
+  {"query": "글로벌세아 패키지 xlsm 파일 열어서 CF3 시트 유동성장기차입금 금액이 얼마인지 알려줘", "should_trigger": false},
+  {"query": "연결정산표 대시보드에 새 컬럼 추가하고 싶은데 어떻게 해야 돼?", "should_trigger": false},
+  {"query": "cf_engine.py에서 유동성장기차입금 자금조정 계산 로직 좀 고쳐줘. 부호가 반대로 나와", "should_trigger": false},
+  {"query": "현금정산표 엑셀 다운로드할 때 환율변동효과 행이 빠지는 버그 잡아줘", "should_trigger": false},
+  {"query": "DSD 파일들 대조해서 모회사랑 자회사 채권채무 잔액 맞는지 검증해줘", "should_trigger": false},
+  {"query": "내 다운로드 폴더에 있는 'Q4 매출 final.xlsx'에 이익률 컬럼 하나 추가해줘", "should_trigger": false},
+  {"query": "패키지 검증에서 계정 검증 항목 설명 문구가 좀 이상한데 문장만 다듬어줘", "should_trigger": false},
+  {"query": "note_aggregate에서 L2 장기차입금 합산할 때 유동성 포함 여부 확인해서 알려줘", "should_trigger": false}
+]

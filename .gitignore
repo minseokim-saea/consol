@@ -1,0 +1,43 @@
+# ── 비밀/민감 파일 (절대 커밋·공유 금지) ─────────────────────────
+auth_config.json          # 비밀번호 해시 · TOTP 비밀값
+distribute_passwords.json # 배포 엑셀 시트 보호 비밀번호
+secret_key.bin            # Flask 세션 서명 키
+
+# ── 런타임 데이터 (사용자 업로드·결과물·상태) ────────────────────
+uploads/
+results/
+*.lock
+
+# ── 서버 데이터: 운영 중 앱(관리자 UI)이 직접 수정하는 파일 ──────
+permission_groups.json
+years_config.json
+wce_overrides.json
+fx_rates.json
+cash_worksheet_manuals.json
+prior_consolidated.json
+consol_groups.json
+consol_journals.json
+cf_mapping_v2_draft.json
+cf_mapping_v2_draft.json.bak*
+cf_mapping_draft.json
+distribute_template/
+
+# ── 업무 파일 / 산출물 (민감정보 포함 — 저장소 업로드 금지) ───────
+*.xlsm
+*.xlsx
+*.pptx
+*.docx
+ppt_screenshots/
+_slide_preview/
+그룹정보_output.txt
+
+# ── Python / 로컬 환경 ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+python/
+*.log
+.claude/
