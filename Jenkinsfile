@@ -1,6 +1,6 @@
 // 연결 재무보고 통합 시스템 — 배포 파이프라인
 // 전제: Jenkins가 운영 서버(우분투)에서 직접 실행되고, jenkins 계정이
-//       docker 그룹 소속 + /srv/consol-app 쓰기 권한을 가짐 (배포 가이드 7장 참조)
+//       docker 그룹 소속 + /opt/consol-app 쓰기 권한을 가짐 (배포 가이드 6장 참조)
 pipeline {
     agent any
 
@@ -10,7 +10,7 @@ pipeline {
     }
 
     environment {
-        APP_DIR = '/srv/consol-app'
+        APP_DIR = '/opt/consol-app'
     }
 
     triggers {
