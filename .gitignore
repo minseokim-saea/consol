@@ -1,7 +1,10 @@
 # ── 비밀/민감 파일 (절대 커밋·공유 금지) ─────────────────────────
-auth_config.json          # 비밀번호 해시 · TOTP 비밀값
-distribute_passwords.json # 배포 엑셀 시트 보호 비밀번호
-secret_key.bin            # Flask 세션 서명 키
+# 비밀번호 해시 · TOTP 비밀값
+auth_config.json
+# 배포 엑셀 시트 보호 비밀번호
+distribute_passwords.json
+# Flask 세션 서명 키
+secret_key.bin
 
 # ── 런타임 데이터 (사용자 업로드·결과물·상태) ────────────────────
 uploads/
