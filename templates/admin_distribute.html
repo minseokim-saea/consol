@@ -211,6 +211,9 @@
       <button type="button" class="btn btn-gradient btn-lg w-100" id="generateBtn">
         <i class="bi bi-magic me-2"></i><span data-i18n="dist.gen_btn">배포용 파일 일괄 생성</span>
       </button>
+      <div class="form-text mt-2 d-flex align-items-center gap-1" id="retentionNote">
+        <i class="bi bi-clock-history"></i><span></span>
+      </div>
 
       <div class="mt-3" id="progressArea" style="display:none">
         <div class="d-flex justify-content-between small mb-1">
@@ -232,7 +235,11 @@
         <i class="bi bi-check2-square"></i>
         <span>{% if is_admin %}③ {% endif %}<span data-i18n="dist.result_title">생성 결과</span></span>
       </div>
-      <div class="d-flex gap-2">
+      <div class="d-flex align-items-center gap-2 flex-wrap">
+        <label class="text-white small mb-0 d-flex align-items-center gap-1" id="recentBatchWrap" style="display:none">
+          <i class="bi bi-clock-history"></i><span data-i18n="dist.recent_label">이전 생성 결과</span>
+          <select id="recentBatchSelect" class="form-select form-select-sm" style="width:auto; min-width:230px"></select>
+        </label>
         <span class="text-white-50 small">
           <i class="bi bi-info-circle me-1"></i><span data-i18n="dist.dl_note">개별 파일 다운로드만 제공됩니다</span>
         </span>
@@ -263,6 +270,12 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const RETENTION_DAYS = {{ retention_days | default(30) }};
+
+function renderRetentionNote() {
+  const el = document.querySelector('#retentionNote span');
+  if (el) el.textContent = window.t('dist.retention', RETENTION_DAYS);
+}
 
 function showAlert(kind, html) {
   const area = document.getElementById('alertArea');
@@ -522,6 +535,8 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
   showAlert(failN ? 'warn' : 'success',
     `<i class="bi bi-check-circle"></i> ${window.t('dist.gen_summary', okN, failN, elapsed)}`);
   btn.disabled = false;
+  // 방금 만든 배치를 최근 목록에 반영 (현재 표시 중인 결과는 유지)
+  loadRecentBatches(false);
 });
 
 function renderResults(results) {
@@ -554,17 +569,75 @@ function renderResults(results) {
   }).join('');
 }
 
+// ─── 최근 생성 배치 복원 (서버 manifest 기반) ────────────
+// 생성된 파일은 서버에 남아 있으므로, 다운로드 전에 페이지를 떠났다 와도
+// 직전(및 과거) 결과를 다시 불러와 다운로드할 수 있게 한다.
+let recentBatches = [];
+
+async function loadRecentBatches(autoSelect) {
+  try {
+    const r = await fetch('/distribute/recent');
+    const j = await r.json();
+    recentBatches = j.batches || [];
+  } catch (e) { recentBatches = []; }
+  renderRecentSelect();
+  // 새로 생성 중이 아닐 때(=재진입)만, "본인이 만든" 최신 배치만 자동 복원.
+  // 관리자도 자동복원은 본인 것만 — 남의 배치가 기본으로 뜨지 않게.
+  if (autoSelect && !lastBatchId && recentBatches.length) {
+    const mine = recentBatches.find(b => b.is_mine);   // 최신순이라 첫 본인 배치
+    if (mine) selectRecentBatch(mine.batch_id);
+  }
+}
+
+function fmtBatchOption(b) {
+  const when = b.updated_at || b.created_at || '';
+  let label = window.t('dist.recent_opt', b.year, b.quarter, when, b.ok_count, b.fail_count);
+  if (!b.is_mine && b.created_by) label += ` · ${b.created_by}`;   // 관리자: 작성자 표시
+  return label;
+}
+
+function renderRecentSelect() {
+  const wrap = document.getElementById('recentBatchWrap');
+  const sel = document.getElementById('recentBatchSelect');
+  if (!wrap || !sel) return;
+  if (!recentBatches.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = '';
+  sel.innerHTML = recentBatches.map(b =>
+    `<option value="${escapeHtml(b.batch_id)}">${escapeHtml(fmtBatchOption(b))}</option>`
+  ).join('');
+  if (lastBatchId && recentBatches.some(b => b.batch_id === lastBatchId)) {
+    sel.value = lastBatchId;
+  }
+}
+
+function selectRecentBatch(batchId) {
+  const b = recentBatches.find(x => x.batch_id === batchId);
+  if (!b) return;
+  lastBatchId = b.batch_id;
+  allResults = b.results || [];
+  renderResults(allResults);
+  const sel = document.getElementById('recentBatchSelect');
+  if (sel) sel.value = batchId;
+}
+
+const recentSel = document.getElementById('recentBatchSelect');
+if (recentSel) recentSel.addEventListener('change', e => selectRecentBatch(e.target.value));
+
 // ─── 초기 로드 ─────────────────────────────────────
 loadTemplates();
 initCompanies();
 if (IS_ADMIN) loadPwdList();
 refreshPwdStatus();
+loadRecentBatches(true);
+renderRetentionNote();
 
 // 언어 전환 시 동적 영역 재렌더
 window.onI18nChange = function () {
   loadTemplates();
   refreshPwdStatus();
   if (IS_ADMIN) loadPwdList();
+  renderRecentSelect();
+  renderRetentionNote();
   if (allResults.length) renderResults(allResults);   // 생성 결과가 있을 때만 재렌더
 };
 </script>

@@ -11260,6 +11260,80 @@ def cash_worksheet_mapping_save():
 DISTRIBUTE_RESULTS_DIR = RESULTS_DIR / 'distribute'
 DISTRIBUTE_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# ─── 배포용 배치 자동 정리 ───────────────────────────────────────────────────
+# 생성된 배포 파일은 서버에 영구 보존되므로, 보관 기간이 지난 배치 폴더를 자동 삭제한다.
+DISTRIBUTE_RETENTION_DAYS = 30           # 이 일수가 지난 배치는 자동 삭제
+_DISTRIBUTE_CLEANUP_INTERVAL = 3600      # 정리 작업 최소 실행 간격(초) — 요청마다 돌지 않게 스로틀
+_distribute_cleanup_last = 0.0
+_distribute_cleanup_lock = threading.Lock()
+
+
+def _parse_manifest_dt(s):
+    """manifest의 'YYYY-MM-DD HH:MM:SS' 문자열 → datetime. 실패하면 None."""
+    if not s:
+        return None
+    try:
+        return datetime.strptime(str(s).strip(), '%Y-%m-%d %H:%M:%S')
+    except (ValueError, TypeError):
+        return None
+
+
+def _cleanup_distribute_batches(force=False):
+    """보관 기간(DISTRIBUTE_RETENTION_DAYS)이 지난 배포용 배치 폴더를 삭제.
+
+    - 기준 시각: manifest의 updated_at(없으면 created_at), 둘 다 없으면 폴더 mtime.
+    - 요청마다 돌지 않도록 _DISTRIBUTE_CLEANUP_INTERVAL 간격으로 스로틀(force=True면 무시).
+    - 다중 워커/동시 호출 안전: 삭제 실패는 조용히 무시(이미 지워졌으면 OK).
+    반환: 삭제한 배치 수.
+    """
+    global _distribute_cleanup_last
+    now_ts = time.time()
+    if not force:
+        if now_ts - _distribute_cleanup_last < _DISTRIBUTE_CLEANUP_INTERVAL:
+            return 0
+        with _distribute_cleanup_lock:
+            if now_ts - _distribute_cleanup_last < _DISTRIBUTE_CLEANUP_INTERVAL:
+                return 0
+            _distribute_cleanup_last = now_ts
+    else:
+        _distribute_cleanup_last = now_ts
+
+    if not DISTRIBUTE_RESULTS_DIR.exists():
+        return 0
+
+    import shutil
+    max_age_sec = DISTRIBUTE_RETENTION_DAYS * 86400
+    now_dt = datetime.now()
+    removed = 0
+    for d in DISTRIBUTE_RESULTS_DIR.iterdir():
+        if not d.is_dir():
+            continue
+        ref_dt = None
+        mani_path = d / '_manifest.json'
+        if mani_path.exists():
+            try:
+                with open(mani_path, 'r', encoding='utf-8') as fp:
+                    mani = json.load(fp) or {}
+                ref_dt = (_parse_manifest_dt(mani.get('updated_at'))
+                          or _parse_manifest_dt(mani.get('created_at')))
+            except Exception:
+                ref_dt = None
+        if ref_dt is None:
+            try:
+                ref_dt = datetime.fromtimestamp(d.stat().st_mtime)
+            except Exception:
+                continue
+        if (now_dt - ref_dt).total_seconds() > max_age_sec:
+            try:
+                shutil.rmtree(d, ignore_errors=True)
+                removed += 1
+            except Exception as e:
+                print(f'[배포정리] 삭제 실패 {d.name}: {e}', file=sys.stderr, flush=True)
+    if removed:
+        print(f'[배포정리] {removed}개 배치 삭제 (>{DISTRIBUTE_RETENTION_DAYS}일 경과)',
+              file=sys.stderr, flush=True)
+    return removed
+
 
 def _year4_list():
     """YEARS_DATA의 분기 표기('2026-1Q')에서 4자리 연도만 unique 추출."""
@@ -11332,6 +11406,7 @@ def distribute_page():
         username=uname,
         is_admin=_is_admin(uname),
         companies=_accessible_companies_for(uname),
+        retention_days=DISTRIBUTE_RETENTION_DAYS,
     )
 
 
@@ -11416,6 +11491,7 @@ def distribute_generate():
       · 자회사: 본인 담당 회사 또는 같은 연결그룹의 동료 회사만
     반환: { batch_id, results: [...] }  — results에는 file_password 노출 안 함
     """
+    _cleanup_distribute_batches()        # 보관기간 지난 배치 정리 (스로틀됨)
     uname = session.get('username')
     is_admin = _is_admin(uname)
     data = request.get_json(force=True, silent=True) or {}
@@ -11658,6 +11734,63 @@ def distribute_download():
         return send_file(str(p), as_attachment=True, download_name=p.name)
 
     return jsonify({'error': 'kind 또는 file 파라미터가 필요합니다'}), 400
+
+
+@app.route('/distribute/recent', methods=['GET'])
+@login_required
+@require_permission('distribute.run')
+def distribute_recent():
+    """최근 생성한 배포용 배치 목록 — 페이지 재진입 시 결과표 복원용.
+
+    생성된 파일과 _manifest.json 은 서버에 그대로 보존되므로, 다운로드 전에
+    다른 페이지로 이동했다 돌아와도 이 API로 직전 결과를 다시 불러올 수 있다.
+
+    권한:
+      · 관리자: 모든 배치
+      · 자회사: 본인이 생성한(created_by) 배치만
+    각 배치의 manifest.results 를 그대로 포함 (file_password 는 애초에 미저장).
+    """
+    _cleanup_distribute_batches()        # 보관기간 지난 배치 정리 (스로틀됨)
+    uname = session.get('username')
+    is_admin = _is_admin(uname)
+    try:
+        limit = int(request.args.get('limit') or 20)
+    except (TypeError, ValueError):
+        limit = 20
+    limit = max(1, min(limit, 100))
+
+    batches = []
+    if DISTRIBUTE_RESULTS_DIR.exists():
+        for d in DISTRIBUTE_RESULTS_DIR.iterdir():
+            if not d.is_dir():
+                continue
+            mani_path = d / '_manifest.json'
+            if not mani_path.exists():
+                continue
+            try:
+                with open(mani_path, 'r', encoding='utf-8') as fp:
+                    mani = json.load(fp) or {}
+            except Exception:
+                continue
+            if not is_admin and mani.get('created_by') != uname:
+                continue
+            results = mani.get('results') or []
+            ok_n = sum(1 for r in results if r.get('ok'))
+            batches.append({
+                'batch_id':   mani.get('batch_id') or d.name,
+                'year':       mani.get('year'),
+                'quarter':    mani.get('quarter'),
+                'created_at': mani.get('created_at'),
+                'updated_at': mani.get('updated_at') or mani.get('created_at'),
+                'created_by': mani.get('created_by'),
+                'is_mine':    mani.get('created_by') == uname,
+                'ok_count':   ok_n,
+                'fail_count': len(results) - ok_n,
+                'results':    results,
+            })
+    # 최신순 ('YYYY-MM-DD HH:MM:SS' 문자열은 사전식 정렬이 곧 시간순)
+    batches.sort(key=lambda b: (b.get('updated_at') or ''), reverse=True)
+    return jsonify({'batches': batches[:limit]})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

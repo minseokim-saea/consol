@@ -65,7 +65,10 @@
       'dist.tpl_upload_fail':'템플릿 업로드 실패','dist.select_co_min':'회사를 1개 이상 선택하세요.',
       'dist.preparing':'준비 중...','dist.done':'완료','dist.success':'성공','dist.fail':'실패',
       'dist.deleting_title':'삭제',
+      'dist.recent_label':'이전 생성 결과',
       '_fn': {
+        'dist.recent_opt': (y,q,t,ok,fail)=>`${y}-${q}Q · ${t} · 성공 ${ok}${fail?`/실패 ${fail}`:''}`,
+        'dist.retention':  (d)=>`생성된 파일은 서버에 보관되며 ${d}일이 지나면 자동 삭제됩니다.`,
         'dist.tpl_pill':   (y,kb)=>`${y}년 (${kb}KB)`,
         'dist.pwd_set':    (y,q)=>`${y}-${q}Q 분기 비밀번호 등록됨.`,
         'dist.pwd_set_sfx':()=>` 생성되는 모든 파일이 이 비밀번호로 시트 잠금됩니다.`,
@@ -125,7 +128,10 @@
       'dist.tpl_upload_fail':'Template upload failed','dist.select_co_min':'Select at least one company.',
       'dist.preparing':'Preparing...','dist.done':'Done','dist.success':'Success','dist.fail':'Fail',
       'dist.deleting_title':'Delete',
+      'dist.recent_label':'Previous batches',
       '_fn': {
+        'dist.recent_opt': (y,q,t,ok,fail)=>`${y}-${q}Q · ${t} · OK ${ok}${fail?`/Fail ${fail}`:''}`,
+        'dist.retention':  (d)=>`Generated files are kept on the server and auto-deleted after ${d} days.`,
         'dist.tpl_pill':   (y,kb)=>`${y} (${kb}KB)`,
         'dist.pwd_set':    (y,q)=>`${y}-${q}Q quarter password registered.`,
         'dist.pwd_set_sfx':()=>` All generated files will be sheet-locked with this password.`,
