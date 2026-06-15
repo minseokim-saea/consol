@@ -6105,7 +6105,7 @@ def download_note_aggregate(filename):
 # ─── 환율 관리 라우트 ─────────────────────────────────────────────────────────
 
 @app.route('/admin/fx-rates/periods', methods=['GET'])
-@require_permission('fx.manage')
+@login_required
 def admin_fx_rates_periods():
     """환율 모달 분기 드롭다운용 목록.
     결산기간(years)과 비교용 보조분기(fx_only_years)를 구분해 반환.
@@ -6119,7 +6119,7 @@ def admin_fx_rates_periods():
 
 
 @app.route('/admin/fx-rates/<year>/data', methods=['GET'])
-@require_permission('fx.manage')
+@login_required
 def admin_fx_rates_data(year):
     """환율 데이터 조회 API (메인 페이지 모달에서 사용)."""
     if not _valid_fx_year(year):

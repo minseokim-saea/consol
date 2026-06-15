@@ -468,11 +468,9 @@
       <button id="btnSubmissionStatus" class="btn btn-sm btn-outline-success ms-2">
         <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i><span data-i18n="period.status">제출현황</span>
       </button>
-      {% if is_admin %}
       <button id="btnFxRates" class="btn btn-sm btn-outline-info ms-2">
         <i class="bi bi-currency-exchange me-1" aria-hidden="true"></i>환율 관리
       </button>
-      {% endif %}
       {% if is_admin %}
       <button id="btnToggleLock" class="btn btn-sm btn-outline-warning ms-2">
         <i class="bi bi-lock me-1" aria-hidden="true"></i><span id="btnToggleLockLabel" data-i18n="period.lock">마감</span>
@@ -537,7 +535,6 @@
     </div>
   </div>
 
-  {% if is_admin %}
   <!-- 환율 관리 모달 -->
   <div class="modal fade" id="fxRatesModal" tabindex="-1"
        aria-labelledby="fxRatesModalTitle" aria-modal="true">
@@ -565,6 +562,7 @@
             <h6 class="mb-0 fw-bold" style="color:#1F3864;">
               <i class="bi bi-graph-up me-1"></i>당기 환율
             </h6>
+            {% if is_admin %}
             <div class="d-flex gap-2">
               <button type="button" id="btnFxTemplate" class="btn btn-sm btn-outline-secondary"
                       title="환율 일괄 업로드용 엑셀 양식을 다운로드합니다">
@@ -580,6 +578,7 @@
                 <i class="bi bi-plus-circle me-1"></i>통화 추가
               </button>
             </div>
+            {% endif %}
           </div>
           <div class="table-responsive mb-4">
             <table class="table table-sm table-hover mb-0" id="fxCurrentTable">
@@ -603,9 +602,11 @@
               <i class="bi bi-clock-history me-1"></i>전기 환율
               <span id="fxPriorBadge" class="badge bg-secondary fw-normal ms-2" style="font-size:.7rem;">-</span>
             </h6>
+            {% if is_admin %}
             <button type="button" id="btnFxPriorAddRow" class="btn btn-sm btn-outline-success d-none">
               <i class="bi bi-plus-circle me-1"></i>통화 추가
             </button>
+            {% endif %}
           </div>
           <div id="fxPriorNote" class="alert alert-success small py-2 mb-2 d-none">
             <i class="bi bi-check-circle me-1"></i>
@@ -633,21 +634,28 @@
           </div>
         </div>
         <div class="modal-footer justify-content-between">
+          {% if is_admin %}
           <button type="button" id="btnFxReapply" class="btn btn-outline-warning"
                   title="이 기간 업로드된 모든 패키지를 새 환율로 재환산합니다">
             <i class="bi bi-arrow-repeat me-1"></i>이 기간 패키지 재환산
           </button>
+          {% else %}
+          <span class="text-muted small"><i class="bi bi-eye me-1"></i>조회 전용 (입력·업로드는 관리자만 가능)</span>
+          {% endif %}
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+            {% if is_admin %}
             <button type="button" id="btnFxSave" class="btn btn-primary">
               <i class="bi bi-floppy me-1"></i>저장
             </button>
+            {% endif %}
           </div>
         </div>
       </div>
     </div>
   </div>
 
+  {% if is_admin %}
   <!-- 결산기간 추가 모달 -->
   <div class="modal fade" id="addPeriodModal" tabindex="-1"
        aria-labelledby="addPeriodModalTitle" aria-modal="true">
@@ -1784,13 +1792,13 @@ async function openFxRatesModal() {
   await loadFxData(pick);
 }
 function renderFxModal(data) {
-  // 당기 (항상 편집 가능)
+  // 당기 (관리자만 편집 가능, 그 외 조회 전용)
   const currencies = data.all_currencies || [];
   const rows = ['KRW', ...currencies].map(c =>
-    buildFxRow(c, (data.current_rates || {})[c] || {}, 'current', true)
+    buildFxRow(c, (data.current_rates || {})[c] || {}, 'current', IS_ADMIN)
   ).join('');
   document.getElementById('fxCurrentTbody').innerHTML = rows ||
-    '<tr><td colspan="4" class="text-muted text-center py-3">통화 없음 — "통화 추가"로 입력하세요</td></tr>';
+    `<tr><td colspan="4" class="text-muted text-center py-3">${IS_ADMIN ? '통화 없음 — "통화 추가"로 입력하세요' : '등록된 환율이 없습니다.'}</td></tr>`;
 
   // 전기
   const priorBadge = document.getElementById('fxPriorBadge');
@@ -1806,7 +1814,7 @@ function renderFxModal(data) {
     priorBadge.className = 'badge bg-secondary fw-normal ms-2';
     priorNote.classList.remove('d-none');
     priorManualNote.classList.add('d-none');
-    priorAddBtn.classList.add('d-none');
+    priorAddBtn?.classList.add('d-none');
     priorActionTh.classList.add('d-none');
     document.getElementById('fxPriorYearLabel').textContent = data.prior_year_label || '-';
 
@@ -1825,11 +1833,11 @@ function renderFxModal(data) {
     priorBadge.className = 'badge bg-warning text-dark fw-normal ms-2';
     priorNote.classList.add('d-none');
     priorManualNote.classList.remove('d-none');
-    priorAddBtn.classList.remove('d-none');
-    priorActionTh.classList.remove('d-none');
+    if (IS_ADMIN) priorAddBtn?.classList.remove('d-none');
+    priorActionTh.classList.toggle('d-none', !IS_ADMIN);
 
     const rows2 = ['KRW', ...currencies].map(c =>
-      buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', true)
+      buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', IS_ADMIN)
     ).join('');
     priorTbody.innerHTML = rows2 ||
       '<tr><td colspan="4" class="text-muted text-center py-3">통화 없음</td></tr>';
