@@ -878,19 +878,9 @@ def admin_all_companies():
         co = (f.get('company') or '').strip()
         if co:
             seen[_norm_company_name(co)] = co
-    # 필수제출회사리스트.xlsx 도 포함
-    req_file = Path('필수제출회사리스트.xlsx')
-    if req_file.exists():
-        try:
-            from openpyxl import load_workbook as _lw
-            wb = _lw(str(req_file), data_only=True, read_only=True)
-            for row in wb.active.iter_rows(values_only=True):
-                co = str(row[0]).strip() if row and row[0] not in (None, '') else ''
-                if co and 'COMPANY' not in co.upper():
-                    seen.setdefault(_norm_company_name(co), co)
-            wb.close()
-        except Exception:
-            pass
+    # 회사 마스터(업로드 대상 회사목록)도 포함 — 비활성 회사까지 전부
+    for n in _company_required_names(active_only=False):
+        seen.setdefault(_norm_company_name(n), n)
     return jsonify({'companies': sorted(seen.values())})
 
 
@@ -6411,6 +6401,90 @@ def admin_fx_rates_upload(year):
     })
 
 
+# ─── 회사 마스터 관리 라우트 (관리자 전용) ────────────────────────────────────
+# 업로드 대상 회사목록 + 회사별 통화 + 통화별 적용 환율을 한 화면에서 관리.
+
+@app.route('/admin/company-master')
+@admin_required
+def admin_company_master_page():
+    """회사 마스터 관리 화면."""
+    uname = session.get('username')
+    return render_template('admin_company_master.html',
+                           username=uname,
+                           is_admin=_is_admin(uname))
+
+
+@app.route('/admin/company-master/data', methods=['GET'])
+@admin_required
+def admin_company_master_data():
+    """회사 마스터 + (분기 지정 시) 그 분기의 통화별 당기 환율 번들 반환."""
+    year = (request.args.get('year') or '').strip()
+    companies = list(_load_company_master().get('companies') or [])
+
+    resp = {'companies': companies, 'year': year, 'valid': False}
+    if year and _valid_fx_year(year):
+        current_rates = _get_current_fx_for_period(year)
+        co_curs = {(c.get('currency') or '').strip().upper()
+                   for c in companies if (c.get('currency') or '').strip()}
+        pkg_curs = set(_get_currencies_from_packages(year))
+        all_currencies = sorted(
+            (co_curs | pkg_curs | set(current_rates.keys())) - {'KRW', ''}
+        )
+        resp.update({
+            'valid': True,
+            'current_rates': current_rates,
+            'all_currencies': all_currencies,
+        })
+    return jsonify(resp)
+
+
+@app.route('/admin/company-master', methods=['POST'])
+@admin_required
+def admin_company_master_save():
+    """회사 목록(이름·통화·활성) 저장."""
+    payload = request.get_json(silent=True) or {}
+    companies = payload.get('companies')
+    if not isinstance(companies, list):
+        return jsonify({'error': '회사 목록 형식이 올바르지 않습니다.'}), 400
+    saved = _save_company_master(companies)
+    return jsonify({'ok': True, 'count': len(saved)})
+
+
+@app.route('/admin/company-master/rates', methods=['POST'])
+@admin_required
+def admin_company_master_save_rates():
+    """선택 분기의 '당기(current)' 통화별 환율만 저장 — prior 는 건드리지 않음.
+    (전기/최초연도 환율은 기존 환율관리 모달에서 별도 처리)
+    """
+    year = (request.args.get('year') or '').strip()
+    if not _valid_fx_year(year):
+        return jsonify({'error': '유효하지 않은 기간'}), 400
+    payload = request.get_json(silent=True) or {}
+
+    def _to_float(v):
+        if v in (None, ''):
+            return None
+        try:
+            return float(str(v).replace(',', '').strip())
+        except Exception:
+            return None
+
+    fx_all = _load_fx_rates()
+    fx_all.setdefault(year, {})
+    new_current = {}
+    for cur_key, rates in (payload.get('current') or {}).items():
+        key = str(cur_key).strip().upper()
+        if not key or key == 'KRW':
+            continue
+        spot = _to_float((rates or {}).get('spot'))
+        avg = _to_float((rates or {}).get('avg'))
+        if spot is not None or avg is not None:
+            new_current[key] = {'spot': spot, 'avg': avg}
+    fx_all[year]['current'] = new_current
+    _save_fx_rates(fx_all)
+    return jsonify({'ok': True, 'count': len(new_current)})
+
+
 # ─── 결산연도 관리 ────────────────────────────────────────────────────────────
 
 PERIOD_RE = re.compile(r'^(\d{4})-([1-4])Q$')
@@ -6895,6 +6969,119 @@ def _get_central_rates_for(year, currency):
     if any(v is not None for v in rates.values()):
         return rates
     return None
+
+
+# ─── 회사 마스터(업로드 대상 회사 + 회사별 통화) ──────────────────────────────
+# 업로드 대상 회사 목록과 각 회사가 사용하는 통화를 한 곳에서 관리한다.
+# 환율 값 자체는 기존 fx_rates.json(통화별·기간별)에 그대로 보관하고,
+# 회사 → 통화 → 환율로 연결한다 (같은 통화 회사는 같은 환율을 공유).
+COMPANY_MASTER_FILE = Path('company_master.json')
+_company_master_filelock = threading.Lock()
+
+
+def _seed_company_master():
+    """company_master.json 최초 생성용 시드.
+    1) 필수제출회사리스트.xlsx 의 회사명으로 목록 구성
+    2) 회사별 통화는 업로드된 패키지(extracted.currency)에서 추정 (없으면 빈값)
+    """
+    cur_by_norm = {}
+    for f in sorted(uploaded_files, key=lambda x: x.get('uploaded_at') or ''):
+        co = (f.get('company') or '').strip()
+        cur = ((f.get('extracted') or {}).get('currency') or '').strip().upper()
+        if co and cur:
+            cur_by_norm[_norm_company_name(co)] = cur     # 최신 업로드가 덮어씀
+
+    names, seen = [], set()
+    req_file = Path('필수제출회사리스트.xlsx')
+    if req_file.exists():
+        try:
+            from openpyxl import load_workbook as _lw
+            wb = _lw(str(req_file), data_only=True, read_only=True)
+            for row in wb.active.iter_rows(values_only=True):
+                co = str(row[0]).strip() if row and row[0] not in (None, '') else ''
+                if not co or 'COMPANY' in co.upper():
+                    continue
+                key = _norm_company_name(co)
+                if key and key not in seen:
+                    seen.add(key)
+                    names.append(co)
+            wb.close()
+        except Exception:
+            pass
+
+    companies = [
+        {'name': n, 'currency': cur_by_norm.get(_norm_company_name(n), ''), 'active': True}
+        for n in names
+    ]
+    return {'companies': companies}
+
+
+def _save_company_master(companies):
+    """회사 마스터 저장. companies: [{name, currency, active}]. 중복 회사명은 병합."""
+    clean, seen = [], set()
+    for c in (companies or []):
+        if not isinstance(c, dict):
+            continue
+        name = str(c.get('name') or '').strip()
+        if not name:
+            continue
+        key = _norm_company_name(name)
+        if key in seen:
+            continue
+        seen.add(key)
+        clean.append({
+            'name': name,
+            'currency': str(c.get('currency') or '').strip().upper(),
+            'active': bool(c.get('active', True)),
+        })
+    with _company_master_filelock:
+        _atomic_write_json(COMPANY_MASTER_FILE, {'companies': clean})
+    return clean
+
+
+def _load_company_master():
+    """회사 마스터 로드. 파일이 없으면 시드를 만들어 저장한 뒤 반환."""
+    if not COMPANY_MASTER_FILE.exists():
+        seeded = _seed_company_master()
+        try:
+            _save_company_master(seeded.get('companies') or [])
+        except Exception:
+            pass
+        return seeded
+    try:
+        with _company_master_filelock:
+            with open(COMPANY_MASTER_FILE, 'r', encoding='utf-8') as fp:
+                data = json.load(fp) or {}
+        if not isinstance(data, dict):
+            data = {}
+        data.setdefault('companies', [])
+        return data
+    except Exception as e:
+        print(f'[경고] 회사 마스터 로드 실패: {e}')
+        return {'companies': []}
+
+
+def _company_required_names(active_only=True):
+    """업로드 대상(필수제출) 회사명 목록 — 마스터 기준."""
+    out = []
+    for c in _load_company_master().get('companies') or []:
+        if active_only and not c.get('active', True):
+            continue
+        n = (c.get('name') or '').strip()
+        if n:
+            out.append(n)
+    return out
+
+
+def _company_currency_map():
+    """{norm_company_name: currency} — 마스터에 지정된 회사별 통화."""
+    m = {}
+    for c in _load_company_master().get('companies') or []:
+        n = _norm_company_name(c.get('name') or '')
+        cur = (c.get('currency') or '').strip().upper()
+        if n and cur:
+            m[n] = cur
+    return m
 
 
 def _get_wce_for(year, company):
@@ -7582,27 +7769,9 @@ def submission_status():
     if not _valid_year(year):
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
 
-    required_file = Path('필수제출회사리스트.xlsx')
-    if not required_file.exists():
-        return jsonify({'error': '필수제출회사리스트.xlsx 파일을 찾을 수 없습니다.'}), 404
-
-    try:
-        from openpyxl import load_workbook as _lw
-        wb = _lw(str(required_file), data_only=True, read_only=True)
-        ws = wb.active
-        required = []
-        seen = set()
-        for row in ws.iter_rows(values_only=True):
-            company = str(row[0]).strip() if row and row[0] not in (None, '') else ''
-            if not company or 'COMPANY' in company.upper():
-                continue
-            key = _norm_company_name(company)
-            if key and key not in seen:
-                required.append(company)
-                seen.add(key)
-        wb.close()
-    except Exception as e:
-        return jsonify({'error': f'필수제출회사리스트.xlsx 읽기 실패: {e}'}), 500
+    # 업로드 대상 회사목록은 회사 마스터(company_master.json) 기준.
+    # (최초 1회 필수제출회사리스트.xlsx 에서 자동 시드됨)
+    required = _company_required_names(active_only=True)
 
     uploaded_by_company = {}
     for f in uploaded_files:
@@ -11366,7 +11535,7 @@ def _is_distribute_owner(username, company_name) -> bool:
 
 def _accessible_companies_for(username):
     """배포용 패키지 화면에 보일 회사 목록.
-    관리자: uploaded_files + 필수제출회사리스트.xlsx 전체.
+    관리자: uploaded_files + 회사 마스터(업로드 대상 회사목록) 전체.
     자회사: 본인이 직접 담당한 회사만 (연결그룹 동료 제외).
     """
     seen = {}
@@ -11374,18 +11543,9 @@ def _accessible_companies_for(username):
         co = (f.get('company') or '').strip()
         if co:
             seen[_norm_company_name(co)] = co
-    req_file = Path('필수제출회사리스트.xlsx')
-    if req_file.exists():
-        try:
-            from openpyxl import load_workbook as _lw
-            wb = _lw(str(req_file), data_only=True, read_only=True)
-            for row in wb.active.iter_rows(values_only=True):
-                co = str(row[0]).strip() if row and row[0] not in (None, '') else ''
-                if co and 'COMPANY' not in co.upper():
-                    seen.setdefault(_norm_company_name(co), co)
-            wb.close()
-        except Exception:
-            pass
+    # 회사 마스터의 활성 회사 포함
+    for n in _company_required_names(active_only=True):
+        seen.setdefault(_norm_company_name(n), n)
     all_list = sorted(seen.values())
 
     if _is_admin(username):
