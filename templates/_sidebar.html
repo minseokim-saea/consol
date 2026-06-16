@@ -83,6 +83,17 @@
   @media (max-width: 991px) {
     .side-nav { position: relative; top: 0; left: 0; width: 100%; margin: 12px 0; }
   }
+
+  /* 접이식 그룹 메뉴 (마스터 관리) */
+  .side-group { margin-bottom: 4px; }
+  .side-group > summary { list-style: none; cursor: pointer; margin-bottom: 0; }
+  .side-group > summary::-webkit-details-marker { display: none; }
+  .side-group > summary::marker { content: ''; }
+  .side-caret { font-size: 0.85rem !important; width: auto !important; margin-left: auto; transition: transform .15s; }
+  .side-group[open] .side-caret { transform: rotate(180deg); }
+  .side-subgroup { margin: 2px 0; }
+  .side-subgroup .side-sublink { padding: 8px 12px 8px 30px; font-size: 0.85rem; margin-bottom: 2px; }
+  .side-subgroup .side-sublink i { font-size: 1.05rem; width: 20px; }
 </style>
 
 <aside class="side-nav" aria-label="기능 메뉴">
@@ -90,6 +101,29 @@
     <i class="bi bi-house-fill" aria-hidden="true"></i>
     <span class="side-label" data-i18n="side.home">홈 (합산)</span>
   </a>
+  {% if is_admin %}
+  <details class="side-group" {% if active_menu in ['company_master', 'users', 'permission_groups'] %}open{% endif %}>
+    <summary class="side-link" title="마스터 관리">
+      <i class="bi bi-sliders2" aria-hidden="true"></i>
+      <span class="side-label" data-i18n="side.master_admin">마스터 관리</span>
+      <i class="bi bi-chevron-down side-caret" aria-hidden="true"></i>
+    </summary>
+    <div class="side-subgroup">
+      <a href="/admin/company-master" class="side-link side-sublink {% if active_menu == 'company_master' %}active{% endif %}" title="회사 마스터">
+        <i class="bi bi-buildings" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="side.company_master">회사 마스터</span>
+      </a>
+      <a href="/admin/users" class="side-link side-sublink {% if active_menu == 'users' %}active{% endif %}" title="사용자 관리">
+        <i class="bi bi-people" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="nav.users">사용자 관리</span>
+      </a>
+      <a href="/admin/permission-groups" class="side-link side-sublink {% if active_menu == 'permission_groups' %}active{% endif %}" title="권한그룹 관리">
+        <i class="bi bi-shield-lock-fill" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="top.permgroups">권한그룹 관리</span>
+      </a>
+    </div>
+  </details>
+  {% endif %}
   {% if perms and perms.distribute_run %}
   <a href="/distribute" class="side-link {% if active_menu == 'distribute' %}active{% endif %}" title="배포용 패키지 생성">
     <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
@@ -144,12 +178,6 @@
   <a href="/admin/coa-audit" class="side-link {% if active_menu == 'coa_audit' %}active{% endif %}" title="COA Audit">
     <i class="bi bi-search" aria-hidden="true"></i>
     <span class="side-label" data-i18n="side.coa">COA Audit</span>
-  </a>
-  {% endif %}
-  {% if is_admin %}
-  <a href="/admin/company-master" class="side-link {% if active_menu == 'company_master' %}active{% endif %}" title="회사 마스터 관리">
-    <i class="bi bi-buildings" aria-hidden="true"></i>
-    <span class="side-label" data-i18n="side.company_master">회사 마스터</span>
   </a>
   {% endif %}
 
