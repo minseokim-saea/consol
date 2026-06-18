@@ -736,6 +736,10 @@ def admin_create_user():
     if pg_id not in pg_groups:
         pg_id = 'finance_member'
 
+    # 권한 상승 차단: 시스템관리자 그룹으로의 계정 생성은 관리자(is_admin)만 가능.
+    if pg_id == 'system_admin' and not _is_admin(session.get('username')):
+        return redirect(url_for('admin_users', error='시스템관리자 계정 생성은 시스템관리자만 할 수 있습니다.'))
+
     CREDENTIALS[username] = {
         'password': generate_password_hash(password),
         'is_admin': (pg_id == 'system_admin'),
@@ -794,6 +798,10 @@ def admin_reset_2fa(username):
 @app.route('/admin/users/<username>/toggle-admin', methods=['POST'])
 @require_permission('users.manage')
 def admin_toggle_admin(username):
+    # 권한 상승 차단: 관리자 권한 부여/해제는 시스템관리자(is_admin)만 가능.
+    # users.manage 만 가진 계정이 다른 계정을 관리자로 승격시키는 우회로를 막는다.
+    if not _is_admin(session.get('username')):
+        return redirect(url_for('admin_users', error='관리자 권한 변경은 시스템관리자만 할 수 있습니다.'))
     if username == session.get('username'):
         return redirect(url_for('admin_users', error='자기 자신의 권한은 변경할 수 없습니다.'))
     if username not in CREDENTIALS:
@@ -920,6 +928,10 @@ def admin_permission_groups_list():
 @require_permission('users.manage')
 def admin_permission_groups_create():
     """신규 권한그룹 생성. body: {id, name, perms: {key: bool}}."""
+    # 권한 체계 자체(권한그룹 정의)의 변경은 시스템관리자만 가능 — users.manage 계정이
+    # 자기 그룹 권한을 임의로 켜서 전체 기능을 얻는 권한 상승을 차단.
+    if not _is_admin(session.get('username')):
+        return jsonify({'error': '권한그룹 관리는 시스템관리자만 할 수 있습니다.'}), 403
     body = request.get_json(silent=True) or {}
     gid = (body.get('id') or '').strip()
     name = (body.get('name') or '').strip()
@@ -945,6 +957,8 @@ def admin_permission_groups_create():
 @require_permission('users.manage')
 def admin_permission_groups_update(gid):
     """권한그룹 수정. body: {name?, perms?}. system 그룹은 perms 변경 가능, name 변경 가능."""
+    if not _is_admin(session.get('username')):
+        return jsonify({'error': '권한그룹 관리는 시스템관리자만 할 수 있습니다.'}), 403
     body = request.get_json(silent=True) or {}
     data = _load_permission_groups(force=True)
     groups = data.get('groups') or {}
@@ -970,6 +984,8 @@ def admin_permission_groups_update(gid):
 @require_permission('users.manage')
 def admin_permission_groups_delete(gid):
     """권한그룹 삭제. system 그룹은 삭제 불가, 사용자가 매핑되어 있어도 불가."""
+    if not _is_admin(session.get('username')):
+        return jsonify({'error': '권한그룹 관리는 시스템관리자만 할 수 있습니다.'}), 403
     data = _load_permission_groups(force=True)
     groups = data.get('groups') or {}
     if gid not in groups:
@@ -1001,6 +1017,14 @@ def admin_set_user_permission_group(username):
     pg_data = _load_permission_groups()
     if new_gid not in (pg_data.get('groups') or {}):
         return jsonify({'error': '존재하지 않는 권한그룹'}), 400
+    # 권한 상승 차단:
+    #  - 비관리자는 자기 자신의 권한그룹을 바꿀 수 없음(자가 승격 방지).
+    #  - 시스템관리자 그룹으로의 변경은 관리자(is_admin)만 가능.
+    caller_is_admin = _is_admin(session.get('username'))
+    if not caller_is_admin and username == session.get('username'):
+        return jsonify({'error': '자기 자신의 권한그룹은 변경할 수 없습니다.'}), 403
+    if new_gid == 'system_admin' and not caller_is_admin:
+        return jsonify({'error': '시스템관리자 권한 부여는 시스템관리자만 할 수 있습니다.'}), 403
     rec = CREDENTIALS[username]
     if not isinstance(rec, dict):
         rec = {'password': rec, 'is_admin': False, 'assigned_companies': []}
