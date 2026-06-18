@@ -44,4 +44,6 @@ venv/
 env/
 python/
 *.log
+# 앱 기동 시 콘솔 출력 임시 로그
+_startup_log.txt
 .claude/
