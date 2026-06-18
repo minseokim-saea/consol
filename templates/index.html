@@ -414,14 +414,6 @@
         <i class="bi bi-person-circle me-1" aria-hidden="true"></i>{{ username }}
         {% if is_admin %}<span class="badge bg-danger ms-1" data-i18n="nav.admin">관리자</span>{% endif %}
       </span>
-      {% if is_admin %}
-      <a href="/admin/users" class="btn btn-sm btn-outline-light">
-        <i class="bi bi-people me-1" aria-hidden="true"></i><span data-i18n="nav.users">사용자 관리</span>
-      </a>
-      <a href="/admin/permission-groups" class="btn btn-sm btn-outline-light">
-        <i class="bi bi-shield-lock-fill me-1" aria-hidden="true"></i>권한그룹 관리
-      </a>
-      {% endif %}
       <a href="/change-password" class="btn btn-sm btn-outline-light">
         <i class="bi bi-key me-1" aria-hidden="true"></i><span data-i18n="nav.password">비밀번호 변경</span>
       </a>

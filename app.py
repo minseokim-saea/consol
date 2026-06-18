@@ -305,6 +305,7 @@ def _inject_sidebar_perms():
         'username': uname,
         'is_admin': _is_admin(uname),
         'perms': {
+            'users_manage':    _has_permission(uname, 'users.manage'),
             'wce_manage':      _has_permission(uname, 'wce.manage'),
             'fx_manage':       _has_permission(uname, 'fx.manage'),
             'consol_compute':  _has_permission(uname, 'consol.compute'),

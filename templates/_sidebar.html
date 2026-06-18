@@ -116,7 +116,7 @@
     <i class="bi bi-house-fill" aria-hidden="true"></i>
     <span class="side-label" data-i18n="side.home">홈 (합산)</span>
   </a>
-  {% if is_admin %}
+  {% if is_admin or (perms and perms.users_manage) %}
   <div class="side-group">
     <button type="button" class="side-link side-group-toggle {% if active_menu in ['company_master', 'users', 'permission_groups'] %}active{% endif %}" title="마스터 관리">
       <i class="bi bi-sliders2" aria-hidden="true"></i>
@@ -124,10 +124,12 @@
       <i class="bi bi-chevron-right side-caret" aria-hidden="true"></i>
     </button>
     <div class="side-flyout">
+      {% if is_admin %}
       <a href="/admin/company-master" class="side-link {% if active_menu == 'company_master' %}active{% endif %}" title="회사 마스터">
         <i class="bi bi-buildings" aria-hidden="true"></i>
         <span class="side-label" data-i18n="side.company_master">회사 마스터</span>
       </a>
+      {% endif %}
       <a href="/admin/users" class="side-link {% if active_menu == 'users' %}active{% endif %}" title="사용자 관리">
         <i class="bi bi-people" aria-hidden="true"></i>
         <span class="side-label" data-i18n="nav.users">사용자 관리</span>
