@@ -212,6 +212,7 @@ body { background:var(--surface); color:var(--text-body);
 
 <script>
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const CAN_JOURNAL = {{ 'true' if perms.consol_journal else 'false' }};
 const LOCKED_PERIODS = {{ locked_years|tojson }};
 let ALL_COMPANIES = [];   // 시스템 전체 회사 목록 (admin/all-companies)
 let CURRENT_GROUPS = [];
@@ -299,6 +300,7 @@ function groupCardHtml(g) {
                   title="업로드된 분개 파일 원본 다시 받기" disabled>
             <i class="bi bi-file-earmark-excel"></i> 분개 다운로드
           </button>
+          ${CAN_JOURNAL ? `
           <button class="btn btn-outline-primary" onclick="triggerJournalUpload('${g.id}', ${g.can_manage_journal})"
                   ${(isPeriodLocked() && !IS_ADMIN)
                       ? 'disabled title="이 결산기간은 마감되어 업로드할 수 없습니다. (관리자 문의)"'
@@ -310,7 +312,7 @@ function groupCardHtml(g) {
                       ? 'disabled title="이 결산기간은 마감되어 삭제할 수 없습니다. (관리자 문의)"'
                       : (g.can_manage_journal ? 'title="등록된 연결조정분개 삭제"' : 'title="담당 그룹이 아니면 삭제할 수 없습니다"')}>
             <i class="bi bi-trash"></i> 분개 삭제
-          </button>
+          </button>` : ''}
           <button class="btn btn-primary" onclick="runCompute('${g.id}')" ${isEmpty ? 'disabled' : ''}>
             <i class="bi bi-calculator-fill"></i> 연결실행
           </button>
