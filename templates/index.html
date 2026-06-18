@@ -463,7 +463,7 @@
       <button id="btnFxRates" class="btn btn-sm btn-outline-info ms-2">
         <i class="bi bi-currency-exchange me-1" aria-hidden="true"></i>환율 관리
       </button>
-      {% if is_admin %}
+      {% if perms and perms.years_manage %}
       <button id="btnToggleLock" class="btn btn-sm btn-outline-warning ms-2">
         <i class="bi bi-lock me-1" aria-hidden="true"></i><span id="btnToggleLockLabel" data-i18n="period.lock">마감</span>
       </button>
@@ -473,7 +473,7 @@
       <button id="btnDeleteCurrentYear" class="btn btn-sm btn-outline-danger">
         <i class="bi bi-trash me-1" aria-hidden="true"></i><span data-i18n="period.delete">현재 기간 삭제</span>
       </button>
-      <span class="text-muted small ms-2" data-i18n="period.adminOnly">(관리자만 결산기간 추가·삭제·마감 가능)</span>
+      <span class="text-muted small ms-2" data-i18n="period.adminOnly">(권한자만 결산기간 추가·삭제·마감 가능)</span>
       {% else %}
       <span class="text-muted small ms-2" data-i18n="period.lockNote">(마감된 기간은 업로드 불가)</span>
       {% endif %}
@@ -554,7 +554,7 @@
             <h6 class="mb-0 fw-bold" style="color:#1F3864;">
               <i class="bi bi-graph-up me-1"></i>당기 환율
             </h6>
-            {% if is_admin %}
+            {% if perms and perms.fx_manage %}
             <div class="d-flex gap-2">
               <button type="button" id="btnFxTemplate" class="btn btn-sm btn-outline-secondary"
                       title="환율 일괄 업로드용 엑셀 양식을 다운로드합니다">
@@ -594,7 +594,7 @@
               <i class="bi bi-clock-history me-1"></i>전기 환율
               <span id="fxPriorBadge" class="badge bg-secondary fw-normal ms-2" style="font-size:.7rem;">-</span>
             </h6>
-            {% if is_admin %}
+            {% if perms and perms.fx_manage %}
             <button type="button" id="btnFxPriorAddRow" class="btn btn-sm btn-outline-success d-none">
               <i class="bi bi-plus-circle me-1"></i>통화 추가
             </button>
@@ -626,17 +626,17 @@
           </div>
         </div>
         <div class="modal-footer justify-content-between">
-          {% if is_admin %}
+          {% if perms and perms.fx_manage %}
           <button type="button" id="btnFxReapply" class="btn btn-outline-warning"
                   title="이 기간 업로드된 모든 패키지를 새 환율로 재환산합니다">
             <i class="bi bi-arrow-repeat me-1"></i>이 기간 패키지 재환산
           </button>
           {% else %}
-          <span class="text-muted small"><i class="bi bi-eye me-1"></i>조회 전용 (입력·업로드는 관리자만 가능)</span>
+          <span class="text-muted small"><i class="bi bi-eye me-1"></i>조회 전용 (환율 입력·업로드는 권한자만 가능)</span>
           {% endif %}
           <div class="d-flex gap-2">
             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
-            {% if is_admin %}
+            {% if perms and perms.fx_manage %}
             <button type="button" id="btnFxSave" class="btn btn-primary">
               <i class="bi bi-floppy me-1"></i>저장
             </button>
@@ -647,7 +647,7 @@
     </div>
   </div>
 
-  {% if is_admin %}
+  {% if perms and perms.years_manage %}
   <!-- 결산기간 추가 모달 -->
   <div class="modal fade" id="addPeriodModal" tabindex="-1"
        aria-labelledby="addPeriodModalTitle" aria-modal="true">
@@ -696,6 +696,7 @@
       </h5>
       <p class="text-muted small mb-3" data-i18n="step1.desc">엑셀양식으로 작성된 패키지 파일(<code>.xlsm</code>)을 업로드하세요. 여러 회사 파일을 한꺼번에 선택할 수 있습니다.</p>
 
+      {% if perms and perms.files_upload %}
       <div class="upload-zone d-flex flex-column align-items-center justify-content-center p-4 mb-3"
            id="dropZone"
            role="button" tabindex="0"
@@ -705,6 +706,12 @@
         <p class="text-muted small mb-0" data-i18n="upload.hint">.xlsm 파일만 지원 · 파일당 최대 50MB</p>
         <input type="file" id="fileInput" accept=".xlsm" multiple style="display:none">
       </div>
+      {% else %}
+      <div class="alert alert-secondary small d-flex align-items-center mb-3">
+        <i class="bi bi-lock me-2" aria-hidden="true"></i>
+        <span data-i18n="upload.noPermission">패키지 업로드 권한이 없습니다. (조회 전용)</span>
+      </div>
+      {% endif %}
 
       {% if is_admin %}
       <div class="alert alert-warning small d-flex align-items-center py-2 mb-3"
@@ -848,14 +855,16 @@
           <button id="btnLoadFiles" class="btn btn-sm btn-outline-secondary me-1">
             <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> <span data-i18n="step2.refresh">새로고침</span>
           </button>
+          {% if perms and perms.files_reanalyze %}
           <button id="btnReanalyzeAll" class="btn btn-sm btn-outline-primary me-1">
             <i class="bi bi-arrow-repeat" aria-hidden="true"></i> <span data-i18n="step2.reanalyze">재분석</span>
           </button>
+          {% endif %}
           <button id="btnDownloadZip" class="btn btn-sm btn-outline-success me-1"
                   title="선택된 패키지(없으면 전체)를 ZIP으로 다운로드합니다">
             <i class="bi bi-file-earmark-zip" aria-hidden="true"></i> <span data-i18n="step2.downloadZip">선택 다운로드</span>
           </button>
-          {% if is_admin %}
+          {% if perms and perms.files_delete %}
           <button id="btnDeleteAllFiles" class="btn btn-sm btn-outline-danger">
             <i class="bi bi-trash" aria-hidden="true"></i> <span data-i18n="step2.deleteAll">전체 삭제</span>
           </button>
@@ -903,10 +912,14 @@
           <div class="fw-bold" style="color:var(--brand-900); font-size:1.05rem;" data-i18n="step3.title">통합 합산 실행</div>
           <div class="small text-muted" id="aggregateSelInfo">선택 없음 → 전체 파일 합산</div>
         </div>
+        {% if perms and perms.aggregate_run %}
         <button class="btn btn-primary btn-lg px-4" id="aggregateBtn">
           <i class="bi bi-calculator me-2" aria-hidden="true"></i><span data-i18n="step3.btn">합산 실행</span>
           <span class="badge bg-white text-primary ms-2" id="aggregateBadge" style="display:none"></span>
         </button>
+        {% else %}
+        <span class="text-muted small"><i class="bi bi-lock me-1"></i><span data-i18n="step3.noPermission">합산 실행 권한이 없습니다.</span></span>
+        {% endif %}
       </div>
       <div id="aggregateStatus" class="mt-3"></div>
     </div>
@@ -1004,6 +1017,8 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const CAN_DELETE_FILES = {{ 'true' if (perms and perms.files_delete) else 'false' }};
+const CAN_MANAGE_FX = {{ 'true' if (perms and perms.fx_manage) else 'false' }};
 const fmt = (n) => n == null || n === 0 ? '-' : new Intl.NumberFormat('ko-KR').format(Math.round(n));
 
 // ── 다국어(i18n) ────────────────────────────────────────
@@ -1041,6 +1056,7 @@ const I18N = {
     'step1.desc':     '엑셀양식으로 작성된 패키지 파일(.xlsm)을 업로드하세요. 여러 회사 파일을 한꺼번에 선택할 수 있습니다.',
     'upload.dropzone':'파일을 드래그하거나 클릭하여 선택',
     'upload.hint':    '.xlsm 파일만 지원 · 파일당 최대 50MB',
+    'upload.noPermission':'패키지 업로드 권한이 없습니다. (조회 전용)',
     'step2.title':    '업로드된 파일',
     'step2.refresh':  '새로고침',
     'step2.reanalyze':'재분석',
@@ -1052,6 +1068,7 @@ const I18N = {
     'group.reset':    '초기화',
     'step3.title':    '통합 합산 실행',
     'step3.btn':      '합산 실행',
+    'step3.noPermission':'합산 실행 권한이 없습니다.',
     'step3.nosel':    '선택 없음 → 전체 파일 합산',
     'step3.selInfo':  (n) => `선택된 ${n}개사만 합산합니다.`,
     'step3.selBadge': (n) => `${n}개사`,
@@ -1107,6 +1124,7 @@ const I18N = {
     'step1.desc':     'Upload the package file (.xlsm). You can select multiple company files at once.',
     'upload.dropzone':'Drag & drop or click to select files',
     'upload.hint':    '.xlsm files only · Max 50MB per file',
+    'upload.noPermission':'You do not have package upload permission. (View only)',
     'step2.title':    'Uploaded Files',
     'step2.refresh':  'Refresh',
     'step2.reanalyze':'Re-analyze',
@@ -1118,6 +1136,7 @@ const I18N = {
     'group.reset':    'Reset',
     'step3.title':    'Run Aggregation',
     'step3.btn':      'Run',
+    'step3.noPermission':'You do not have aggregation permission.',
     'step3.nosel':    'No selection → Aggregate all files',
     'step3.selInfo':  (n) => `Aggregating ${n} selected companies.`,
     'step3.selBadge': (n) => `${n} co.`,
@@ -1784,13 +1803,13 @@ async function openFxRatesModal() {
   await loadFxData(pick);
 }
 function renderFxModal(data) {
-  // 당기 (관리자만 편집 가능, 그 외 조회 전용)
+  // 당기 (환율 관리 권한자만 편집 가능, 그 외 조회 전용)
   const currencies = data.all_currencies || [];
   const rows = ['KRW', ...currencies].map(c =>
-    buildFxRow(c, (data.current_rates || {})[c] || {}, 'current', IS_ADMIN)
+    buildFxRow(c, (data.current_rates || {})[c] || {}, 'current', CAN_MANAGE_FX)
   ).join('');
   document.getElementById('fxCurrentTbody').innerHTML = rows ||
-    `<tr><td colspan="4" class="text-muted text-center py-3">${IS_ADMIN ? '통화 없음 — "통화 추가"로 입력하세요' : '등록된 환율이 없습니다.'}</td></tr>`;
+    `<tr><td colspan="4" class="text-muted text-center py-3">${CAN_MANAGE_FX ? '통화 없음 — "통화 추가"로 입력하세요' : '등록된 환율이 없습니다.'}</td></tr>`;
 
   // 전기
   const priorBadge = document.getElementById('fxPriorBadge');
@@ -1825,11 +1844,11 @@ function renderFxModal(data) {
     priorBadge.className = 'badge bg-warning text-dark fw-normal ms-2';
     priorNote.classList.add('d-none');
     priorManualNote.classList.remove('d-none');
-    if (IS_ADMIN) priorAddBtn?.classList.remove('d-none');
-    priorActionTh.classList.toggle('d-none', !IS_ADMIN);
+    if (CAN_MANAGE_FX) priorAddBtn?.classList.remove('d-none');
+    priorActionTh.classList.toggle('d-none', !CAN_MANAGE_FX);
 
     const rows2 = ['KRW', ...currencies].map(c =>
-      buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', IS_ADMIN)
+      buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', CAN_MANAGE_FX)
     ).join('');
     priorTbody.innerHTML = rows2 ||
       '<tr><td colspan="4" class="text-muted text-center py-3">통화 없음</td></tr>';
@@ -2237,28 +2256,35 @@ async function _preValidateUploadFile(f) {
 }
 
 // ── 드래그 앤 드롭 ─────────────────────────────────────
+// 업로드 권한(files.upload)이 없는 사용자는 dropZone/fileInput 자체가 렌더되지 않으므로
+// null 가드로 감싼다. (서버도 /upload 에서 권한을 재검증함)
 const dropZone = document.getElementById('dropZone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  uploadFiles(e.dataTransfer.files);
-});
-// 키보드(Enter/Space)로도 파일 선택 가능
-dropZone.addEventListener('keydown', e => {
-  if (e.key === 'Enter' || e.key === ' ') {
+const fileInput = document.getElementById('fileInput');
+if (dropZone) {
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
     e.preventDefault();
-    document.getElementById('fileInput').click();
-  }
-});
-document.getElementById('fileInput').addEventListener('change', e => {
-  // FileList 를 배열로 복사한 뒤 input 값을 초기화 — 같은 파일을 연속 선택해도
-  // change 이벤트가 다시 발화되도록 함(미초기화 시 동일 파일 재선택은 무반응).
-  const picked = Array.from(e.target.files);
-  e.target.value = '';
-  uploadFiles(picked);
-});
+    dropZone.classList.remove('dragover');
+    uploadFiles(e.dataTransfer.files);
+  });
+  // 키보드(Enter/Space)로도 파일 선택 가능
+  dropZone.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (fileInput) fileInput.click();
+    }
+  });
+}
+if (fileInput) {
+  fileInput.addEventListener('change', e => {
+    // FileList 를 배열로 복사한 뒤 input 값을 초기화 — 같은 파일을 연속 선택해도
+    // change 이벤트가 다시 발화되도록 함(미초기화 시 동일 파일 재선택은 무반응).
+    const picked = Array.from(e.target.files);
+    e.target.value = '';
+    uploadFiles(picked);
+  });
+}
 
 // ── 파일 업로드 (순차 처리 + 모달 실시간 진행 표시) ───────
 async function uploadFiles(files) {
@@ -2470,14 +2496,14 @@ async function loadFiles() {
           ${commentBtn}
         </div>
       </div>
-      ${IS_ADMIN ? `<div class="d-flex gap-1 flex-shrink-0">
+      <div class="d-flex gap-1 flex-shrink-0">
         <a href="/files/${f.id}/download" class="btn btn-sm btn-outline-secondary" title="원본 파일 다운로드" download aria-label="원본 파일 다운로드">
           <i class="bi bi-download" aria-hidden="true"></i>
         </a>
-        <button class="btn btn-sm btn-outline-danger btn-delete-file" data-file-id="${f.id}" title="삭제" aria-label="파일 삭제">
+        ${CAN_DELETE_FILES ? `<button class="btn btn-sm btn-outline-danger btn-delete-file" data-file-id="${f.id}" title="삭제" aria-label="파일 삭제">
           <i class="bi bi-trash" aria-hidden="true"></i>
-        </button>
-      </div>` : ''}
+        </button>` : ''}
+      </div>
     </div>`;
   }).join('');
   // 캐시 — 모달에서 사용
