@@ -280,6 +280,20 @@
     position: relative;
   }
   /* 카드 내부 헤더(전체선택+카운터)를 스크롤해도 위에 고정 */
+  /* 체크박스 가시성 개선 — Bootstrap 기본 보더(rgba(0,0,0,.25))는
+     밝은 모니터에서 흰 배경에 묻혀 거의 안 보임. 윤곽을 진하게 + 살짝 키움 */
+  .form-check-input {
+    border-color: #8a94a6;
+    border-width: 1.5px;
+  }
+  .form-check-input:not(:checked):hover {
+    border-color: #5b6678;
+  }
+  /* 파일 목록 개별 선택 체크박스는 조금 더 크게 — 클릭/식별 쉽게 */
+  .form-check-input.file-chk {
+    width: 1.15em;
+    height: 1.15em;
+  }
   .file-list-controls-sticky {
     position: sticky;
     top: 0;
