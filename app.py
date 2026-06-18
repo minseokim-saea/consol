@@ -7524,6 +7524,7 @@ def index():
     uname = session.get('username')
     # 사이드바·버튼 가시성 제어용 권한 플래그
     perms = {
+        'users_manage':     _has_permission(uname, 'users.manage'),
         'wce_manage':       _has_permission(uname, 'wce.manage'),
         'fx_manage':        _has_permission(uname, 'fx.manage'),
         'consol_compute':   _has_permission(uname, 'consol.compute'),
