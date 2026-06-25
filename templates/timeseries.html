@@ -265,7 +265,7 @@ body {
         <h6 class="chart-title">차입 / 재무구조</h6>
         <span class="chart-desc">막대: 차입금(억원) / 선: 부채비율(%)</span>
         <div class="chart-legend">
-          <span class="lg"><span class="sw" style="background:linear-gradient(135deg,#7d93b3,#5e7aa0)"></span>차입금</span>
+          <span class="lg"><span class="sw" style="background:#9fb2cc"></span>차입금</span>
           <span class="lg"><span class="sw line" style="border-color:#d6492e"></span>부채비율</span>
         </div>
         <div style="position:relative; height:330px;">
@@ -457,12 +457,15 @@ const CHART_DEFS = {
   profit: {
     canvas: 'tsChartProfit',
     bars:  [['sales', '매출액', {grad:['#5a86c4', '#3f6fb2']}],
-            ['op',    '영업이익', {solid:'#5aa66f'}]],
+            ['op',    '영업이익', {solid:'#5aa66f',
+                                   dl:{anchor:'end', align:'top', color:'#3d7a52'}}]],
     lines: [['op_margin', '영업이익률', '#3b5bdb']],
   },
   debt: {
     canvas: 'tsChartDebt',
-    bars:  [['debt_total', '차입금', {grad:['#7d93b3', '#5e7aa0']}]],
+    // 밝은 슬레이트 막대(180deg #c2d0e4 상단→#9fb2cc 하단) — 빨간 부채비율 라벨 가독성 확보
+    bars:  [['debt_total', '차입금', {grad:['#9fb2cc', '#c2d0e4'], borderColor:'#9fb2cc',
+                                       dl:{anchor:'start', align:'top', color:'#1f3a63'}}]],
     lines: [['debt_ratio', '부채비율', '#d6492e']],
   },
 };
@@ -476,13 +479,15 @@ function buildChartConfig(cols, def, theme) {
   const datasets = [];
   def.bars.forEach(([key, label, style]) => {
     const bg = style.grad ? makeGradient(style.grad[0], style.grad[1]) : style.solid;
-    const border = style.grad ? style.grad[1] : style.solid;
+    const border = style.borderColor || (style.grad ? style.grad[1] : style.solid);
+    const dl = style.dl || {};
     datasets.push({
       type: 'bar', label, yAxisID: 'yAmt', order: 2,
       backgroundColor: bg, borderColor: border, borderWidth: 1, borderRadius: 3,
       data: cols.map(c => amt(c, key)),
       datalabels: {
-        anchor: 'center', align: 'center', color: '#fff', font: { size: 10, weight: '700' },
+        anchor: dl.anchor || 'center', align: dl.align || 'center',
+        color: dl.color || '#fff', font: { size: 10, weight: '700' },
         formatter: v => (v == null) ? '' : Math.round(v).toLocaleString('ko-KR'),
       },
     });
