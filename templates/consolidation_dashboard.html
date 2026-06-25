@@ -6,53 +6,185 @@
 <title>연결 대시보드 — 연결 재무보고 시스템</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root {
+  /* 사이드바/상단바 호환용 브랜드 토큰 (그대로 유지) */
   --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
-  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
-  --border:#dee2e6;
+
+  /* ── 시안 B 디자인 토큰 ─────────────────────────────── */
+  --page:#eef1f6;
+  --card:#fff; --bd:#e7ebf2; --shadow:0 1px 3px rgba(16,24,40,.05);
+  --ink:#0f1b2d; --sub:#64748b; --faint:#94a3b8;
+  --blue:#1d4ed8; --blue2:#3b82f6;
+  --pos:#15803d; --pos-bg:#e7f6ec;
+  --neg:#c0392b; --neg-bg:#fdeceb;
+  --neu:#475569; --neu-bg:#eef1f6;
+  --negval:#dc2626;
+  --hd:linear-gradient(180deg,#102a5e,#13294f);
+  --radius:14px;
 }
-@media (prefers-color-scheme: dark) {
-  :root { --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
-          --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
-          --border:#334155; }
-  body { color-scheme: dark; }
-  .card { background:var(--card-bg); color:var(--text-body); }
-  .form-select, .form-control { background:#0f172a; color:var(--text-body); border-color:var(--border); }
-  .table-light, thead.table-light { --bs-table-bg:#2a3548; color:var(--text-body); }
-  .text-muted { color:var(--text-muted) !important; }
+body {
+  background:var(--page); color:var(--ink);
+  font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', sans-serif;
 }
-body { background:var(--surface); color:var(--text-body);
-       font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Arial,sans-serif; }
+.num, .tnum, table td, table th,
+.kpi-value, .led-cur, .led-cmp, .dl, .chip, .dn-amt, .dn-total {
+  font-feature-settings:'tnum' 1; font-variant-numeric:tabular-nums;
+}
 .navbar { background:var(--brand-900) !important; }
-.section-card { border-radius:10px; border:none; box-shadow:0 1px 6px rgba(0,0,0,0.08); background:var(--card-bg); }
-.kpi-card { padding:1rem; border-left:5px solid var(--brand-500); border-radius:8px;
-            background:var(--card-bg); box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-.kpi-card .kpi-label { font-size:0.78rem; color:var(--text-muted); margin-bottom:4px; }
-.kpi-card .kpi-value { font-size:1.45rem; font-weight:700; color:var(--brand-900); font-variant-numeric:tabular-nums; }
-.kpi-card .kpi-unit  { font-size:0.78rem; color:var(--text-muted); font-weight:500; margin-left:3px; }
-.kpi-card .kpi-sub   { font-size:0.74rem; color:var(--text-muted); margin-top:4px; }
-.unit-badge { background:#fff3cd; color:#664d03; padding:3px 10px; border-radius:6px;
-              font-size:0.85rem; font-weight:600; display:inline-block; }
-.section-title { display:flex; align-items:center; gap:10px; margin-bottom:0.5rem; }
-.section-title h5 { margin:0; }
-.section-title .unit-note { font-size:0.78rem; color:var(--text-muted); font-weight:500; }
-.kpi-card.is-positive { border-left-color:#28a745; }
-.kpi-card.is-positive .kpi-value { color:#28a745; }
-.kpi-card.is-negative { border-left-color:#dc3545; }
-.kpi-card.is-negative .kpi-value { color:#dc3545; }
-.kpi-card .delta { font-weight:600; }
-.kpi-card .delta.up   { color:#28a745; }
-.kpi-card .delta.down { color:#dc3545; }
-.chart-box { background:var(--card-bg); border-radius:10px; padding:1rem; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-.chart-box h6 { color:var(--text-muted); font-size:0.85rem; margin-bottom:0.75rem; }
-.chart-canvas-wrap { position:relative; height:280px; }
-.chart-canvas-wrap.tall { height:340px; }
-.status-pill { display:inline-block; padding:2px 10px; border-radius:12px; font-size:0.78rem; font-weight:600; }
-.status-pill.ok { background:#d1e7dd; color:#0a3622; }
-.status-pill.warn { background:#fff3cd; color:#664d03; }
-.status-pill.danger { background:#f8d7da; color:#58151c; }
+.dash-wrap { padding:18px 20px 28px; }
+
+/* ── 1. 다크 상단바 ──────────────────────────────────── */
+.topbar {
+  background:var(--hd); color:#fff; border-radius:var(--radius);
+  padding:16px 20px; display:flex; justify-content:space-between; align-items:flex-start;
+  gap:16px; flex-wrap:wrap;
+}
+.topbar-left { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.tb-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.logo-badge {
+  width:34px; height:34px; border-radius:9px; flex-shrink:0;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.18);
+  display:flex; align-items:center; justify-content:center; font-weight:800; font-size:15px; color:#fff;
+}
+.tb-title { font-size:18px; font-weight:800; letter-spacing:-.2px; }
+.tb-badge {
+  font-size:12px; font-weight:700; padding:3px 9px; border-radius:7px;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); color:#dbe5fb;
+}
+.tb-badge.ok { background:var(--pos-bg); border-color:transparent; color:#0d5128; }
+.tb-badge.danger { background:var(--neg-bg); border-color:transparent; color:#8a241a; }
+.tb-unit { font-size:11.5px; color:#9fb2d8; font-weight:600; }
+.tb-meta { font-size:12px; color:#9fb2d8; }
+.topbar-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.tb-select {
+  background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.22);
+  border-radius:9px; padding:8px 30px 8px 12px; font-size:13px; font-weight:600; appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c7d4ef' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat; background-position:right 10px center;
+}
+.tb-select option { color:#0f1b2d; }
+.btn-pill {
+  border-radius:9px; padding:8px 14px; font-size:13px; font-weight:700; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; border:1px solid transparent; transition:filter .15s, background .15s;
+}
+.btn-pill.primary { background:var(--blue); color:#fff; }
+.btn-pill.primary:hover { filter:brightness(1.08); }
+.btn-pill.solid { background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.22); }
+.btn-pill.solid:hover { background:rgba(255,255,255,.22); }
+.btn-pill.ghost { background:transparent; color:#cdd9f2; border-color:rgba(255,255,255,.28); }
+.btn-pill.ghost:hover { background:rgba(255,255,255,.1); }
+
+/* ── 2. 라이트 컨텍스트 스트립 ───────────────────────── */
+.ctxstrip {
+  background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+  margin-top:12px; padding:11px 16px; display:flex; justify-content:space-between;
+  align-items:center; gap:14px; flex-wrap:wrap; box-shadow:var(--shadow);
+}
+.ctx-left, .ctx-right { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.ctx-label { font-size:12px; font-weight:700; color:var(--sub); }
+.ctx-sep { width:1px; height:20px; background:var(--bd); }
+.ctx-select {
+  border:1px solid var(--bd); border-radius:8px; padding:6px 28px 6px 11px; font-size:13px;
+  font-weight:700; color:var(--ink); background:#fff; appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat; background-position:right 9px center;
+}
+.chip-rollup {
+  font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px;
+  background:#eef3fb; color:#1d4ed8; border:1px solid #dbe6fb;
+}
+.ctx-badge {
+  font-size:12px; font-weight:700; padding:5px 11px; border-radius:8px;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.ctx-badge.info { background:#eef3fb; color:#1d4ed8; border:1px solid #dbe6fb; }
+.ctx-badge.warn { background:#fff5e6; color:#b45309; border:1px solid #fde7c2; }
+.ctx-badge.btn { cursor:pointer; background:#fff; color:var(--blue); border:1px solid var(--blue); }
+.ctx-badge.btn:hover { background:#eff4fe; }
+
+/* ── 3. 핵심 요약 KPI 밴드 ───────────────────────────── */
+.kpi-band {
+  margin-top:12px; background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+  box-shadow:var(--shadow); display:grid; grid-template-columns:repeat(4,1fr); overflow:hidden;
+}
+@media (max-width:880px){ .kpi-band { grid-template-columns:repeat(2,1fr); } }
+.kpi-cell { padding:15px 18px; border-left:1px solid var(--bd); position:relative; }
+.kpi-cell:first-child { border-left:none; }
+.kpi-cell::before { content:''; position:absolute; left:0; top:14px; bottom:14px; width:3px; background:var(--blue); border-radius:0 2px 2px 0; }
+.kpi-label { font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:7px; }
+.kpi-value { font-size:30px; font-weight:700; line-height:1.05; letter-spacing:-.5px; }
+.kpi-value .u { font-size:13px; font-weight:600; color:var(--faint); margin-left:4px; }
+.kpi-value.neg-val { color:var(--negval); }
+.kpi-foot { margin-top:9px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.kpi-prior { font-size:11.5px; color:var(--faint); }
+
+/* 증감 칩/텍스트 의미색 */
+.chip { font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:6px; white-space:nowrap; }
+.chip.pos { background:var(--pos-bg); color:var(--pos); }
+.chip.neg { background:var(--neg-bg); color:var(--neg); }
+.chip.flat { background:var(--neu-bg); color:var(--neu); }
+.dl { font-weight:700; }
+.dl.pos { color:var(--pos); }
+.dl.neg { color:var(--neg); }
+.dl.flat { color:var(--neu); }
+
+/* ── 4. 2열 본문 ─────────────────────────────────────── */
+.grid-2 { display:grid; grid-template-columns:1.42fr 1fr; gap:14px; margin-top:14px; align-items:start; }
+@media (max-width:1100px){ .grid-2 { grid-template-columns:1fr; } }
+.col-stack { display:flex; flex-direction:column; gap:14px; }
+
+.panel { background:var(--card); border:1px solid var(--bd); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px 11px; }
+.panel-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--ink); }
+.panel-title::before { content:''; width:4px; height:16px; background:var(--blue); border-radius:2px; }
+.panel-unit { font-size:11.5px; color:var(--faint); font-weight:600; }
+
+/* 레저 테이블 */
+.led { width:100%; border-collapse:collapse; }
+.led thead th {
+  background:#f8fafc; color:var(--sub); font-size:11.5px; font-weight:700; text-transform:none;
+  padding:8px 16px; border-top:1px solid var(--bd); border-bottom:1px solid var(--bd); text-align:right;
+}
+.led thead th:first-child { text-align:left; }
+.led tbody td { padding:10px 16px; font-size:13.5px; border-bottom:1px solid #f1f4f9; text-align:right; }
+.led tbody tr:last-child td { border-bottom:none; }
+.led .led-name { text-align:left; color:var(--ink); font-weight:600; }
+.led .led-cur { font-weight:700; color:var(--ink); }
+.led .led-cur.neg-val { color:var(--negval); }
+.led .led-cmp { color:var(--sub); }
+
+/* ── 우: 도넛 구성 ───────────────────────────────────── */
+.seg {
+  display:inline-flex; border:1px solid var(--bd); border-radius:9px; overflow:hidden; background:#f8fafc;
+}
+.seg label { font-size:12px; font-weight:700; color:var(--sub); padding:6px 12px; cursor:pointer; }
+.seg input { display:none; }
+.seg input:checked + label { background:var(--blue); color:#fff; }
+.dn-block { padding:6px 16px 16px; }
+.dn-block + .dn-block { border-top:1px solid var(--bd); }
+.dn-flex { display:flex; align-items:center; gap:18px; }
+.donut { width:128px; height:128px; border-radius:50%; position:relative; flex-shrink:0; }
+.donut-hole {
+  position:absolute; inset:24%; background:#fff; border-radius:50%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+}
+.dn-hole-label { font-size:10.5px; color:var(--faint); font-weight:700; }
+.dn-total { font-size:18px; font-weight:800; color:var(--ink); line-height:1.1; }
+.dn-hole-unit { font-size:9.5px; color:var(--faint); }
+.dn-legend { flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+.dn-li { display:grid; grid-template-columns:14px 1fr auto auto; align-items:center; gap:8px; font-size:12px; }
+.dn-dot { width:9px; height:9px; border-radius:3px; }
+.dn-nm { color:var(--ink); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.dn-amt { color:var(--ink); font-weight:700; text-align:right; }
+.dn-pct { color:var(--sub); font-weight:600; text-align:right; min-width:38px; }
+
+/* 상태 카드 (로딩/안내) */
+.state-card { background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+  box-shadow:var(--shadow); text-align:center; padding:48px 20px; color:var(--sub); }
+.state-card .ico { font-size:2rem; display:block; margin-bottom:8px; color:var(--faint); }
 </style>
 </head>
 <body>
@@ -62,11 +194,11 @@ body { background:var(--surface); color:var(--text-body);
 
 {% include '_topbar.html' %}
 
-<!-- 전년 연결값 입력 모달 -->
+<!-- 전년 연결값 입력 모달 (구조·기능 유지) -->
 <div class="modal fade" id="priorModal" tabindex="-1">
   <div class="modal-dialog modal-xl modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header" style="background:#1F3864; color:#fff;">
+      <div class="modal-header" style="background:#102a5e; color:#fff;">
         <h5 class="modal-title"><i class="bi bi-pencil-square"></i> <span id="priorModalTitle">전년 연결값 입력</span></h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
@@ -120,48 +252,62 @@ body { background:var(--surface); color:var(--text-body);
   </div>
 </div>
 
-<div class="container-fluid mt-3">
+<div class="container-fluid dash-wrap">
 
-  <!-- 선택 -->
-  <div class="card section-card mb-3">
-    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
-      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
-      <select id="periodSelect" class="form-select" style="max-width:180px">
+  <!-- 1. 다크 상단바 -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="tb-row">
+        <div class="logo-badge" id="hdrLogo">연</div>
+        <span class="tb-title" id="hdrGroupName">연결 대시보드</span>
+        <span class="tb-badge" id="hdrPeriodBadge">{{ year }}</span>
+        <span class="tb-badge" id="hdrBalance" style="display:none"></span>
+        <span class="tb-unit">단위 · 억원</span>
+      </div>
+      <div class="tb-meta" id="hdrMeta">그룹과 기간을 선택해 주세요.</div>
+    </div>
+    <div class="topbar-right">
+      <select id="periodSelect" class="tb-select" title="결산기간">
         {% for y in years %}
-        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>결산기간 · {{ y }}</option>
         {% endfor %}
       </select>
-      <label class="fw-bold mb-0 ms-3"><i class="bi bi-diagram-3"></i> 그룹</label>
-      <select id="groupSelect" class="form-select" style="max-width:260px">
-        <option value="">— 그룹 선택 —</option>
-      </select>
-      <button class="btn btn-primary" onclick="loadDashboard()">
-        <i class="bi bi-arrow-clockwise"></i> 새로고침
-      </button>
-      <button class="btn btn-outline-success" id="dashboardExcelBtn" onclick="downloadDashboardExcel()"
-              style="display:none" title="대시보드 내용을 엑셀(.xlsx)로 다운로드">
-        <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
-      </button>
-      <a class="btn btn-outline-secondary ms-auto" id="executeBtn" href="#" style="display:none">
-        <i class="bi bi-calculator"></i> 연결실행 페이지로
-      </a>
+      <button class="btn-pill primary" onclick="loadDashboard()"><i class="bi bi-arrow-clockwise"></i> 새로고침</button>
+      <button class="btn-pill solid" id="dashboardExcelBtn" onclick="downloadDashboardExcel()" style="display:none"
+              title="대시보드 내용을 엑셀(.xlsx)로 다운로드"><i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드</button>
+      <a class="btn-pill ghost" id="executeBtn" href="#" style="display:none">연결실행 페이지로 <i class="bi bi-arrow-right"></i></a>
     </div>
   </div>
 
-  <!-- 본문 -->
+  <!-- 2. 라이트 컨텍스트 스트립 -->
+  <div class="ctxstrip">
+    <div class="ctx-left">
+      <span class="ctx-label">그룹</span>
+      <select id="groupSelect" class="ctx-select">
+        <option value="">— 그룹 선택 —</option>
+      </select>
+      <span class="ctx-sep" id="ctxSep" style="display:none"></span>
+      <span class="ctx-label" id="ctxRollupLabel" style="display:none">포함 그룹</span>
+      <span id="ctxRollups" class="d-flex gap-1 flex-wrap"></span>
+    </div>
+    <div class="ctx-right" id="ctxStatus"></div>
+  </div>
+
+  <!-- 3. 핵심 요약 KPI 밴드 -->
+  <div id="kpiBand" class="kpi-band" style="display:none"></div>
+
+  <!-- 4. 2열 본문 -->
   <div id="dashboardBody">
-    <div class="card section-card">
-      <div class="card-body text-center text-muted py-5">
-        <i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i>
-        그룹과 기간을 선택해 주세요.
-      </div>
+    <div class="state-card" style="margin-top:14px">
+      <i class="bi bi-bar-chart-line ico"></i>
+      그룹과 기간을 선택해 주세요.
     </div>
   </div>
 
 </div>
 
 <script>
-let CHARTS = {};
+let CHARTS = {};   // (호환용 — conic 도넛으로 전환 후 미사용)
 
 // 모든 금액은 억원(1억=1e8원) 단위로 표시. 음수는 "-" 접두사.
 function fmt(n, frac=0) {
@@ -200,33 +346,50 @@ async function loadGroups() {
     (j.groups || []).map(g => `<option value="${g.id}" ${g.id === cur ? 'selected' : ''}>${escapeHtml(g.name)}</option>`).join('');
 }
 
+function _clearChrome() {
+  document.getElementById('kpiBand').style.display = 'none';
+  document.getElementById('kpiBand').innerHTML = '';
+  document.getElementById('hdrBalance').style.display = 'none';
+  document.getElementById('ctxRollups').innerHTML = '';
+  document.getElementById('ctxSep').style.display = 'none';
+  document.getElementById('ctxRollupLabel').style.display = 'none';
+  document.getElementById('ctxStatus').innerHTML = '';
+}
+
 async function loadDashboard() {
   const period = document.getElementById('periodSelect').value;
   const gid = document.getElementById('groupSelect').value;
   const body = document.getElementById('dashboardBody');
   const xlBtn = document.getElementById('dashboardExcelBtn');
+  document.getElementById('hdrPeriodBadge').textContent = period;
   if (!gid) {
-    body.innerHTML = `<div class="card section-card"><div class="card-body text-center text-muted py-5">
-      <i class="bi bi-bar-chart-line fs-1 d-block mb-2"></i>그룹을 선택해 주세요.</div></div>`;
+    _clearChrome();
+    document.getElementById('hdrGroupName').textContent = '연결 대시보드';
+    document.getElementById('hdrLogo').textContent = '연';
+    document.getElementById('hdrMeta').textContent = '그룹과 기간을 선택해 주세요.';
+    body.innerHTML = `<div class="state-card" style="margin-top:14px">
+      <i class="bi bi-bar-chart-line ico"></i>그룹을 선택해 주세요.</div>`;
     if (xlBtn) xlBtn.style.display = 'none';
+    document.getElementById('executeBtn').style.display = 'none';
     return;
   }
-  document.getElementById('executeBtn').style.display = 'inline-block';
+  document.getElementById('executeBtn').style.display = 'inline-flex';
   document.getElementById('executeBtn').href = '/consolidation?year=' + encodeURIComponent(period);
 
-  body.innerHTML = `<div class="card section-card"><div class="card-body text-center text-muted py-5">
-    <span class="spinner-border"></span><br>계산 중…</div></div>`;
+  body.innerHTML = `<div class="state-card" style="margin-top:14px">
+    <span class="spinner-border text-primary mb-2"></span><br>계산 중…</div>`;
   destroyCharts();
   if (xlBtn) xlBtn.style.display = 'none';
 
   const r = await fetch(`/consolidation/dashboard/${gid}/data?period=${encodeURIComponent(period)}`);
   const j = await r.json();
   if (!r.ok) {
-    body.innerHTML = `<div class="alert alert-danger">${escapeHtml(j.error || '오류')}</div>`;
+    _clearChrome();
+    body.innerHTML = `<div class="alert alert-danger mt-3">${escapeHtml(j.error || '오류')}</div>`;
     return;
   }
   renderDashboard(j);
-  if (xlBtn) xlBtn.style.display = 'inline-block';
+  if (xlBtn) xlBtn.style.display = 'inline-flex';
 }
 
 function downloadDashboardExcel() {
@@ -236,134 +399,245 @@ function downloadDashboardExcel() {
   window.location.href = `/consolidation/dashboard/${encodeURIComponent(gid)}/excel?period=${encodeURIComponent(period)}`;
 }
 
-function buildDashboardSectionHtml(d, prefix, opts) {
-  // 한 그룹의 본문 HTML (헤더 ~ 차트 4섹션). prefix는 canvas/radio ID 격리용.
-  const { showDonutToggle = true } = opts || {};
-  const k = d.kpi, m = d.metrics, b = d.breakdown;
-  const checkOk = Math.abs(d.check_imbalance) < 1;
-  const bridgeNote = d.bridge && d.bridge.applied
-    ? `<span class="status-pill warn" title="${fmt(d.bridge.amount)} 자동 흡수"><i class="bi bi-magic"></i> 자동매듭 적용</span>`
-    : `<span class="status-pill ok"><i class="bi bi-check2-circle"></i> 자동매듭 불필요</span>`;
-  const balancePill = checkOk
-    ? `<span class="status-pill ok">✓ 검증식 균형</span>`
-    : `<span class="status-pill danger">✗ 불균형 ${fmt(d.check_imbalance)}</span>`;
-  const rollupsHtml = (d.rollups || []).length
-    ? `<div class="alert alert-info py-2 mb-3 small">
-        <strong><i class="bi bi-diagram-2-fill"></i> 포함 그룹</strong>:
-        ${d.rollups.map(r => `<span class="badge bg-info">${escapeHtml(r.group_name)}</span>`).join(' ')}
-       </div>` : '';
-  const donutModeName = `${prefix}donutMode`;
-  const donutToggleHtml = showDonutToggle ? `
-        <div class="d-flex justify-content-end mb-2">
-          <div class="btn-group btn-group-sm" role="group">
-            <input type="radio" class="btn-check" name="${donutModeName}" id="${prefix}dmGrouped" value="grouped" checked>
-            <label class="btn btn-outline-primary" for="${prefix}dmGrouped">
-              <i class="bi bi-collection"></i> 묶음 표시 (본사/포함그룹/국내/해외)
-            </label>
-            <input type="radio" class="btn-check" name="${donutModeName}" id="${prefix}dmIndividual" value="individual">
-            <label class="btn btn-outline-primary" for="${prefix}dmIndividual">
-              <i class="bi bi-list-ul"></i> 회사별 개별 표시
-            </label>
-          </div>
-        </div>` : '';
-  return `
-    <!-- 그룹 헤더 -->
-    <div class="card section-card mb-3">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start flex-wrap">
-          <div>
-            <h4 class="mb-1"><i class="bi bi-building-fill text-primary"></i> ${escapeHtml(d.group.name)}
-              <small class="text-muted ms-2">${escapeHtml(d.period)}</small>
-              <span class="unit-badge ms-2"><i class="bi bi-calculator"></i> 단위: 억원</span>
-            </h4>
-            <small class="text-muted">
-              ${d.matched_files_count}개사 매칭 ·
-              연결조정 ${d.adjustment_count}건 + 내부거래 ${d.intercompany_count}건
-            </small>
-          </div>
-          <div class="d-flex gap-2 flex-wrap align-items-center">
-            ${bridgeNote} ${balancePill}
-            ${prefix === '' ? `
-              <button class="btn btn-sm btn-outline-primary ms-1" onclick="openPriorModal('${escapeHtml(d.group.id)}','${escapeHtml(d.group.name)}','${escapeHtml(d.prior_year || '')}')"
-                      title="전년 연결값 수기 입력/수정">
-                <i class="bi bi-pencil-square"></i> 전년 연결값 입력
-              </button>` : ''}
-          </div>
-        </div>
-        ${rollupsHtml}
-      </div>
-    </div>
+// ── 증감 의미색 계산 ────────────────────────────────────
+// dir: 'pos_up'(증가=호전) | 'pos_down'(감소=호전) | 'neutral'(변동=중립)
+function deltaCls(delta, dir) {
+  if (!delta || dir === 'neutral') return 'flat';
+  const up = delta > 0;
+  if (dir === 'pos_up')   return up ? 'pos' : 'neg';
+  if (dir === 'pos_down') return up ? 'neg' : 'pos';
+  return 'flat';
+}
+function deltaSym(delta) { return delta > 0 ? '▲' : (delta < 0 ? '▼' : '–'); }
 
-    <!-- BS KPI -->
-    <div class="section-title mb-2">
-      <h5><i class="bi bi-clipboard-data text-primary"></i> 재무상태표 핵심 지표</h5>
-      <span class="unit-note">(단위: 억원)</span>
-    </div>
-    <div class="row g-3 mb-4">
-      ${kpiCard('자산총계', k.bs_assets)}
-      ${kpiCard('부채총계', k.bs_liab)}
-      ${kpiCard('자본총계', k.bs_equity)}
-      ${kpiRatio('부채비율', m.debt_ratio_compare, m.debt_ratio_final, false)}
-    </div>
-    <div class="row g-3 mb-4">
-      ${kpiCard('총차입금', k.bs_debt_total)}
-      ${kpiCard('은행차입금', k.bs_debt_bank)}
-    </div>
+// 금액 증감 (억원 + 비율%)
+function deltaAmt(final, compare, dir, cls='dl') {
+  if (compare === null || compare === undefined) return `<span class="${cls} flat">–</span>`;
+  const delta = (final || 0) - (compare || 0);
+  const pct = compare ? (delta / Math.abs(compare) * 100) : null;
+  const pctTxt = (pct === null || !isFinite(pct)) ? '' : ` (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)`;
+  return `<span class="${cls} ${deltaCls(delta, dir)}">${deltaSym(delta)} ${fmt(Math.abs(delta))}${pctTxt}</span>`;
+}
+// 비율 증감 (%p)
+function deltaPct(final, compare, dir, cls='dl') {
+  if (compare === null || compare === undefined) return `<span class="${cls} flat">–</span>`;
+  const delta = (final || 0) - (compare || 0);
+  return `<span class="${cls} ${deltaCls(delta, dir)}">${deltaSym(delta)} ${(Math.abs(delta) * 100).toFixed(1)}%p</span>`;
+}
+function negCls(v) { return (v !== null && v !== undefined && !isNaN(v) && Number(v) < 0) ? 'neg-val' : ''; }
 
-    <!-- PL KPI -->
-    <div class="section-title mb-2">
-      <h5><i class="bi bi-graph-up-arrow text-success"></i> 손익계산서 핵심 지표</h5>
-      <span class="unit-note">(단위: 억원)</span>
-    </div>
-    <div class="row g-3 mb-4">
-      ${kpiCard('매출액', k.pl_sales)}
-      ${kpiCard('영업이익', k.pl_op)}
-      ${kpiCard('당기순이익', k.pl_ni)}
-      ${kpiRatio('매출총이익률',
-          (k.pl_gross.compare != null && k.pl_sales.compare) ? (k.pl_gross.compare / k.pl_sales.compare) : null,
-          safeDiv(k.pl_gross.final, k.pl_sales.final), true)}
-    </div>
-    <div class="row g-3 mb-4">
-      ${kpiRatio('영업이익률', m.op_margin_compare, m.op_margin_final, true)}
-      ${kpiRatio('순이익률', m.net_margin_compare, m.net_margin_final, true)}
-    </div>
-
-    <!-- 차트 행 1 — 회사별 도넛 + 그룹화 토글 (sub-dashboard는 토글 없이 grouped 고정) -->
-    <div class="row g-3 mb-4">
-      ${showDonutToggle ? `<div class="col-12">${donutToggleHtml}</div>` : ''}
-      <div class="col-lg-6">
-        <div class="chart-box">
-          <h6><i class="bi bi-pie-chart-fill"></i> 회사별 자산 구성 (최종) <span class="text-muted ms-1">· 단위: 억원</span></h6>
-          <div class="chart-canvas-wrap tall"><canvas id="${prefix}chartAssetsByCo"></canvas></div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="chart-box">
-          <h6><i class="bi bi-pie-chart"></i> 회사별 매출 구성 (최종) <span class="text-muted ms-1">· 단위: 억원</span></h6>
-          <div class="chart-canvas-wrap tall"><canvas id="${prefix}chartSalesByCo"></canvas></div>
-        </div>
-      </div>
-    </div>
-
-  `;
+// ── 3. KPI 밴드 (매출액·영업이익·당기순이익·부채비율) ──
+function renderKpiBand(d) {
+  const k = d.kpi, m = d.metrics;
+  const cells = [
+    { label:'매출액',   item:k.pl_sales, dir:'pos_up', prior:PRIOR_LABEL_PL },
+    { label:'영업이익', item:k.pl_op,    dir:'pos_up', prior:PRIOR_LABEL_PL },
+    { label:'당기순이익', item:k.pl_ni,  dir:'pos_up', prior:PRIOR_LABEL_PL },
+    { label:'부채비율', ratioFinal:m.debt_ratio_final, ratioCompare:m.debt_ratio_compare, dir:'pos_down', prior:PRIOR_LABEL_BS, pct:true },
+  ];
+  const html = cells.map(c => {
+    if (c.pct) {
+      const chip = deltaPct(c.ratioFinal, c.ratioCompare, c.dir, 'chip');
+      const priorTxt = (c.ratioCompare != null)
+        ? `${escapeHtml(c.prior)} ${fmtPct(c.ratioCompare)}`
+        : `${escapeHtml(c.prior)} 미입력`;
+      return `<div class="kpi-cell">
+        <div class="kpi-label">${c.label}</div>
+        <div class="kpi-value">${fmtPct(c.ratioFinal)}</div>
+        <div class="kpi-foot">${chip}<span class="kpi-prior">${priorTxt}</span></div>
+      </div>`;
+    }
+    const it = c.item || {};
+    const chip = deltaAmt(it.final, it.compare, c.dir, 'chip');
+    const priorTxt = (it.compare != null)
+      ? `${escapeHtml(c.prior)} ${fmt(it.compare)}`
+      : `${escapeHtml(c.prior)} 미입력`;
+    return `<div class="kpi-cell" title="원본: ${fmtRaw(it.final)}원">
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value ${negCls(it.final)}">${fmt(it.final)}<span class="u">억원</span></div>
+      <div class="kpi-foot">${chip}<span class="kpi-prior">${priorTxt}</span></div>
+    </div>`;
+  }).join('');
+  const band = document.getElementById('kpiBand');
+  band.innerHTML = html;
+  band.style.display = 'grid';
 }
 
-function drawDashboardCharts(d, prefix, opts) {
-  const { useDonutToggle = true } = opts || {};
+// ── 4-좌. 레저 테이블 ──────────────────────────────────
+function ledgerPanel(title, cmpHeader, rows) {
+  const body = rows.map(r => {
+    let cur, cmp, dl;
+    if (r.pct) {
+      cur = `<td class="led-cur">${fmtPct(r.ratioFinal)}</td>`;
+      cmp = `<td class="led-cmp">${r.ratioCompare != null ? fmtPct(r.ratioCompare) : '–'}</td>`;
+      dl  = `<td>${deltaPct(r.ratioFinal, r.ratioCompare, r.dir)}</td>`;
+    } else {
+      const it = r.item || {};
+      cur = `<td class="led-cur ${negCls(it.final)}">${fmt(it.final)}</td>`;
+      cmp = `<td class="led-cmp">${it.compare != null ? fmt(it.compare) : '–'}</td>`;
+      dl  = `<td>${deltaAmt(it.final, it.compare, r.dir)}</td>`;
+    }
+    return `<tr><td class="led-name">${r.label}</td>${cur}${cmp}${dl}</tr>`;
+  }).join('');
+  return `<div class="panel">
+    <div class="panel-head"><span class="panel-title">${title}</span><span class="panel-unit">단위 · 억원</span></div>
+    <table class="led">
+      <thead><tr><th>지표</th><th>당분기</th><th>${cmpHeader}</th><th>증감</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>
+  </div>`;
+}
 
-  // 도넛 (회사별 자산/매출). 토글이 없으면 grouped 모드 고정.
-  drawDonutsForPrefix(d, prefix, useDonutToggle);
+function buildLeftColumn(d) {
+  const k = d.kpi, m = d.metrics;
+  const bsRows = [
+    { label:'자산총계',  item:k.bs_assets,     dir:'neutral' },
+    { label:'부채총계',  item:k.bs_liab,       dir:'neutral' },
+    { label:'자본총계',  item:k.bs_equity,     dir:'pos_up' },
+    { label:'부채비율',  ratioFinal:m.debt_ratio_final, ratioCompare:m.debt_ratio_compare, dir:'pos_down', pct:true },
+    { label:'총차입금',  item:k.bs_debt_total, dir:'neutral' },
+    { label:'은행차입금', item:k.bs_debt_bank, dir:'neutral' },
+  ];
+  const grossCompare = (k.pl_gross.compare != null && k.pl_sales.compare) ? (k.pl_gross.compare / k.pl_sales.compare) : null;
+  const plRows = [
+    { label:'매출액',     item:k.pl_sales, dir:'pos_up' },
+    { label:'영업이익',   item:k.pl_op,    dir:'pos_up' },
+    { label:'당기순이익', item:k.pl_ni,    dir:'pos_up' },
+    { label:'매출총이익률', ratioFinal:safeDiv(k.pl_gross.final, k.pl_sales.final), ratioCompare:grossCompare, dir:'pos_up', pct:true },
+    { label:'영업이익률', ratioFinal:m.op_margin_final,  ratioCompare:m.op_margin_compare,  dir:'pos_up', pct:true },
+    { label:'순이익률',   ratioFinal:m.net_margin_final, ratioCompare:m.net_margin_compare, dir:'pos_up', pct:true },
+  ];
+  const bsCmpHeader = d.prior_year ? `${escapeHtml(String(d.prior_year))}년말` : '전기말';
+  const plCmpHeader = d.prior_period ? `${escapeHtml(d.prior_period)} 누계` : '전년누계';
+  return `<div class="col-stack">
+    ${ledgerPanel('재무상태표 핵심 지표', bsCmpHeader, bsRows)}
+    ${ledgerPanel('손익계산서 핵심 지표', plCmpHeader, plRows)}
+  </div>`;
+}
+
+// ── 4-우. 도넛 구성 (conic-gradient) ───────────────────
+function buildRightColumn(d) {
+  return `<div class="panel">
+    <div class="panel-head">
+      <span class="panel-title">회사별 구성 (최종)</span>
+      <div class="seg">
+        <input type="radio" name="donutMode" id="dmGrouped" value="grouped" checked>
+        <label for="dmGrouped">묶음</label>
+        <input type="radio" name="donutMode" id="dmIndividual" value="individual">
+        <label for="dmIndividual">회사별 개별</label>
+      </div>
+    </div>
+    <div class="dn-block">
+      <div class="panel-unit" style="margin:0 0 8px">회사별 자산 구성</div>
+      <div id="donutAssets"></div>
+    </div>
+    <div class="dn-block">
+      <div class="panel-unit" style="margin:0 0 8px">회사별 매출 구성</div>
+      <div id="donutSales"></div>
+    </div>
+  </div>`;
+}
+
+// 블루 계열 팔레트 (무지개 금지)
+const DONUT_PALETTE = ['#1e40af', '#3b82f6', '#0891b2', '#6366f1', '#94a3b8'];
+
+function renderConicDonut(containerId, items, isGrouped, holeLabel) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const filtered = (items || []).filter(x => Math.abs(x.value || 0) > 0);
+  const total = filtered.reduce((a, x) => a + Math.abs(x.value), 0);
+  if (!filtered.length || !total) { el.innerHTML = `<div class="text-muted small">표시할 데이터가 없습니다.</div>`; return; }
+
+  let acc = 0;
+  const stops = [];
+  const rows = [];
+  filtered.forEach((x, i) => {
+    const color = DONUT_PALETTE[i % DONUT_PALETTE.length];
+    const v = Math.abs(x.value);
+    const start = acc / total * 100;
+    acc += v;
+    const end = acc / total * 100;
+    stops.push(`${color} ${start.toFixed(3)}% ${end.toFixed(3)}%`);
+    const name = isGrouped ? x.label : x.company;
+    const pct = (v / total * 100);
+    rows.push(`<div class="dn-li">
+      <span class="dn-dot" style="background:${color}"></span>
+      <span class="dn-nm" title="${escapeHtml(name)}">${escapeHtml(name)}</span>
+      <span class="dn-amt">${fmt(x.value)}</span>
+      <span class="dn-pct">${pct.toFixed(0)}%</span>
+    </div>`);
+  });
+
+  el.innerHTML = `<div class="dn-flex">
+    <div class="donut" style="background:conic-gradient(${stops.join(', ')})">
+      <div class="donut-hole">
+        <span class="dn-hole-label">${escapeHtml(holeLabel)}</span>
+        <span class="dn-total">${fmt(total)}</span>
+        <span class="dn-hole-unit">억원</span>
+      </div>
+    </div>
+    <div class="dn-legend">${rows.join('')}</div>
+  </div>`;
+}
+
+function drawDonutsForPrefix(d) {
+  if (!d) return;
+  const sel = document.querySelector('input[name="donutMode"]:checked');
+  const isGrouped = !sel || sel.value === 'grouped';
+  const assetData = isGrouped ? d.by_company_grouped.assets : d.by_company.assets;
+  const salesData = isGrouped ? d.by_company_grouped.sales  : d.by_company.sales;
+  renderConicDonut('donutAssets', assetData, isGrouped, '자산총계');
+  renderConicDonut('donutSales',  salesData, isGrouped, '매출액');
+}
+
+// ── 상단바/컨텍스트 스트립 채우기 ──────────────────────
+function renderChrome(d) {
+  const checkOk = Math.abs(d.check_imbalance) < 1;
+  document.getElementById('hdrGroupName').textContent = d.group.name;
+  document.getElementById('hdrLogo').textContent = (d.group.name || '연').trim().charAt(0) || '연';
+  document.getElementById('hdrPeriodBadge').textContent = d.period;
+  document.getElementById('hdrMeta').textContent =
+    `${d.matched_files_count}개사 매칭 · 연결조정 ${d.adjustment_count}건 · 내부거래 ${d.intercompany_count}건`;
+
+  const bal = document.getElementById('hdrBalance');
+  bal.style.display = 'inline-block';
+  bal.className = 'tb-badge ' + (checkOk ? 'ok' : 'danger');
+  bal.textContent = checkOk ? '✓ 검증식 균형' : `✗ 불균형 ${fmt(d.check_imbalance)}`;
+
+  // 포함 그룹 칩
+  const rollups = d.rollups || [];
+  const ctxRoll = document.getElementById('ctxRollups');
+  if (rollups.length) {
+    document.getElementById('ctxSep').style.display = 'inline-block';
+    document.getElementById('ctxRollupLabel').style.display = 'inline-block';
+    ctxRoll.innerHTML = rollups.map(r => `<span class="chip-rollup">${escapeHtml(r.group_name)}</span>`).join('');
+  } else {
+    document.getElementById('ctxSep').style.display = 'none';
+    document.getElementById('ctxRollupLabel').style.display = 'none';
+    ctxRoll.innerHTML = '';
+  }
+
+  // 상태 배지 (자동매듭 + 전년 연결값 입력)
+  const bridge = d.bridge && d.bridge.applied
+    ? `<span class="ctx-badge warn" title="${fmt(d.bridge.amount)} 자동 흡수"><i class="bi bi-magic"></i> 자동매듭 적용</span>`
+    : `<span class="ctx-badge info"><i class="bi bi-check2-circle"></i> 자동매듭 불필요</span>`;
+  const priorBtn = `<span class="ctx-badge btn" title="전년 연결값 수기 입력/수정"
+        onclick="openPriorModal('${escapeHtml(d.group.id)}','${escapeHtml(d.group.name)}','${escapeHtml(d.prior_year || '')}')">
+        <i class="bi bi-pencil-square"></i> 전년 연결값 입력</span>`;
+  document.getElementById('ctxStatus').innerHTML = bridge + priorBtn;
 }
 
 function renderDashboard(d) {
-  // 비교 기간 라벨 갱신 — kpiCard에서 참조
-  PRIOR_LABEL_BS = d.prior_year   ? `${d.prior_year}년말`        : '전년말';
-  PRIOR_LABEL_PL = d.prior_period ? `${d.prior_period} 누계`      : '전년동기';
+  // 비교 기간 라벨 갱신
+  PRIOR_LABEL_BS = d.prior_year   ? `${d.prior_year}년말`   : '전년말';
+  PRIOR_LABEL_PL = d.prior_period ? `${d.prior_period} 누계` : '전년동기';
 
-  const body = document.getElementById('dashboardBody');
-  body.innerHTML = buildDashboardSectionHtml(d, '', { showDonutToggle: true });
   window._DASHBOARD_DATA = d;
-  drawDashboardCharts(d, '', { useDonutToggle: true });
+  renderChrome(d);
+  renderKpiBand(d);
+  document.getElementById('dashboardBody').innerHTML =
+    `<div class="grid-2">${buildLeftColumn(d)}${buildRightColumn(d)}</div>`;
+  drawDonutsForPrefix(d);
 }
 
 function safeDiv(a, b) { return b ? a/b : 0; }
@@ -480,149 +754,16 @@ async function savePrior() {
   loadDashboard();
 }
 
-// ─── 도넛 차트 (그룹화/개별 토글) ───────────────────────────
-// 24색 hue-rotated 팔레트: 인접한 슬라이스가 항상 다른 색상 계열이 되도록
-// 8개 hue family (Blue/Orange/Green/Red/Purple/Yellow/Teal/Pink) × 3 lightness 사이클로 구성.
-// Material Design 700 → 400 → 300 순으로 명도를 낮춰가며 회전.
-const PALETTE = [
-  // 사이클 1 — 진한 톤 (Material 700)
-  '#1976D2', // 1. Blue 700
-  '#F57C00', // 2. Orange 700
-  '#388E3C', // 3. Green 700
-  '#D32F2F', // 4. Red 700
-  '#7B1FA2', // 5. Purple 700
-  '#FBC02D', // 6. Yellow 700
-  '#00897B', // 7. Teal 600
-  '#C2185B', // 8. Pink 700
-  // 사이클 2 — 중간 톤 (Material 400)
-  '#5C6BC0', // 9. Indigo 400
-  '#FF7043', // 10. Deep Orange 400
-  '#66BB6A', // 11. Green 400
-  '#EF5350', // 12. Red 400
-  '#AB47BC', // 13. Purple 400
-  '#FFCA28', // 14. Amber 400
-  '#26A69A', // 15. Teal 400
-  '#EC407A', // 16. Pink 400
-  // 사이클 3 — 밝은 톤 (Material 300)
-  '#64B5F6', // 17. Blue 300
-  '#FFB74D', // 18. Orange 300
-  '#81C784', // 19. Green 300
-  '#E57373', // 20. Red 300
-  '#BA68C8', // 21. Purple 300
-  '#DCE775', // 22. Lime 300
-  '#4DB6AC', // 23. Teal 300
-  '#F06292', // 24. Pink 300
-];
-
-function drawDonut(canvasId, items, isGrouped) {
-  const filtered = items.filter(x => Math.abs(x.value || 0) > 0);
-  if (CHARTS[canvasId]) { try { CHARTS[canvasId].destroy(); } catch(e) {} }
-  const labels = filtered.map(x => isGrouped ? x.label : x.company);
-  // 모드에 관계없이 슬라이스 순서대로 팔레트 회전 — 인접 슬라이스는 항상 다른 hue
-  const colors = filtered.map((_, i) => PALETTE[i % PALETTE.length]);
-  CHARTS[canvasId] = new Chart(document.getElementById(canvasId), {
-    type: 'doughnut',
-    data: {
-      labels,
-      datasets: [{ data: filtered.map(x => Math.abs(x.value)), backgroundColor: colors }],
-    },
-    options: {
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'right', labels: { font: { size: 11 } } },
-        tooltip: {
-          callbacks: {
-            label: (ctx) => {
-              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-              const v = ctx.parsed;
-              const pct = total ? (v / total * 100).toFixed(1) : 0;
-              const eok = (v / 1e8).toLocaleString('ko-KR', {maximumFractionDigits: 1});
-              return `${ctx.label}: ${eok} 억원 (${pct}%)`;
-            }
-          }
-        }
-      },
-    },
-  });
-}
-
-function drawDonutsForPrefix(d, prefix, useToggle) {
-  if (!d) return;
-  let isGrouped = true;
-  if (useToggle) {
-    const sel = document.querySelector(`input[name="${prefix}donutMode"]:checked`);
-    isGrouped = !sel || sel.value === 'grouped';
-  }
-  const assetData = isGrouped ? d.by_company_grouped.assets : d.by_company.assets;
-  const salesData = isGrouped ? d.by_company_grouped.sales  : d.by_company.sales;
-  drawDonut(`${prefix}chartAssetsByCo`, assetData, isGrouped);
-  drawDonut(`${prefix}chartSalesByCo`, salesData, isGrouped);
-}
-
-// 도넛 토글 이벤트 (메인 대시보드 전용)
+// 도넛 토글 이벤트
 document.addEventListener('change', e => {
   if (e.target && e.target.name === 'donutMode') {
-    drawDonutsForPrefix(window._DASHBOARD_DATA, '', true);
+    drawDonutsForPrefix(window._DASHBOARD_DATA);
   }
 });
 
 // 비교 기간 라벨 (예: "전년 2025-1Q") — 데이터 로드 시 갱신
 let PRIOR_LABEL_BS = '전년말';
 let PRIOR_LABEL_PL = '전년동기';
-
-function kpiCard(label, item) {
-  item = item || {};
-  // 손익계산서 항목인지 판정 — PL 항목명은 라벨 기반으로 매칭
-  const isPL = /매출|영업이익|당기순이익|영업외|법인세|매출총이익/.test(label);
-  const compareLabel = isPL ? PRIOR_LABEL_PL : PRIOR_LABEL_BS;
-  const hasCompare = item.compare !== null && item.compare !== undefined;
-  let subHtml;
-  if (hasCompare) {
-    const delta = (item.final || 0) - (item.compare || 0);
-    const pct = item.compare ? (delta / Math.abs(item.compare) * 100) : null;
-    const deltaCls = delta > 0 ? 'up' : (delta < 0 ? 'down' : '');
-    const deltaSym = delta > 0 ? '▲' : (delta < 0 ? '▼' : '·');
-    const pctTxt = (pct === null || !isFinite(pct)) ? '' :
-      ` <small>(${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%)</small>`;
-    subHtml = `${escapeHtml(compareLabel)} ${fmt(item.compare)} →
-        <span class="delta ${deltaCls}">${deltaSym} ${fmt(Math.abs(delta))}${pctTxt}</span>`;
-  } else {
-    subHtml = `<span class="text-muted">${escapeHtml(compareLabel)} 미입력
-        <small>(설정에서 전년값을 입력하세요)</small></span>`;
-  }
-  return `
-    <div class="col-md-6 col-lg-3">
-      <div class="kpi-card" title="원본: ${fmtRaw(item.final)}원">
-        <div class="kpi-label">${escapeHtml(label)}</div>
-        <div class="kpi-value">${fmt(item.final)}<span class="kpi-unit">억원</span></div>
-        <div class="kpi-sub">${subHtml}</div>
-      </div>
-    </div>`;
-}
-
-function kpiRatio(label, compareVal, finalVal, isPL) {
-  // compareVal: 전년 비율 (없으면 null/undefined), finalVal: 당기 비율
-  const compareLabel = isPL ? PRIOR_LABEL_PL : PRIOR_LABEL_BS;
-  const hasCompare = compareVal !== null && compareVal !== undefined;
-  let subHtml;
-  if (hasCompare) {
-    const delta = (finalVal || 0) - (compareVal || 0);
-    const deltaCls = delta > 0 ? 'up' : (delta < 0 ? 'down' : '');
-    const deltaSym = delta > 0 ? '▲' : (delta < 0 ? '▼' : '·');
-    subHtml = `${escapeHtml(compareLabel)} ${fmtPct(compareVal)} →
-        <span class="delta ${deltaCls}">${deltaSym} ${fmtPct(Math.abs(delta))}</span>`;
-  } else {
-    subHtml = `<span class="text-muted">${escapeHtml(compareLabel)} 미입력</span>`;
-  }
-  return `
-    <div class="col-md-6 col-lg-3">
-      <div class="kpi-card">
-        <div class="kpi-label">${escapeHtml(label)}</div>
-        <div class="kpi-value">${fmtPct(finalVal)}</div>
-        <div class="kpi-sub">${subHtml}</div>
-      </div>
-    </div>`;
-}
 
 // 초기화
 document.getElementById('periodSelect').addEventListener('change', async () => {
