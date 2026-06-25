@@ -6,39 +6,168 @@
 <title>시계열 분석 — 연결 재무보고 시스템</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <style>
 :root {
+  /* 사이드바/상단바 호환용 브랜드 토큰 (그대로 유지) */
   --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
-  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
-  --border:#dee2e6;
+
+  /* ── 디자인 리뉴얼 토큰 ───────────────────────────────── */
+  --page-bg:#f5f7fb;
+  --card-bg:#fff;
+  --card-radius:13px;
+  --card-border:#e6ebf3;
+  --hd-grad:linear-gradient(135deg,#16386b,#0f2a52);
+  --th-grad:linear-gradient(135deg,#1b3e72,#13315c);
+  --navy:#13315c; --navy-deep:#0f2a52; --accent-blue:#1f4f96;
+  --pos:#1f9d5a;  --neg:#d6492e;
+  --kpi-label:#6a7794; --kpi-value:#13315c; --kpi-unit:#9aa6bd; --kpi-base:#a4afc4;
+  --txt-label:#1c2b45; --txt-value:#2a3650;
+  --row-zebra:#f7f9fc; --row-border:#eef1f6; --row-strong:#eaf0fa; --blank:#c3ccda;
+  --field-label:#8a96ad; --select-border:#d7deea; --select-text:#1c2b45;
+  --info-bg:#eef5fd; --info-border:#dceaf8; --info-text:#3f6396;
 }
-@media (prefers-color-scheme: dark) {
-  :root { --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
-          --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
-          --border:#334155; }
-  body { color-scheme: dark; }
-  .card { background:var(--card-bg); color:var(--text-body); }
-  .form-select, .form-control { background:#0f172a; color:var(--text-body); border-color:var(--border); }
-  .table-light, thead.table-light { --bs-table-bg:#2a3548; color:var(--text-body); }
-  .text-muted { color:var(--text-muted) !important; }
+
+body {
+  background:var(--page-bg);
+  color:var(--txt-value);
+  font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', sans-serif;
 }
-body { background:var(--surface); color:var(--text-body);
-       font-family:'Pretendard','Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',Arial,sans-serif; }
+.num, .ts-table td, .ts-table th, .kpi-value, .kpi-unit, .kpi-delta {
+  font-variant-numeric:tabular-nums; font-feature-settings:'tnum';
+}
 .navbar { background:var(--brand-900) !important; }
-.section-card { border-radius:10px; border:none; box-shadow:0 1px 6px rgba(0,0,0,0.08); background:var(--card-bg); }
-.ts-table { font-variant-numeric:tabular-nums; }
+.container-fluid.ts-wrap { padding:22px; }
+
+/* ── 1. 대시보드 헤더 ─────────────────────────────────── */
+.dash-header {
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  background:var(--hd-grad); color:#fff; padding:20px 26px;
+  border-radius:var(--card-radius); margin-bottom:16px;
+}
+.dash-header-left { display:flex; align-items:center; gap:14px; }
+.dash-logo {
+  width:40px; height:40px; border-radius:10px; flex-shrink:0;
+  background:rgba(255,255,255,.13); display:flex; align-items:center; justify-content:center;
+  font-size:20px; color:#fff;
+}
+.dash-title { font-size:19px; font-weight:700; line-height:1.2; }
+.dash-sub { font-size:12.5px; color:#a9bce0; margin-top:3px; }
+.dash-unit-chip {
+  background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18);
+  color:#dce6f7; border-radius:8px; padding:7px 13px; font-size:12.5px; font-weight:600;
+  white-space:nowrap;
+}
+
+/* ── 2. 필터 툴바 ─────────────────────────────────────── */
+.filter-bar {
+  display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap;
+  background:var(--card-bg); border:1px solid var(--card-border); border-bottom:1px solid #eef1f6;
+  border-radius:var(--card-radius); padding:14px 22px; margin-bottom:0;
+}
+.filter-fields { display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; }
+.filter-fields .field { display:flex; flex-direction:column; gap:5px; }
+.filter-fields .field > label {
+  font-size:11px; font-weight:600; color:var(--field-label); margin:0; letter-spacing:.2px;
+}
+.filter-bar select {
+  border:1px solid var(--select-border); border-radius:8px; padding:8px 30px 8px 12px;
+  color:var(--select-text); font-size:13px; font-weight:600; background:#fff;
+  appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239aa6bd' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat; background-position:right 10px center;
+}
+.filter-bar select:focus { outline:none; border-color:var(--accent-blue); box-shadow:0 0 0 3px rgba(31,79,150,.12); }
+.filter-actions { display:flex; align-items:center; gap:10px; }
+.btn-refresh {
+  border:1px solid var(--accent-blue); background:#fff; color:var(--accent-blue);
+  font-weight:700; font-size:13px; border-radius:8px; padding:10px 16px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; transition:background .15s;
+}
+.btn-refresh:hover { background:#f0f5fc; }
+.btn-excel {
+  border:none; background:linear-gradient(135deg,#1f8a5b,#157049); color:#fff;
+  font-weight:700; font-size:13px; border-radius:8px; padding:10px 16px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; transition:filter .15s;
+}
+.btn-excel:hover { filter:brightness(1.06); }
+
+/* ── 3. 안내 문구 바 ─────────────────────────────────── */
+.info-bar {
+  background:var(--info-bg); border:1px solid var(--info-border); border-top:none;
+  color:var(--info-text); font-size:12px; padding:9px 22px;
+  border-radius:0 0 var(--card-radius) var(--card-radius); margin-bottom:16px;
+}
+.info-bar i { margin-right:5px; }
+
+/* ── 4. KPI 카드 행 ──────────────────────────────────── */
+.kpi-row {
+  display:grid; grid-template-columns:repeat(6, 1fr); gap:13px; margin-bottom:16px;
+}
+@media (max-width:1400px){ .kpi-row { grid-template-columns:repeat(3,1fr); } }
+@media (max-width:760px){ .kpi-row { grid-template-columns:repeat(2,1fr); } }
+.kpi-card {
+  background:var(--card-bg); border:1px solid var(--card-border); border-radius:var(--card-radius);
+  padding:15px 17px;
+}
+.kpi-card .kpi-label { font-size:12.5px; font-weight:600; color:var(--kpi-label); margin-bottom:9px; }
+.kpi-card .kpi-main { display:flex; align-items:baseline; gap:5px; margin-bottom:9px; }
+.kpi-card .kpi-value { font-size:27px; font-weight:800; color:var(--kpi-value); line-height:1; }
+.kpi-card .kpi-unit { font-size:12.5px; color:var(--kpi-unit); }
+.kpi-card .kpi-delta { font-size:12px; font-weight:600; display:flex; align-items:center; gap:4px; }
+.kpi-card .kpi-delta.pos { color:var(--pos); }
+.kpi-card .kpi-delta.neg { color:var(--neg); }
+.kpi-card .kpi-delta.flat { color:var(--kpi-base); }
+.kpi-card .kpi-base { color:var(--kpi-base); font-weight:500; margin-left:2px; }
+
+/* ── 5. 표 ───────────────────────────────────────────── */
+.table-card { background:var(--card-bg); border:1px solid var(--card-border);
+  border-radius:var(--card-radius); overflow:hidden; }
+.ts-table { width:100%; margin:0; border-collapse:collapse; }
 .ts-table th, .ts-table td { white-space:nowrap; }
-.ts-table thead th { background:var(--brand-900); color:#fff; text-align:center; vertical-align:middle; }
-.ts-table tbody th { background:var(--brand-050); color:var(--brand-900); font-weight:600; text-align:left; position:sticky; left:0; }
-.ts-table td { text-align:right; }
-.ts-table tr.ts-derived td, .ts-table tr.ts-derived th { background:#fffdf3; }
-@media (prefers-color-scheme: dark){ .ts-table tr.ts-derived td, .ts-table tr.ts-derived th { background:#26314a; } }
-.ts-table tr.ts-ebitda th, .ts-table tr.ts-ebitda td { font-weight:700; }
-.ts-blank { color:var(--text-muted); }
-.unit-badge { background:#fff3cd; color:#664d03; padding:3px 10px; border-radius:6px;
-              font-size:0.85rem; font-weight:600; display:inline-block; }
+.ts-table thead th {
+  background:var(--th-grad); color:#fff; font-size:13px; font-weight:600;
+  text-align:right; vertical-align:middle; padding:11px 18px;
+}
+.ts-table thead th:first-child { text-align:left; }
+.ts-table thead th .th-sub { display:block; font-size:11px; font-weight:500; color:#aebfd8; margin-top:2px; }
+.ts-table tbody th {
+  text-align:left; font-weight:600; color:var(--txt-label);
+  padding:9px 18px; font-size:13px; position:sticky; left:0;
+}
+.ts-table tbody td {
+  text-align:right; color:var(--txt-value); padding:9px 18px; font-size:13px;
+}
+.ts-table tbody tr { border-top:1px solid var(--row-border); }
+.ts-table tbody tr td, .ts-table tbody tr th { background:#fff; }
+.ts-table tbody tr:nth-child(even) td, .ts-table tbody tr:nth-child(even) th { background:var(--row-zebra); }
+.ts-table tbody tr.ts-strong td, .ts-table tbody tr.ts-strong th {
+  background:var(--row-strong); font-weight:700; color:var(--navy-deep);
+}
+.ts-blank { color:var(--blank); }
+
+/* ── 6. 차트 카드 ────────────────────────────────────── */
+.chart-card {
+  background:var(--card-bg); border:1px solid var(--card-border);
+  border-radius:var(--card-radius); padding:18px 20px; height:100%;
+}
+.chart-card .chart-title { font-size:14px; font-weight:700; color:var(--navy); margin:0 0 2px; }
+.chart-card .chart-desc { font-size:11.5px; color:#8a96ad; margin-bottom:12px; display:block; }
+.chart-legend { display:flex; gap:14px; margin-bottom:8px; flex-wrap:wrap; }
+.chart-legend .lg { display:inline-flex; align-items:center; gap:5px; font-size:11.5px; color:#5a6580; }
+.chart-legend .lg .sw { width:11px; height:11px; border-radius:3px; display:inline-block; }
+.chart-legend .lg .sw.line { width:14px; height:0; border-top:3px solid; border-radius:0; }
+
+/* 상태 카드(로딩/안내) */
+.state-card {
+  background:var(--card-bg); border:1px solid var(--card-border);
+  border-radius:var(--card-radius); text-align:center; padding:48px 20px;
+}
+.state-card .ico { font-size:2rem; display:block; margin-bottom:8px; }
+.state-muted { color:var(--kpi-label); }
+.state-danger { color:var(--neg); }
 </style>
 </head>
 <body>
@@ -48,75 +177,99 @@ body { background:var(--surface); color:var(--text-body);
 
 {% include '_topbar.html' %}
 
-<div class="container-fluid mt-3">
+<div class="container-fluid ts-wrap">
 
-  <!-- 선택 -->
-  <div class="card section-card mb-3">
-    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
-      <label class="fw-bold mb-0"><i class="bi bi-diagram-3"></i> 연결그룹</label>
-      <select id="groupSelect" class="form-select" style="max-width:260px">
-        <option value="">— 그룹 선택 —</option>
-      </select>
-      <label class="fw-bold mb-0 ms-3"><i class="bi bi-calendar3"></i> 시작 결산기간</label>
-      <select id="startSelect" class="form-select" style="max-width:150px">
-        {% for y in options %}
-        <option value="{{ y }}" {% if y == default_start %}selected{% endif %}>{{ y }}</option>
-        {% endfor %}
-      </select>
-      <label class="fw-bold mb-0"><i class="bi bi-arrow-right"></i> 종료 결산기간</label>
-      <select id="endSelect" class="form-select" style="max-width:150px">
-        {% for y in options %}
-        <option value="{{ y }}" {% if y == default_end %}selected{% endif %}>{{ y }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn-primary" onclick="loadSeries()">
-        <i class="bi bi-arrow-clockwise"></i> 새로고침
+  <!-- 1. 대시보드 헤더 -->
+  <div class="dash-header">
+    <div class="dash-header-left">
+      <div class="dash-logo"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i></div>
+      <div>
+        <div class="dash-title">분기 결산 재무 대시보드</div>
+        <div class="dash-sub" id="dashSub">연결그룹 선택 대기 중…</div>
+      </div>
+    </div>
+    <div class="dash-unit-chip">단위 : 억원 (비율 제외)</div>
+  </div>
+
+  <!-- 2. 필터 툴바 -->
+  <div class="filter-bar">
+    <div class="filter-fields">
+      <div class="field">
+        <label>연결그룹</label>
+        <select id="groupSelect" style="min-width:220px">
+          <option value="">— 그룹 선택 —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>시작 결산기간</label>
+        <select id="startSelect">
+          {% for y in options %}
+          <option value="{{ y }}" {% if y == default_start %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label>종료 결산기간</label>
+        <select id="endSelect">
+          {% for y in options %}
+          <option value="{{ y }}" {% if y == default_end %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="filter-actions">
+      <button class="btn-refresh" onclick="loadSeries()">
+        <i class="bi bi-arrow-clockwise" aria-hidden="true"></i> 새로고침
       </button>
-      <button id="downloadBtn" class="btn btn-outline-success" onclick="downloadExcel()">
-        <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+      <button id="downloadBtn" class="btn-excel" onclick="downloadExcel()">
+        <i class="bi bi-file-earmark-excel" aria-hidden="true"></i> 엑셀 다운로드
       </button>
-      <span class="unit-badge ms-auto">단위: 억원 (비율 제외)</span>
     </div>
   </div>
 
-  <div class="alert alert-info py-2 small mb-3">
-    <i class="bi bi-info-circle"></i>
+  <!-- 3. 안내 문구 -->
+  <div class="info-bar">
+    <i class="bi bi-info-circle" aria-hidden="true"></i>
     각 열은 <strong>해당 결산분기</strong> 기준입니다. 분기 결산(1Q·2Q·3Q)의 손익 항목은 <strong>연환산</strong>되며, 재무상태표 항목은 분기말 잔액 그대로입니다.
   </div>
 
-  <!-- 본문 (표) -->
+  <!-- 4. KPI 카드 행 -->
+  <div id="kpiRow" class="kpi-row" style="display:none"></div>
+
+  <!-- 5. 본문 (표) -->
   <div id="seriesBody">
-    <div class="card section-card">
-      <div class="card-body text-center text-muted py-5">
-        <i class="bi bi-hourglass-split fs-1 d-block mb-2"></i>
-        불러오는 중…
-      </div>
+    <div class="state-card state-muted">
+      <i class="bi bi-hourglass-split ico" aria-hidden="true"></i>
+      불러오는 중…
     </div>
   </div>
 
-  <!-- 그래프 (하단) -->
-  <div id="chartCard" class="row g-3 mt-0" style="display:none">
+  <!-- 6. 그래프 (하단) -->
+  <div id="chartCard" class="row g-3 mt-1" style="display:none">
     <div class="col-12 col-xl-6">
-      <div class="card section-card h-100">
-        <div class="card-body">
-          <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart-line"></i> 수익성
-            <span class="text-muted small fw-normal">— 막대: 매출액·영업이익(억원) / 선: 영업이익률(%)</span>
-          </h6>
-          <div style="position:relative; height:340px;">
-            <canvas id="tsChartProfit"></canvas>
-          </div>
+      <div class="chart-card">
+        <h6 class="chart-title">수익성</h6>
+        <span class="chart-desc">막대: 매출액 · 영업이익(억원) / 선: 영업이익률(%)</span>
+        <div class="chart-legend">
+          <span class="lg"><span class="sw" style="background:linear-gradient(135deg,#5a86c4,#3f6fb2)"></span>매출액</span>
+          <span class="lg"><span class="sw" style="background:#5aa66f"></span>영업이익</span>
+          <span class="lg"><span class="sw line" style="border-color:#3b5bdb"></span>영업이익률</span>
+        </div>
+        <div style="position:relative; height:330px;">
+          <canvas id="tsChartProfit"></canvas>
         </div>
       </div>
     </div>
     <div class="col-12 col-xl-6">
-      <div class="card section-card h-100">
-        <div class="card-body">
-          <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart-line"></i> 차입 / 재무구조
-            <span class="text-muted small fw-normal">— 막대: 차입금(억원) / 선: 부채비율(%)</span>
-          </h6>
-          <div style="position:relative; height:340px;">
-            <canvas id="tsChartDebt"></canvas>
-          </div>
+      <div class="chart-card">
+        <h6 class="chart-title">차입 / 재무구조</h6>
+        <span class="chart-desc">막대: 차입금(억원) / 선: 부채비율(%)</span>
+        <div class="chart-legend">
+          <span class="lg"><span class="sw" style="background:linear-gradient(135deg,#7d93b3,#5e7aa0)"></span>차입금</span>
+          <span class="lg"><span class="sw line" style="border-color:#d6492e"></span>부채비율</span>
+        </div>
+        <div style="position:relative; height:330px;">
+          <canvas id="tsChartDebt"></canvas>
         </div>
       </div>
     </div>
@@ -148,6 +301,17 @@ async function loadGroups() {
   }
 }
 
+// 헤더 서브타이틀(연결그룹 · 이름 | 시작 ~ 종료) 갱신
+function updateHeaderSub() {
+  const sel = document.getElementById('groupSelect');
+  const name = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].text : '';
+  const start = document.getElementById('startSelect').value;
+  const end = document.getElementById('endSelect').value;
+  const el = document.getElementById('dashSub');
+  if (!sel.value) { el.textContent = '연결그룹 선택 대기 중…'; return; }
+  el.textContent = `연결그룹 · ${name} | ${start} ~ ${end}`;
+}
+
 // 금액: 원 → 억원
 function fmtAmt(n) {
   if (n === null || n === undefined || isNaN(n)) return '<span class="ts-blank">–</span>';
@@ -172,27 +336,27 @@ function fmtX(n) {
 const ROWS = [
   ['sales',      '매출액',        fmtAmt, ''],
   ['op',         '영업이익',      fmtAmt, ''],
-  ['op_margin',  '영업이익률',    fmtPct, 'ts-derived'],
+  ['op_margin',  '영업이익률',    fmtPct, ''],
   ['amort',      '상각비',        fmtAmt, ''],
   ['ni',         '당기순이익',    fmtAmt, ''],
-  ['ebitda',     'EBITDA',        fmtAmt, 'ts-derived ts-ebitda'],
+  ['ebitda',     'EBITDA',        fmtAmt, 'ts-strong'],
   ['debt_total', '총차입금',      fmtAmt, ''],
   ['cash',       '현금성자산',    fmtAmt, ''],
-  ['net_debt',   'Net Debt',      fmtAmt, 'ts-derived'],
+  ['net_debt',   'Net Debt',      fmtAmt, 'ts-strong'],
   ['interest',   '이자비용',      fmtAmt, ''],
   ['assets',     '총자산',        fmtAmt, ''],
   ['liab',       '총부채',        fmtAmt, ''],
   ['equity',     '총자본',        fmtAmt, ''],
-  ['debt_ratio', '부채비율',      fmtPct, 'ts-derived'],
-  ['icr',        '이자보상비율',  fmtX,   'ts-derived'],
+  ['debt_ratio', '부채비율',      fmtPct, 'ts-strong'],
+  ['icr',        '이자보상비율',  fmtX,   ''],
 ];
 
 function render(cols) {
-  let h = '<div class="card section-card"><div class="card-body p-0"><div class="table-responsive">';
-  h += '<table class="table table-sm table-bordered ts-table mb-0"><thead><tr><th style="min-width:130px">구분</th>';
+  let h = '<div class="table-card"><div class="table-responsive">';
+  h += '<table class="ts-table"><thead><tr><th style="min-width:130px">구분</th>';
   cols.forEach(c => {
-    const sub = c.has_data ? `<div class="small opacity-75">${c.period}</div>`
-                           : `<div class="small opacity-75">데이터 없음</div>`;
+    const sub = c.has_data ? `<span class="th-sub">${c.period}</span>`
+                           : `<span class="th-sub">데이터 없음</span>`;
     h += `<th style="min-width:110px">${c.label}${sub}</th>`;
   });
   h += '</tr></thead><tbody>';
@@ -204,24 +368,102 @@ function render(cols) {
     });
     h += '</tr>';
   });
-  h += '</tbody></table></div></div></div>';
+  h += '</tbody></table></div></div>';
   document.getElementById('seriesBody').innerHTML = h;
+}
+
+// ── KPI 카드 ─────────────────────────────────────────────
+// 값은 하드코딩하지 않고, 받아온 columns(최신 결산분기 vs 직전 결산분기)로 계산.
+const KPI_DEFS = [
+  {key:'sales',      label:'매출액',     mode:'amt', higherIsGood:true},
+  {key:'op',         label:'영업이익',   mode:'amt', higherIsGood:true},
+  {key:'op_margin',  label:'영업이익률', mode:'pct', higherIsGood:true},
+  {key:'ebitda',     label:'EBITDA',     mode:'amt', higherIsGood:true},
+  {key:'ni',         label:'당기순이익', mode:'amt', higherIsGood:true},
+  {key:'debt_ratio', label:'부채비율',   mode:'pct', higherIsGood:false},
+];
+
+function renderKpis(cols) {
+  const wrap = document.getElementById('kpiRow');
+  const dataCols = (cols || []).filter(c => c.has_data && c.metrics);
+  if (dataCols.length === 0) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+  const cur  = dataCols[dataCols.length - 1];
+  const prev = dataCols.length >= 2 ? dataCols[dataCols.length - 2] : null;
+
+  wrap.innerHTML = KPI_DEFS.map(d => {
+    const cv = cur.metrics[d.key];
+    const pv = prev ? prev.metrics[d.key] : null;
+
+    // 값 표시
+    let valTxt = '–', unit = '';
+    if (cv != null && !isNaN(cv)) {
+      if (d.mode === 'amt') { valTxt = fmtAmt(cv); unit = '억원'; }
+      else { valTxt = (Number(cv) * 100).toLocaleString('ko-KR', {maximumFractionDigits:1, minimumFractionDigits:1}); unit = '%'; }
+    }
+
+    // 증감 표시 (전분기 대비)
+    let deltaHtml = '<span class="kpi-base">기준</span>';
+    let cls = 'flat';
+    if (cv != null && pv != null && !isNaN(cv) && !isNaN(pv)) {
+      let diff, diffTxt;
+      if (d.mode === 'amt') {
+        diff = cv - pv;
+        const pctChg = pv !== 0 ? (diff / Math.abs(pv)) * 100 : null;
+        diffTxt = pctChg == null ? '–' : Math.abs(pctChg).toFixed(1) + '%';
+      } else {
+        diff = cv - pv;                       // 비율 → %p
+        diffTxt = Math.abs(diff * 100).toFixed(1) + '%p';
+      }
+      const arrow = diff > 0 ? '▲' : (diff < 0 ? '▼' : '■');
+      const isGood = diff === 0 ? null : ((diff > 0) === d.higherIsGood);
+      cls = isGood === null ? 'flat' : (isGood ? 'pos' : 'neg');
+      deltaHtml = `${arrow} ${diffTxt} <span class="kpi-base">전분기</span>`;
+    }
+
+    return `<div class="kpi-card">
+      <div class="kpi-label">${d.label}</div>
+      <div class="kpi-main"><span class="kpi-value">${valTxt}</span><span class="kpi-unit">${unit}</span></div>
+      <div class="kpi-delta ${cls}">${deltaHtml}</div>
+    </div>`;
+  }).join('');
+  wrap.style.display = '';
+}
+
+function hideKpis() {
+  const wrap = document.getElementById('kpiRow');
+  wrap.style.display = 'none';
+  wrap.innerHTML = '';
 }
 
 // ── 추이 그래프 ──────────────────────────────────────────────
 if (window.ChartDataLabels) { Chart.register(window.ChartDataLabels); }
 
+// 세로 그라데이션 배경(막대용) 생성 — chartArea 준비 전엔 시작색 반환
+function makeGradient(c1, c2) {
+  return (context) => {
+    const chart = context.chart;
+    const { ctx, chartArea } = chart;
+    if (!chartArea) return c1;
+    const g = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+    g.addColorStop(0, c1);
+    g.addColorStop(1, c2);
+    return g;
+  };
+}
+
 // 차트 정의: canvas id + 막대(억원, 좌축) / 선(%, 우축) 항목
+// 막대 style: {grad:[하단,상단]} 또는 {solid:'#hex'}
 const CHART_DEFS = {
   profit: {
     canvas: 'tsChartProfit',
-    bars:  [['sales', '매출액', '#4472C4'], ['op', '영업이익', '#70AD47']],
-    lines: [['op_margin', '영업이익률', '#7030A0']],
+    bars:  [['sales', '매출액', {grad:['#5a86c4', '#3f6fb2']}],
+            ['op',    '영업이익', {solid:'#5aa66f'}]],
+    lines: [['op_margin', '영업이익률', '#3b5bdb']],
   },
   debt: {
     canvas: 'tsChartDebt',
-    bars:  [['debt_total', '차입금', '#ED7D31']],
-    lines: [['debt_ratio', '부채비율', '#C00000']],
+    bars:  [['debt_total', '차입금', {grad:['#7d93b3', '#5e7aa0']}]],
+    lines: [['debt_ratio', '부채비율', '#d6492e']],
   },
 };
 const tsCharts = { profit: null, debt: null };
@@ -232,10 +474,12 @@ function buildChartConfig(cols, def, theme) {
   const pct = (c, k) => (c.has_data && c.metrics && c.metrics[k] != null) ? c.metrics[k] * 100 : null;  // %
 
   const datasets = [];
-  def.bars.forEach(([key, label, color]) => {
+  def.bars.forEach(([key, label, style]) => {
+    const bg = style.grad ? makeGradient(style.grad[0], style.grad[1]) : style.solid;
+    const border = style.grad ? style.grad[1] : style.solid;
     datasets.push({
       type: 'bar', label, yAxisID: 'yAmt', order: 2,
-      backgroundColor: color + 'cc', borderColor: color, borderWidth: 1,
+      backgroundColor: bg, borderColor: border, borderWidth: 1, borderRadius: 3,
       data: cols.map(c => amt(c, key)),
       datalabels: {
         anchor: 'center', align: 'center', color: '#fff', font: { size: 10, weight: '700' },
@@ -247,7 +491,8 @@ function buildChartConfig(cols, def, theme) {
     datasets.push({
       type: 'line', label, yAxisID: 'yPct', order: 1,
       borderColor: color, backgroundColor: color, borderWidth: 2,
-      pointRadius: 3, pointHoverRadius: 5, tension: 0.25, spanGaps: true,
+      pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: color,
+      pointBorderColor: '#fff', pointBorderWidth: 1, tension: 0.25, spanGaps: true,
       data: cols.map(c => pct(c, key)),
       datalabels: {
         anchor: 'end', align: 'top', color: color, font: { size: 10, weight: '700' },
@@ -262,7 +507,7 @@ function buildChartConfig(cols, def, theme) {
       responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       layout: { padding: { top: 18 } },
       plugins: {
-        legend: { labels: { color: theme.tick } },
+        legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -276,7 +521,7 @@ function buildChartConfig(cols, def, theme) {
         },
       },
       scales: {
-        x: { ticks: { color: theme.tick }, grid: { color: theme.grid } },
+        x: { ticks: { color: theme.tick, font: { size: 11.5, weight: '600' } }, grid: { color: theme.grid } },
         yAmt: { position: 'left', title: { display: true, text: '억원', color: theme.tick },
                 ticks: { color: theme.tick, callback: v => v.toLocaleString('ko-KR') }, grid: { color: theme.grid } },
         yPct: { position: 'right', title: { display: true, text: '%', color: theme.tick },
@@ -291,11 +536,7 @@ function renderChart(cols) {
   if (!cols || !cols.some(c => c.has_data)) { hideChart(); return; }
   card.style.display = '';
 
-  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const theme = {
-    tick: isDark ? '#cbd5e1' : '#475569',
-    grid: isDark ? 'rgba(148,163,184,0.18)' : 'rgba(0,0,0,0.06)',
-  };
+  const theme = { tick: '#8a96ad', grid: 'rgba(0,0,0,0.06)' };
 
   Object.keys(CHART_DEFS).forEach(name => {
     const def = CHART_DEFS[name];
@@ -322,36 +563,38 @@ function loadSeries() {
   const end = document.getElementById('endSelect').value;
   const gid = document.getElementById('groupSelect').value;
   const body = document.getElementById('seriesBody');
+  updateHeaderSub();
   if (!gid) {
-    hideChart();
-    body.innerHTML = '<div class="card section-card"><div class="card-body text-center text-muted py-5">'
-      + '<i class="bi bi-diagram-3 fs-1 d-block mb-2"></i>연결그룹을 선택해 주세요.</div></div>';
+    hideChart(); hideKpis();
+    body.innerHTML = '<div class="state-card state-muted">'
+      + '<i class="bi bi-diagram-3 ico"></i>연결그룹을 선택해 주세요.</div>';
     return;
   }
   if (start && end && start > end) {
-    hideChart();
-    body.innerHTML = '<div class="card section-card"><div class="card-body text-center text-danger py-5">'
-      + '<i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>종료 결산기간이 시작 결산기간보다 빠릅니다.</div></div>';
+    hideChart(); hideKpis();
+    body.innerHTML = '<div class="state-card state-danger">'
+      + '<i class="bi bi-exclamation-triangle ico"></i>종료 결산기간이 시작 결산기간보다 빠릅니다.</div>';
     return;
   }
-  body.innerHTML = '<div class="card section-card"><div class="card-body text-center text-muted py-5">'
-    + '<div class="spinner-border text-primary mb-2"></div><div>계산 중… (분기별 연결 실행)</div></div></div>';
+  body.innerHTML = '<div class="state-card state-muted">'
+    + '<div class="spinner-border text-primary mb-2"></div><div>계산 중… (분기별 연결 실행)</div></div>';
   fetch(`/timeseries/${gid}/data?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`)
     .then(r => r.json())
     .then(d => {
       if (!d.ok) {
-        hideChart();
-        body.innerHTML = `<div class="card section-card"><div class="card-body text-center text-danger py-5">`
-          + `<i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>${d.error || '오류'}</div></div>`;
+        hideChart(); hideKpis();
+        body.innerHTML = `<div class="state-card state-danger">`
+          + `<i class="bi bi-exclamation-triangle ico"></i>${d.error || '오류'}</div>`;
         return;
       }
       render(d.columns || []);
+      renderKpis(d.columns || []);
       renderChart(d.columns || []);
     })
     .catch(e => {
-      hideChart();
-      body.innerHTML = `<div class="card section-card"><div class="card-body text-center text-danger py-5">`
-        + `<i class="bi bi-exclamation-triangle fs-1 d-block mb-2"></i>요청 실패: ${e}</div></div>`;
+      hideChart(); hideKpis();
+      body.innerHTML = `<div class="state-card state-danger">`
+        + `<i class="bi bi-exclamation-triangle ico"></i>요청 실패: ${e}</div>`;
     });
 }
 
