@@ -123,6 +123,90 @@
   }
   .std-tag.std-gaap { background:#fff3cd; color:#856404; }
 </style>
+<style>
+/* ── 검증 실행 리뉴얼 (pv-*) — 대시보드 동일 디자인 토큰 ─────────── */
+:root{
+  --pv-blue:#1d4ed8; --pv-blue-bg:#eaf0fe; --pv-blue-bd:#d3e0fd;
+  --pv-ink:#0f1b2d; --pv-sub:#64748b; --pv-faint:#94a3b8; --pv-rowline:#f4f6fb;
+  --pv-card:#fff; --pv-bd:#e7ebf2; --pv-radius:14px; --pv-shadow:0 1px 3px rgba(16,24,40,.05);
+  --pv-neu-bg:#f1f5f9; --pv-neu-bd:#e2e8f0; --pv-neu-tx:#334155;
+  --pv-sel-bg:#f6f9ff; --pv-green:#15803d; --pv-btn-off:#e2e8f0;
+}
+body { background:#eef1f6; }
+.pv-page { max-width:1080px; margin:0 auto; padding:28px 24px 48px; display:flex; flex-direction:column; gap:18px;
+  font-feature-settings:'tnum' 1; }
+
+/* 1) 페이지 헤더 */
+.pv-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; }
+.pv-h-title { font-size:20px; font-weight:700; color:var(--pv-ink); letter-spacing:-.2px; }
+.pv-h-sub { font-size:12.5px; color:var(--pv-sub); margin-top:3px; }
+.pv-sel-chip { background:var(--pv-blue-bg); border:1px solid var(--pv-blue-bd); color:var(--pv-blue);
+  font-size:13px; font-weight:700; padding:6px 12px; border-radius:8px; white-space:nowrap; }
+
+/* 카드 공통 */
+.pv-card { background:var(--pv-card); border:1px solid var(--pv-bd); border-radius:var(--pv-radius); box-shadow:var(--pv-shadow); overflow:hidden; }
+.pv-card-head { display:flex; align-items:center; gap:10px; padding:15px 22px; border-bottom:1px solid #eef1f6;
+  font-size:14.5px; font-weight:700; color:var(--pv-ink); }
+.pv-bar { width:4px; height:16px; background:var(--pv-blue); border-radius:2px; flex-shrink:0; }
+.pv-head-right { margin-left:auto; display:flex; align-items:center; gap:14px; }
+.pv-tab-hint { font-size:12px; color:var(--pv-faint); font-weight:600; }
+.pv-toggle-all { font-size:12px; font-weight:700; color:var(--pv-blue); cursor:pointer; user-select:none; }
+.pv-toggle-all:hover { text-decoration:underline; }
+
+/* 2) 결산기간 카드 본문 */
+.pv-period-body { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 22px; flex-wrap:wrap; }
+.pv-period-left { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.pv-pill-select { position:relative; display:inline-flex; align-items:center; background:#f8fafc;
+  border:1px solid #dbe1ea; border-radius:9px; padding:10px 14px; }
+.pv-pill-select select { appearance:none; -webkit-appearance:none; border:none; background:transparent; outline:none;
+  font-size:13.5px; font-weight:600; color:var(--pv-ink); padding-right:22px; cursor:pointer; font-feature-settings:'tnum' 1; }
+.pv-pill-select .bi { position:absolute; right:12px; color:var(--pv-faint); pointer-events:none; font-size:11px; }
+.pv-helper { font-size:12.5px; color:var(--pv-sub); }
+.pv-chip-neutral { background:var(--pv-neu-bg); border:1px solid var(--pv-neu-bd); color:var(--pv-neu-tx);
+  font-size:12.5px; font-weight:700; padding:6px 12px; border-radius:8px; white-space:nowrap; font-feature-settings:'tnum' 1; }
+
+/* 3) 탭 바 */
+.pv-tabs { display:flex; background:#fbfcfe; border-bottom:1px solid var(--pv-bd); padding:0 8px; }
+.pv-tab { border:none; background:none; padding:13px 14px; font-size:13px; font-weight:600; color:var(--pv-sub);
+  cursor:pointer; position:relative; display:inline-flex; align-items:center; gap:7px; }
+.pv-tab.active { color:var(--pv-ink); font-weight:700; }
+.pv-tab.active::after { content:''; position:absolute; left:8px; right:8px; bottom:-1px; height:2px; background:var(--pv-blue); border-radius:2px 2px 0 0; }
+.pv-tab-count { font-size:11px; font-weight:700; min-width:18px; text-align:center; padding:1px 7px; border-radius:999px;
+  background:var(--pv-neu-bd); color:var(--pv-sub); font-feature-settings:'tnum' 1; }
+.pv-tab.active .pv-tab-count { background:var(--pv-blue); color:#fff; }
+
+/* 항목 리스트 */
+.pv-pane[hidden] { display:none; }
+.pv-item { display:flex; align-items:flex-start; gap:13px; padding:17px 22px; border-bottom:1px solid var(--pv-rowline);
+  cursor:pointer; position:relative; transition:background .12s; }
+.pv-item:last-child { border-bottom:none; }
+.pv-item:hover { background:#f8fafc; }
+.pv-item.selected { background:var(--pv-sel-bg); }
+.pv-item.selected::before { content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--pv-blue); }
+.pv-check { width:20px; height:20px; border-radius:6px; border:1.5px solid #cbd5e1; background:#fff; flex-shrink:0;
+  margin-top:1px; display:flex; align-items:center; justify-content:center; transition:all .12s; }
+.pv-check::after { content:'✓'; color:#fff; font-size:12px; font-weight:800; line-height:1; opacity:0; }
+.pv-item.selected .pv-check { background:var(--pv-blue); border-color:var(--pv-blue); }
+.pv-item.selected .pv-check::after { opacity:1; }
+.pv-item-title { font-size:14px; font-weight:700; color:var(--pv-ink); line-height:1.5; }
+.pv-item-desc { font-size:12.5px; color:var(--pv-sub); line-height:1.5; margin-top:2px; }
+
+/* 푸터 */
+.pv-footer { display:flex; align-items:center; gap:14px; padding:16px 22px; background:#fbfcfe; border-top:1px solid var(--pv-bd); }
+.pv-run { border:none; border-radius:9px; padding:10px 20px; font-size:14px; font-weight:700; cursor:pointer; transition:filter .15s; }
+.pv-run.is-off { background:var(--pv-btn-off); color:var(--pv-faint); cursor:not-allowed; }
+.pv-run.is-on { background:var(--pv-blue); color:#fff; }
+.pv-run.is-on:hover { filter:brightness(1.08); }
+.pv-run.is-done { background:var(--pv-green); color:#fff; }
+.pv-run-hint { font-size:12.5px; color:var(--pv-sub); }
+.pv-run-hint.done { color:var(--pv-green); font-weight:600; }
+
+/* 결과 섹션 래퍼 (멀티 실행 시 항목별 구분) */
+.pv-result-sec { background:var(--pv-card); border:1px solid var(--pv-bd); border-radius:var(--pv-radius); box-shadow:var(--pv-shadow); overflow:hidden; margin-top:2px; }
+.pv-result-head { display:flex; align-items:center; gap:10px; padding:13px 18px; border-bottom:1px solid #eef1f6; font-size:14px; font-weight:700; color:var(--pv-ink); }
+.pv-result-busy { font-size:12px; font-weight:600; color:var(--pv-blue); }
+.pv-result-body { padding:16px 18px; }
+</style>
 </head>
 <body>
 
@@ -131,161 +215,142 @@
 
 {% include '_topbar.html' %}
 
-<div class="container-fluid px-4 pb-5">
+<div class="pv-page">
 
-  <!-- 결산기간 -->
-  <div class="card mb-4">
-    <div class="card-header d-flex align-items-center gap-2">
-      <i class="bi bi-calendar3"></i><span>결산기간</span>
+  <!-- 1) 페이지 헤더 -->
+  <div class="pv-head">
+    <div>
+      <div class="pv-h-title">검증 실행</div>
+      <div class="pv-h-sub">분기 패키지를 대상으로 검증 항목을 선택해 일괄 검증합니다.</div>
     </div>
-    <div class="card-body">
-      <div class="d-flex align-items-center gap-3 flex-wrap">
-        <select id="yearSelect" class="form-select" style="max-width:240px;">
-          {% for y in years %}
-          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
-          {% endfor %}
-        </select>
-        <span class="text-muted small">선택한 분기의 업로드된 모든 패키지를 대상으로 검증합니다.</span>
-        <span class="badge bg-light text-dark border ms-auto" id="fileCountBadge">
-          <i class="bi bi-archive me-1"></i><span id="fileCount">-</span>개 패키지
+    <div class="pv-sel-chip">선택 <span id="selCount">0</span> / 10 항목</div>
+  </div>
+
+  <!-- 2) 결산기간 카드 -->
+  <div class="pv-card">
+    <div class="pv-card-head"><span class="pv-bar"></span>결산기간</div>
+    <div class="pv-period-body">
+      <div class="pv-period-left">
+        <span class="pv-pill-select">
+          <select id="yearSelect">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+          <i class="bi bi-chevron-down"></i>
         </span>
+        <span class="pv-helper">선택한 분기의 업로드된 모든 패키지를 대상으로 검증합니다.</span>
       </div>
+      <span class="pv-chip-neutral"><span id="fileCount">-</span>개 패키지</span>
     </div>
   </div>
 
-  <!-- 검증 항목 -->
-  <div class="card mb-4">
-    <div class="card-header d-flex align-items-center gap-2">
-      <i class="bi bi-list-check"></i><span>검증 항목</span>
+  <!-- 3) 검증 항목 카드 -->
+  <div class="pv-card">
+    <div class="pv-card-head">
+      <span class="pv-bar"></span>검증 항목
+      <span class="pv-head-right">
+        <span class="pv-tab-hint" id="tabHint">현금흐름표 검증 · 6개 항목</span>
+        <span class="pv-toggle-all" id="toggleAll" onclick="toggleAllCurrent()">전체 선택</span>
+      </span>
     </div>
-    <div class="card-body p-0">
-      <ul class="nav verify-tabs px-3 pt-2" role="tablist">
-        <li class="nav-item">
-          <button class="nav-link active" data-group="wcf" type="button"
-                  onclick="selectGroup('wcf')">
-            <i class="bi bi-cash-stack me-1"></i>현금흐름표 검증<span class="badge">6</span>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-group="note" type="button"
-                  onclick="selectGroup('note')">
-            <i class="bi bi-journal-text me-1"></i>주석 검증<span class="badge">2</span>
-          </button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" data-group="asset" type="button"
-                  onclick="selectGroup('asset')">
-            <i class="bi bi-building me-1"></i>유무형자산검증<span class="badge">2</span>
-          </button>
-        </li>
-      </ul>
 
-      <div class="verify-tab-content">
-        <!-- 현금흐름표 검증 -->
-        <div class="verify-pane" id="groupWcf">
-          <div class="verify-list-group">
-            <button type="button" class="verify-item" id="itemWcfDiff"
-                    onclick="selectVerify('wcf-diff')">
-              <span class="v-key">Diff</span>
-              <div class="flex-grow-1">
-                <div class="v-title">WCF Diff 검증</div>
-                <div class="v-desc">현금흐름표의 손익계정이 PL/MF와 불일치하는 경우 원인을 함께 표시 (원인 미기재행도 별도 표기).</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemWcfAccounts"
-                    onclick="selectVerify('wcf-accounts')">
-              <span class="v-key">계정</span>
-              <div class="flex-grow-1">
-                <div class="v-title">WCF 계정 검증</div>
-                <div class="v-desc">비용 컬럼에 수익계정 입력 또는 수익 컬럼에 비용계정 입력된 행 표시.</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemWcfSigns"
-                    onclick="selectVerify('wcf-signs')">
-              <span class="v-key">부호</span>
-              <div class="flex-grow-1">
-                <div class="v-title">WCF 부호 검증</div>
-                <div class="v-desc">투자·재무활동 금액 컬럼에서 동일 CF 코드 합계가 음수인 항목 표시.</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemWcfSeverance"
-                    onclick="selectVerify('wcf-severance')">
-              <span class="v-key">퇴직</span>
-              <div class="flex-grow-1">
-                <div class="v-title">퇴직금 부호 검증</div>
-                <div class="v-desc">WCF CF2200401(퇴직금의 지급) 행들의 합계가 양수인 회사 표시 (Cash-out이라 음수가 정상).</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemCf3Liquidity"
-                    onclick="selectVerify('cf3-liquidity')">
-              <span class="v-key">유동성</span>
-              <div class="flex-grow-1">
-                <div class="v-title">유동성장기차입금 신규차입 검증</div>
-                <div class="v-desc">CF3 시트 유동성장기차입금(2100201) 블록의 '신규차입' Total 금액이 0이 아닌 회사 표시 (유동성대체분이라 신규차입은 비정상).</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemCfOtherTransfer"
-                    onclick="selectVerify('cf-other-transfer')">
-              <span class="v-key">기타증감</span>
-              <div class="flex-grow-1">
-                <div class="v-title">기타증감 내용 검증</div>
-                <div class="v-desc">CF1/CF2/CF3 시트 "2. 기타증감 내용" 표에 상대계정·금액·상세내용 등이 기재된 회사 표시 (시트별 입력행 함께 표시).</div>
-              </div>
-            </button>
+    <!-- 탭 바 -->
+    <div class="pv-tabs" id="pvTabs">
+      <button class="pv-tab active" data-group="wcf" type="button" onclick="switchTab('wcf')">현금흐름표 검증 <span class="pv-tab-count">6</span></button>
+      <button class="pv-tab" data-group="note" type="button" onclick="switchTab('note')">주석 검증 <span class="pv-tab-count">2</span></button>
+      <button class="pv-tab" data-group="asset" type="button" onclick="switchTab('asset')">유무형자산검증 <span class="pv-tab-count">2</span></button>
+    </div>
+
+    <!-- 항목 리스트 -->
+    <div class="pv-panes">
+      <!-- 현금흐름표 검증 -->
+      <div class="pv-pane" data-group="wcf">
+        <div class="pv-item" data-kind="wcf-diff" onclick="toggleItem('wcf-diff')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">WCF Diff 검증</div>
+            <div class="pv-item-desc">현금흐름표의 손익계정이 PL/MF와 불일치하는 경우 원인을 함께 표시 (원인 미기재행도 별도 표기).</div>
           </div>
         </div>
-
-        <!-- 주석 검증 -->
-        <div class="verify-pane" id="groupNote" style="display:none;">
-          <div class="verify-list-group">
-            <button type="button" class="verify-item" id="itemL2Verify"
-                    onclick="selectVerify('l2-verification')">
-              <span class="v-key">L2</span>
-              <div class="flex-grow-1">
-                <div class="v-title">L2 단기차입금 verification</div>
-                <div class="v-desc">만기분석테이블에서 오류부분이 Y인 회사를 표시. Y인 경우 사유도 함께 보여주며, 사유 미입력 회사는 강조.</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemRetirementBenefit"
-                    onclick="selectVerify('retirement-benefit')">
-              <span class="v-key">퇴직</span>
-              <div class="flex-grow-1">
-                <div class="v-title">퇴직급여 검증</div>
-                <div class="v-desc">IFRS(K-IFRS) 회사가 L3(퇴직급여충당부채)에, K-GAAP 회사가 L3-1(확정급여채무)에 입력값이 있으면 표시.</div>
-              </div>
-            </button>
+        <div class="pv-item" data-kind="wcf-accounts" onclick="toggleItem('wcf-accounts')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">WCF 계정 검증</div>
+            <div class="pv-item-desc">비용 컬럼에 수익계정 입력 또는 수익 컬럼에 비용계정 입력된 행 표시.</div>
           </div>
         </div>
-
-        <!-- 유무형자산검증 -->
-        <div class="verify-pane" id="groupAsset" style="display:none;">
-          <div class="verify-list-group">
-            <button type="button" class="verify-item" id="itemCf4OtherTransfer"
-                    onclick="selectVerify('cf4-other-transfer')">
-              <span class="v-key">유형자산</span>
-              <div class="flex-grow-1">
-                <div class="v-title">유형자산 검증</div>
-                <div class="v-desc">CF4 시트 "6. 기타변동 내용" 표에 계정·금액·상대계정 등이 기재된 회사 표시.</div>
-              </div>
-            </button>
-            <button type="button" class="verify-item" id="itemCf41OtherTransfer"
-                    onclick="selectVerify('cf41-other-transfer')">
-              <span class="v-key">무형자산</span>
-              <div class="flex-grow-1">
-                <div class="v-title">무형자산 검증</div>
-                <div class="v-desc">CF4-1 시트 "3. 기타변동 내용" 표에 계정·금액·상대계정 등이 기재된 회사 표시.</div>
-              </div>
-            </button>
+        <div class="pv-item" data-kind="wcf-signs" onclick="toggleItem('wcf-signs')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">WCF 부호 검증</div>
+            <div class="pv-item-desc">투자·재무활동 금액 컬럼에서 동일 CF 코드 합계가 음수인 항목 표시.</div>
+          </div>
+        </div>
+        <div class="pv-item" data-kind="wcf-severance" onclick="toggleItem('wcf-severance')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">퇴직금 부호 검증</div>
+            <div class="pv-item-desc">WCF CF2200401(퇴직금의 지급) 행들의 합계가 양수인 회사 표시 (Cash-out이라 음수가 정상).</div>
+          </div>
+        </div>
+        <div class="pv-item" data-kind="cf3-liquidity" onclick="toggleItem('cf3-liquidity')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">유동성장기차입금 신규차입 검증</div>
+            <div class="pv-item-desc">CF3 시트 유동성장기차입금(2100201) 블록의 '신규차입' Total 금액이 0이 아닌 회사 표시 (유동성대체분이라 신규차입은 비정상).</div>
+          </div>
+        </div>
+        <div class="pv-item" data-kind="cf-other-transfer" onclick="toggleItem('cf-other-transfer')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">기타증감 내용 검증</div>
+            <div class="pv-item-desc">CF1/CF2/CF3 시트 "2. 기타증감 내용" 표에 상대계정·금액·상세내용 등이 기재된 회사 표시 (시트별 입력행 함께 표시).</div>
           </div>
         </div>
       </div>
 
-      <div class="px-3 py-3 border-top d-flex align-items-center gap-2">
-        <button id="runBtn" class="btn btn-primary" onclick="runVerify()" disabled>
-          <i class="bi bi-play-circle me-1"></i>검증 실행
-        </button>
-        <span class="text-muted small" id="runHint">먼저 검증 항목을 선택하세요.</span>
+      <!-- 주석 검증 -->
+      <div class="pv-pane" data-group="note" hidden>
+        <div class="pv-item" data-kind="l2-verification" onclick="toggleItem('l2-verification')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">L2 단기차입금 verification</div>
+            <div class="pv-item-desc">만기분석테이블에서 오류부분이 Y인 회사를 표시. Y인 경우 사유도 함께 보여주며, 사유 미입력 회사는 강조.</div>
+          </div>
+        </div>
+        <div class="pv-item" data-kind="retirement-benefit" onclick="toggleItem('retirement-benefit')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">퇴직급여 검증</div>
+            <div class="pv-item-desc">IFRS(K-IFRS) 회사가 L3(퇴직급여충당부채)에, K-GAAP 회사가 L3-1(확정급여채무)에 입력값이 있으면 표시.</div>
+          </div>
+        </div>
       </div>
+
+      <!-- 유무형자산검증 -->
+      <div class="pv-pane" data-group="asset" hidden>
+        <div class="pv-item" data-kind="cf4-other-transfer" onclick="toggleItem('cf4-other-transfer')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">유형자산 검증</div>
+            <div class="pv-item-desc">CF4 시트 "6. 기타변동 내용" 표에 계정·금액·상대계정 등이 기재된 회사 표시.</div>
+          </div>
+        </div>
+        <div class="pv-item" data-kind="cf41-other-transfer" onclick="toggleItem('cf41-other-transfer')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">무형자산 검증</div>
+            <div class="pv-item-desc">CF4-1 시트 "3. 기타변동 내용" 표에 계정·금액·상대계정 등이 기재된 회사 표시.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 푸터 -->
+    <div class="pv-footer">
+      <button id="runBtn" class="pv-run is-off" type="button" onclick="runVerify()">검증 실행</button>
+      <span class="pv-run-hint" id="runHint">먼저 검증 항목을 선택하세요.</span>
     </div>
   </div>
 
@@ -294,8 +359,26 @@
 </div>
 
 <script>
-let selectedVerify = null;
 let __fileCount = 0;
+
+// 선택 상태(항목 id → bool, 탭을 넘나들어도 유지) + phase + 현재 탭
+const selected = {};
+let phase = 'idle';            // 'idle' | 'running' | 'done'
+let activeTab = 'wcf';
+
+const TABS = {
+  wcf:   { label:'현금흐름표 검증', items:[
+    ['wcf-diff','WCF Diff 검증'], ['wcf-accounts','WCF 계정 검증'], ['wcf-signs','WCF 부호 검증'],
+    ['wcf-severance','퇴직금 부호 검증'], ['cf3-liquidity','유동성장기차입금 신규차입 검증'], ['cf-other-transfer','기타증감 내용 검증'] ] },
+  note:  { label:'주석 검증', items:[
+    ['l2-verification','L2 단기차입금 verification'], ['retirement-benefit','퇴직급여 검증'] ] },
+  asset: { label:'유무형자산검증', items:[
+    ['cf4-other-transfer','유형자산 검증'], ['cf41-other-transfer','무형자산 검증'] ] },
+};
+const TAB_ORDER = ['wcf','note','asset'];
+const ALL_KINDS = TAB_ORDER.flatMap(g => TABS[g].items.map(([k]) => k));   // 10개
+const TITLE_BY_KIND = {};
+TAB_ORDER.forEach(g => TABS[g].items.forEach(([k, t]) => { TITLE_BY_KIND[k] = t; }));
 
 // 시트 XML 직접 stream 파싱. 파일당 ~1~2초, 병렬 8개.
 function estimatedSeconds(n) {
@@ -318,41 +401,69 @@ async function refreshFileCount() {
   }
 }
 
-// 검증 항목 → DOM ID 매핑
-const VERIFY_ITEM_ID = {
-  'wcf-diff':           'itemWcfDiff',
-  'wcf-accounts':       'itemWcfAccounts',
-  'wcf-signs':          'itemWcfSigns',
-  'wcf-severance':      'itemWcfSeverance',
-  'cf3-liquidity':      'itemCf3Liquidity',
-  'cf-other-transfer':  'itemCfOtherTransfer',
-  'l2-verification':    'itemL2Verify',
-  'retirement-benefit': 'itemRetirementBenefit',
-  'cf4-other-transfer': 'itemCf4OtherTransfer',
-  'cf41-other-transfer':'itemCf41OtherTransfer',
-};
-
 // 주석 검증 항목 (4분기에만 실행 가능)
 const NOTE_VERIFY_KINDS = new Set(['l2-verification', 'retirement-benefit']);
 
-function selectGroup(group) {
-  document.querySelectorAll('.verify-tabs .nav-link').forEach(el => {
-    el.classList.toggle('active', el.dataset.group === group);
-  });
-  document.querySelectorAll('.verify-pane').forEach(el => {
-    el.style.display = 'none';
-  });
-  const target = document.getElementById('group' + group.charAt(0).toUpperCase() + group.slice(1));
-  if (target) target.style.display = 'block';
+// ── 선택/탭 상태 관리 ──────────────────────────────────
+function countSelected() { return ALL_KINDS.filter(k => selected[k]).length; }
+function currentItems()  { return TABS[activeTab].items.map(([k]) => k); }
+
+function switchTab(group) {
+  activeTab = group;
+  document.querySelectorAll('.pv-tab').forEach(b => b.classList.toggle('active', b.dataset.group === group));
+  document.querySelectorAll('.pv-pane').forEach(p => { p.hidden = (p.dataset.group !== group); });
+  updateUI();
 }
 
-function selectVerify(kind) {
-  selectedVerify = kind;
-  document.querySelectorAll('.verify-item').forEach(el => el.classList.remove('active'));
-  const id = VERIFY_ITEM_ID[kind];
-  if (id) document.getElementById(id).classList.add('active');
-  document.getElementById('runBtn').disabled = false;
-  document.getElementById('runHint').textContent = '결산기간을 확인하고 [검증 실행]을 누르세요.';
+function syncItemRow(kind) {
+  const row = document.querySelector(`.pv-item[data-kind="${kind}"]`);
+  if (row) row.classList.toggle('selected', !!selected[kind]);
+}
+
+function toggleItem(kind) {
+  selected[kind] = !selected[kind];
+  if (phase !== 'idle') phase = 'idle';     // 선택 변경 시 실행 상태 리셋
+  syncItemRow(kind);
+  updateUI();
+}
+
+// 현재 탭 항목 전체 선택/해제 (전부 선택돼 있으면 해제)
+function toggleAllCurrent() {
+  const items = currentItems();
+  const allOn = items.length && items.every(k => selected[k]);
+  items.forEach(k => { selected[k] = !allOn; syncItemRow(k); });
+  if (phase !== 'idle') phase = 'idle';
+  updateUI();
+}
+
+function updateUI() {
+  const n = countSelected();
+  document.getElementById('selCount').textContent = n;
+
+  // 현재 탭 힌트 + 전체 선택/해제 라벨
+  document.getElementById('tabHint').textContent = `${TABS[activeTab].label} · ${TABS[activeTab].items.length}개 항목`;
+  const items = currentItems();
+  const allOn = items.length && items.every(k => selected[k]);
+  document.getElementById('toggleAll').textContent = allOn ? '전체 해제' : '전체 선택';
+
+  // 푸터 버튼/헬퍼 — phase별
+  const btn = document.getElementById('runBtn');
+  const hint = document.getElementById('runHint');
+  btn.classList.remove('is-off', 'is-on', 'is-done');
+  hint.classList.remove('done');
+  if (phase === 'running') {
+    btn.classList.add('is-on'); btn.disabled = true;
+    btn.textContent = '검증 중…';   hint.textContent = `${n}개 항목을 검증하고 있습니다.`;
+  } else if (phase === 'done') {
+    btn.classList.add('is-done'); btn.disabled = false;
+    btn.textContent = '검증 완료';   hint.textContent = `${n}개 항목 검증을 완료했습니다.`; hint.classList.add('done');
+  } else if (n > 0) {
+    btn.classList.add('is-on'); btn.disabled = false;
+    btn.textContent = '검증 실행';   hint.textContent = `${n}개 항목이 선택되었습니다.`;
+  } else {
+    btn.classList.add('is-off'); btn.disabled = true;
+    btn.textContent = '검증 실행';   hint.textContent = '먼저 검증 항목을 선택하세요.';
+  }
 }
 
 function fmtNum(v) {
@@ -366,61 +477,87 @@ function escHtml(s) {
   }[c]));
 }
 
-async function runVerify() {
-  if (!selectedVerify) return;
-  const year = document.getElementById('yearSelect').value;
-  const area = document.getElementById('resultArea');
+// 단일 항목 결과 렌더러 디스패치 — 각 렌더러는 #resultArea.innerHTML 을 채움 (기존 로직 그대로)
+function dispatchRender(kind, data) {
+  if (kind === 'wcf-accounts') renderWcfAccountsResult(data);
+  else if (kind === 'wcf-signs') renderWcfSignsResult(data);
+  else if (kind === 'wcf-severance') renderWcfSeveranceResult(data);
+  else if (kind === 'cf3-liquidity') renderCf3LiquidityResult(data);
+  else if (kind === 'cf-other-transfer') renderCfOtherTransferResult(data);
+  else if (kind === 'l2-verification') renderL2VerifyResult(data);
+  else if (kind === 'retirement-benefit') renderRetirementBenefitResult(data);
+  else if (kind === 'cf4-other-transfer') renderCf4OtherTransferResult(data);
+  else if (kind === 'cf41-other-transfer') renderCf4OtherTransferResult(data);
+  else renderWcfDiffResult(data);
+}
 
-  // 주석 검증은 4분기에만 실행 가능
-  if (NOTE_VERIFY_KINDS.has(selectedVerify) && !year.endsWith('-4Q')) {
-    area.innerHTML = `
-      <div class="alert alert-warning d-flex align-items-center" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2" style="font-size:1.4rem;"></i>
-        <div>
-          <strong>주석 검증은 4분기(4Q)에만 가능합니다.</strong><br>
-          <span class="small">현재 결산기간: <code>${escHtml(year)}</code> — 주석은 4분기에만 작성되므로 검증도 4분기에서만 의미가 있습니다. 결산기간을 4분기로 변경 후 다시 시도해주세요.</span>
-        </div>
-      </div>`;
-    return;
-  }
+// 멀티 실행 시 결과 누적용: 렌더러가 만든 rows-{숫자} id/onclick 를 항목별로 네임스페이싱
+// (.rows-table 클래스는 숫자가 아니라 영향 없음)
+function nsFragment(html, idx) { return html.replace(/rows-(\d+)/g, `rows-${idx}-$1`); }
 
-  const btn = document.getElementById('runBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>검증 중...';
-  const est = estimatedSeconds(__fileCount);
-  const estLine = __fileCount
-    ? `<div class="text-muted small mt-2">${__fileCount}개 패키지 · 병렬 8개씩 · 약 ${est}초 예상</div>`
-    : '';
-  area.innerHTML = `
-    <div class="text-center py-5 text-muted">
-      <div class="spinner-border text-primary mb-2"></div>
-      <div>패키지 파일 스캔 중...</div>
-      ${estLine}
-      <div class="text-muted small mt-1" style="font-size:.78rem;">
-        ※ 패키지가 많거나 파일이 크면 시간이 더 걸릴 수 있습니다.
+function sectionWrap(title, inner, busy) {
+  return `<div class="pv-result-sec">
+    <div class="pv-result-head"><span class="pv-bar"></span>${escHtml(title)}${busy ? ' <span class="pv-result-busy">검증 중…</span>' : ''}</div>
+    <div class="pv-result-body">${inner}</div>
+  </div>`;
+}
+
+function noteQuarterWarning(year) {
+  return `<div class="alert alert-warning d-flex align-items-center mb-0" role="alert">
+      <i class="bi bi-exclamation-triangle-fill me-2" style="font-size:1.4rem;"></i>
+      <div>
+        <strong>주석 검증은 4분기(4Q)에만 가능합니다.</strong><br>
+        <span class="small">현재 결산기간: <code>${escHtml(year)}</code> — 주석은 4분기에만 작성되므로 검증도 4분기에서만 의미가 있습니다. 결산기간을 4분기로 변경 후 다시 시도해주세요.</span>
       </div>
     </div>`;
+}
 
-  try {
-    const res = await fetch(`/admin/package-verify/${selectedVerify}?year=${encodeURIComponent(year)}`);
-    const data = await res.json();
-    if (!res.ok || data.error) throw new Error(data.error || '검증 실패');
-    if (selectedVerify === 'wcf-accounts') renderWcfAccountsResult(data);
-    else if (selectedVerify === 'wcf-signs') renderWcfSignsResult(data);
-    else if (selectedVerify === 'wcf-severance') renderWcfSeveranceResult(data);
-    else if (selectedVerify === 'cf3-liquidity') renderCf3LiquidityResult(data);
-    else if (selectedVerify === 'cf-other-transfer') renderCfOtherTransferResult(data);
-    else if (selectedVerify === 'l2-verification') renderL2VerifyResult(data);
-    else if (selectedVerify === 'retirement-benefit') renderRetirementBenefitResult(data);
-    else if (selectedVerify === 'cf4-other-transfer') renderCf4OtherTransferResult(data);
-    else if (selectedVerify === 'cf41-other-transfer') renderCf4OtherTransferResult(data);
-    else renderWcfDiffResult(data);
-  } catch (e) {
-    area.innerHTML = `<div class="alert alert-danger">${escHtml(e.message)}</div>`;
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-play-circle me-1"></i>검증 실행';
+// 선택된 항목들을 순서대로(탭 순서) 검증 — 기존 API/렌더러를 그대로 재사용
+async function runVerify() {
+  if (phase === 'running') return;
+  const kinds = ALL_KINDS.filter(k => selected[k]);
+  if (!kinds.length) return;
+
+  const year = document.getElementById('yearSelect').value;
+  const area = document.getElementById('resultArea');
+  phase = 'running'; updateUI();
+
+  const est = estimatedSeconds(__fileCount);
+  const sections = [];
+
+  for (let idx = 0; idx < kinds.length; idx++) {
+    const kind = kinds[idx];
+    const title = TITLE_BY_KIND[kind] || kind;
+
+    // 진행 표시(이미 끝난 섹션 + 현재 항목 스피너)
+    const estLine = __fileCount
+      ? `<div class="text-muted small mt-2">${__fileCount}개 패키지 · 병렬 8개씩 · 약 ${est}초 예상</div>` : '';
+    area.innerHTML = sections.join('') + sectionWrap(title,
+      `<div class="text-center py-4 text-muted">
+         <div class="spinner-border text-primary mb-2"></div>
+         <div>패키지 파일 스캔 중...</div>${estLine}
+       </div>`, true);
+
+    // 주석 검증은 4분기에만 — 해당 항목만 경고 섹션으로 처리하고 계속
+    if (NOTE_VERIFY_KINDS.has(kind) && !year.endsWith('-4Q')) {
+      sections.push(sectionWrap(title, noteQuarterWarning(year)));
+      area.innerHTML = sections.join('');
+      continue;
+    }
+
+    try {
+      const res = await fetch(`/admin/package-verify/${kind}?year=${encodeURIComponent(year)}`);
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || '검증 실패');
+      dispatchRender(kind, data);                         // → area.innerHTML = 단일 결과
+      sections.push(sectionWrap(title, nsFragment(area.innerHTML, idx)));
+    } catch (e) {
+      sections.push(sectionWrap(title, `<div class="alert alert-danger mb-0">${escHtml(e.message)}</div>`));
+    }
+    area.innerHTML = sections.join('');                   // 누적 결과로 복원/갱신
   }
+
+  phase = 'done'; updateUI();
 }
 
 function statusBadge(status) {
@@ -1150,13 +1287,17 @@ function renderRetirementBenefitResult(data) {
 }
 
 document.getElementById('yearSelect').addEventListener('change', () => {
-  // 분기 바꾸면 결과 초기화 + 회사 수 갱신
+  // 분기 바꾸면 결과 초기화 + 회사 수 갱신 (선택 상태는 유지, 실행 상태만 리셋)
   document.getElementById('resultArea').innerHTML = '';
+  phase = 'idle';
   refreshFileCount();
+  updateUI();
 });
 
-// 페이지 로드 시 회사 수 미리 조회
+// 페이지 로드 시 초기화: 회사 수 조회 + 첫 탭 + UI 동기화
 refreshFileCount();
+switchTab('wcf');
+updateUI();
 </script>
 
 </body>
