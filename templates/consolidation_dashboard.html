@@ -258,7 +258,6 @@ body {
   <div class="topbar">
     <div class="topbar-left">
       <div class="tb-row">
-        <div class="logo-badge" id="hdrLogo">연</div>
         <span class="tb-title" id="hdrGroupName">연결 대시보드</span>
         <span class="tb-badge" id="hdrPeriodBadge">{{ year }}</span>
         <span class="tb-badge" id="hdrBalance" style="display:none"></span>
@@ -365,7 +364,6 @@ async function loadDashboard() {
   if (!gid) {
     _clearChrome();
     document.getElementById('hdrGroupName').textContent = '연결 대시보드';
-    document.getElementById('hdrLogo').textContent = '연';
     document.getElementById('hdrMeta').textContent = '그룹과 기간을 선택해 주세요.';
     body.innerHTML = `<div class="state-card" style="margin-top:14px">
       <i class="bi bi-bar-chart-line ico"></i>그룹을 선택해 주세요.</div>`;
@@ -519,7 +517,7 @@ function buildLeftColumn(d) {
 function buildRightColumn(d) {
   return `<div class="panel">
     <div class="panel-head">
-      <span class="panel-title">회사별 구성 (최종)</span>
+      <span class="panel-title">회사별 구성 (연결조정 제외)</span>
       <div class="seg">
         <input type="radio" name="donutMode" id="dmGrouped" value="grouped" checked>
         <label for="dmGrouped">묶음</label>
@@ -594,7 +592,6 @@ function drawDonutsForPrefix(d) {
 function renderChrome(d) {
   const checkOk = Math.abs(d.check_imbalance) < 1;
   document.getElementById('hdrGroupName').textContent = d.group.name;
-  document.getElementById('hdrLogo').textContent = (d.group.name || '연').trim().charAt(0) || '연';
   document.getElementById('hdrPeriodBadge').textContent = d.period;
   document.getElementById('hdrMeta').textContent =
     `${d.matched_files_count}개사 매칭 · 연결조정 ${d.adjustment_count}건 · 내부거래 ${d.intercompany_count}건`;

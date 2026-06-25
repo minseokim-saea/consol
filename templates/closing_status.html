@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마감현황 대시보드 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --page:#eef1f6; --card:#fff; --bd:#e7ebf2; --shadow:0 1px 3px rgba(16,24,40,.05);
+  --ink:#0f1b2d; --sub:#64748b; --faint:#94a3b8;
+  --blue:#1d4ed8; --blue2:#3b82f6;
+  --pos:#15803d; --pos-bg:#e7f6ec; --neg:#c0392b; --neg-bg:#fdeceb;
+  --hd:linear-gradient(180deg,#102a5e,#13294f);
+  --radius:14px;
+}
+body {
+  background:var(--page); color:var(--ink);
+  font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', sans-serif;
+}
+.num, table td, table th, .kpi-value { font-feature-settings:'tnum' 1; font-variant-numeric:tabular-nums; }
+.navbar { background:var(--brand-900) !important; }
+.cs-wrap { padding:18px 20px 28px; }
+
+/* 다크 상단바 */
+.topbar {
+  background:var(--hd); color:#fff; border-radius:var(--radius);
+  padding:16px 20px; display:flex; justify-content:space-between; align-items:center;
+  gap:16px; flex-wrap:wrap;
+}
+.tb-title { font-size:18px; font-weight:800; letter-spacing:-.2px; display:flex; align-items:center; gap:9px; }
+.tb-badge { font-size:12px; font-weight:700; padding:3px 9px; border-radius:7px;
+  background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); color:#dbe5fb; }
+.tb-unit { font-size:11.5px; color:#9fb2d8; font-weight:600; }
+.tb-right { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.tb-label { font-size:12px; color:#9fb2d8; font-weight:600; }
+.tb-select {
+  background:rgba(255,255,255,.08); color:#fff; border:1px solid rgba(255,255,255,.22);
+  border-radius:9px; padding:8px 30px 8px 12px; font-size:13px; font-weight:700; appearance:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c7d4ef' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat:no-repeat; background-position:right 10px center;
+}
+.tb-select:disabled { opacity:.85; cursor:default; }
+.tb-select option { color:#0f1b2d; }
+
+/* KPI 카드 행 */
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:14px; }
+@media (max-width:900px){ .kpi-row { grid-template-columns:repeat(2,1fr); } }
+.kpi-card { background:var(--card); border:1px solid var(--bd); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px 18px; position:relative; }
+.kpi-card::before { content:''; position:absolute; left:0; top:14px; bottom:14px; width:3px; background:var(--blue); border-radius:0 2px 2px 0; }
+.kpi-label { font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:8px; display:flex; align-items:center; gap:6px; }
+.kpi-value { font-size:26px; font-weight:800; line-height:1.1; letter-spacing:-.5px; }
+.kpi-value .u { font-size:13px; font-weight:600; color:var(--faint); margin-left:3px; }
+.kpi-sub { font-size:11.5px; color:var(--faint); margin-top:7px; }
+.kpi-card.alert::before { background:var(--neg); }
+
+/* O/X 뱃지 */
+.ox { display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:26px;
+  border-radius:7px; font-weight:800; font-size:14px; }
+.ox.o { background:var(--pos-bg); color:var(--pos); }
+.ox.x { background:var(--neg-bg); color:var(--neg); }
+.bigflag { font-size:30px; font-weight:800; }
+.bigflag.o { color:var(--pos); }
+.bigflag.x { color:var(--neg); }
+
+/* 2열 본문 */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; align-items:start; }
+@media (max-width:1000px){ .grid-2 { grid-template-columns:1fr; } }
+.panel { background:var(--card); border:1px solid var(--bd); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden; }
+.panel-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:13px 16px 11px; }
+.panel-title { display:flex; align-items:center; gap:9px; font-size:15px; font-weight:700; color:var(--ink); }
+.panel-title::before { content:''; width:4px; height:16px; background:var(--blue); border-radius:2px; }
+.panel-count { font-size:12px; font-weight:700; color:var(--sub); }
+
+.miss-box { margin:0 16px 12px; padding:11px 13px; background:var(--neg-bg); border:1px solid #f6d4cf;
+  border-radius:10px; }
+.miss-box .miss-h { font-size:12.5px; font-weight:700; color:var(--neg); margin-bottom:8px; }
+.miss-chip { display:inline-block; font-size:12px; font-weight:600; color:#8a241a; background:#fff;
+  border:1px solid #f0c4bd; border-radius:999px; padding:3px 10px; margin:0 5px 5px 0; }
+.allclear { margin:0 16px 12px; padding:11px 13px; background:var(--pos-bg); border:1px solid #c6e9d2;
+  border-radius:10px; font-size:12.5px; font-weight:700; color:var(--pos); }
+
+.tbl { width:100%; border-collapse:collapse; }
+.tbl thead th { background:#f8fafc; color:var(--sub); font-size:11.5px; font-weight:700;
+  padding:8px 16px; border-top:1px solid var(--bd); border-bottom:1px solid var(--bd); text-align:left; }
+.tbl thead th.r { text-align:right; }
+.tbl tbody td { padding:9px 16px; font-size:13.5px; border-bottom:1px solid #f1f4f9; }
+.tbl tbody tr:last-child td { border-bottom:none; }
+.tbl td.r { text-align:right; }
+.tbl .co { font-weight:600; color:var(--ink); }
+.tbl-scroll { max-height:420px; overflow:auto; }
+
+.empty { padding:34px 16px; text-align:center; color:var(--faint); font-size:13px; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'home' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid cs-wrap">
+
+  <!-- 다크 상단바 -->
+  <div class="topbar">
+    <div class="tb-title">
+      <i class="bi bi-clipboard-check"></i> 마감현황 대시보드
+      <span class="tb-badge">{{ current_period or '결산기간 미설정' }}</span>
+      <span class="tb-unit">현재 결산기간</span>
+    </div>
+    <div class="tb-right">
+      <span class="tb-label"><i class="bi bi-calendar3"></i> 현재 결산기간</span>
+      <select id="periodSelect" class="tb-select" {% if not perms.years_manage %}disabled title="관리자만 변경할 수 있습니다"{% else %}title="결산기간을 변경하면 전체에 반영됩니다"{% endif %}>
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == current_period %}selected{% endif %}>{{ y }}{% if y in locked_years %} · 마감{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+
+  {% if not current_period %}
+  <div class="panel" style="margin-top:14px"><div class="empty">
+    <i class="bi bi-exclamation-triangle d-block fs-3 mb-2"></i>
+    설정된 결산기간이 없습니다. 관리자에게 문의하세요.
+  </div></div>
+  {% else %}
+
+  <!-- KPI 카드 행 -->
+  <div class="kpi-row">
+    <!-- 1. 현재 결산기간 -->
+    <div class="kpi-card">
+      <div class="kpi-label"><i class="bi bi-calendar3"></i> 현재 결산기간</div>
+      <div class="kpi-value">{{ current_period }}</div>
+      <div class="kpi-sub">
+        {% if current_period in locked_years %}<i class="bi bi-lock-fill"></i> 마감됨{% else %}<i class="bi bi-unlock"></i> 진행 중{% endif %}
+        {% if perms.years_manage %} · 상단에서 변경 가능{% endif %}
+      </div>
+    </div>
+    <!-- 2. 환율 입력 여부 -->
+    <div class="kpi-card {% if not fx_entered %}alert{% endif %}">
+      <div class="kpi-label"><i class="bi bi-currency-exchange"></i> 환율 입력 여부</div>
+      <div class="kpi-value"><span class="bigflag {{ 'o' if fx_entered else 'x' }}">{{ 'O' if fx_entered else 'X' }}</span></div>
+      <div class="kpi-sub">{{ '해당 결산기간 환율이 입력되어 있습니다.' if fx_entered else '환율이 입력되지 않았습니다.' }}</div>
+    </div>
+    <!-- 3. 패키지 제출 현황 -->
+    <div class="kpi-card {% if missing_count > 0 %}alert{% endif %}">
+      <div class="kpi-label"><i class="bi bi-box-seam"></i> 패키지 제출</div>
+      <div class="kpi-value">{{ submitted_count }}<span class="u">/ {{ total_companies }}개사</span></div>
+      <div class="kpi-sub">미제출 <strong style="color:{{ '#c0392b' if missing_count else '#15803d' }}">{{ missing_count }}</strong>개사</div>
+    </div>
+    <!-- 4. 연결조정분개 업로드 -->
+    <div class="kpi-card {% if journal_total and journal_done < journal_total %}alert{% endif %}">
+      <div class="kpi-label"><i class="bi bi-journal-arrow-up"></i> 연결조정분개 업로드</div>
+      <div class="kpi-value">{{ journal_done }}<span class="u">/ {{ journal_total }}그룹</span></div>
+      <div class="kpi-sub">미업로드 <strong style="color:{{ '#c0392b' if (journal_total - journal_done) else '#15803d' }}">{{ journal_total - journal_done }}</strong>그룹</div>
+    </div>
+  </div>
+
+  <!-- 2열 본문 -->
+  <div class="grid-2">
+
+    <!-- 좌: 패키지 제출 현황 -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title"><i class="bi bi-box-seam"></i> 패키지 제출 현황</span>
+        <span class="panel-count">제출 {{ submitted_count }} / {{ total_companies }}개사</span>
+      </div>
+      {% if missing_count > 0 %}
+      <div class="miss-box">
+        <div class="miss-h"><i class="bi bi-exclamation-circle"></i> 미제출 {{ missing_count }}개사</div>
+        {% for nm in missing_companies %}<span class="miss-chip">{{ nm }}</span>{% endfor %}
+      </div>
+      {% else %}
+      <div class="allclear"><i class="bi bi-check2-circle"></i> 모든 회사가 패키지를 제출했습니다.</div>
+      {% endif %}
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <thead><tr><th>회사명</th><th class="r">제출</th></tr></thead>
+          <tbody>
+            {% for r in company_rows %}
+            <tr>
+              <td class="co">{{ r.name }}</td>
+              <td class="r"><span class="ox {{ 'o' if r.submitted else 'x' }}">{{ 'O' if r.submitted else 'X' }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="empty">회사 마스터에 등록된 회사가 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 우: 연결조정분개 업로드 현황 -->
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title"><i class="bi bi-journal-arrow-up"></i> 연결조정분개 업로드 현황</span>
+        <span class="panel-count">연결그룹별 · {{ journal_done }} / {{ journal_total }}</span>
+      </div>
+      <div class="tbl-scroll">
+        <table class="tbl">
+          <thead><tr><th>연결그룹</th><th class="r">업로드</th></tr></thead>
+          <tbody>
+            {% for r in journal_rows %}
+            <tr>
+              <td class="co">{{ r.name }}</td>
+              <td class="r"><span class="ox {{ 'o' if r.uploaded else 'x' }}">{{ 'O' if r.uploaded else 'X' }}</span></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="empty">등록된 연결그룹이 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  {% endif %}
+
+</div>
+
+<script>
+// 현재 결산기간 변경 (관리자 전용) — 변경 시 전체 기본값을 바꾸고 새로고침
+(function () {
+  const sel = document.getElementById('periodSelect');
+  if (!sel || sel.disabled) return;
+  const CUR = {{ (current_period or '') | tojson }};
+  sel.addEventListener('change', async () => {
+    const period = sel.value;
+    if (period === CUR) return;
+    if (!confirm(`현재 결산기간을 '${period}'(으)로 변경할까요?\n전체 사용자에게 반영됩니다.`)) {
+      sel.value = CUR;
+      return;
+    }
+    try {
+      const r = await fetch('/closing-status/current-period', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period }),
+      });
+      const j = await r.json();
+      if (!r.ok) { alert(j.error || '변경 실패'); sel.value = CUR; return; }
+      location.reload();
+    } catch (e) {
+      alert('요청 실패: ' + e); sel.value = CUR;
+    }
+  });
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -7522,12 +7522,9 @@ def safe_storage_name(original_name: str) -> str:
 
 # ─── 라우트 ──────────────────────────────────────────────────────────────────
 
-@app.route('/')
-@login_required
-def index():
-    uname = session.get('username')
-    # 사이드바·버튼 가시성 제어용 권한 플래그
-    perms = {
+def _sidebar_perms(uname):
+    """사이드바·버튼 가시성 제어용 권한 플래그 묶음."""
+    return {
         'users_manage':     _has_permission(uname, 'users.manage'),
         'years_manage':     _has_permission(uname, 'years.manage'),
         'wce_manage':       _has_permission(uname, 'wce.manage'),
@@ -7546,10 +7543,100 @@ def index():
         'distribute_admin': _has_permission(uname, 'distribute.admin'),
         'coa_audit':        _has_permission(uname, 'coa.audit'),
     }
+
+
+def _closing_status_data(period):
+    """마감현황 대시보드용 집계 — 순수 조회(읽기)만 수행, 상태를 바꾸지 않음.
+    1) 환율 입력 여부  2) 패키지 제출/미제출  3) 연결조정분개 업로드 현황(연결그룹별)
+    """
+    # 2) 환율 입력 여부 — 해당 결산기간의 '당기' 환율이 하나라도 있으면 입력됨
+    fx_all = _load_fx_rates()
+    fx_entered = bool((fx_all.get(period) or {}).get('current'))
+
+    # 3) 패키지 제출 현황 — 회사 마스터(active) 대비 업로드 여부
+    master = _load_company_master().get('companies') or []
+    active = [c for c in master if c.get('active', True)]
+    submitted_norms = {
+        _norm_company_name(f.get('company'))
+        for f in uploaded_files if f.get('year') == period
+    }
+    company_rows, missing = [], []
+    for c in active:
+        nm = (c.get('name') or '').strip()
+        if not nm:
+            continue
+        ok = _norm_company_name(nm) in submitted_norms
+        company_rows.append({'name': nm, 'submitted': ok})
+        if not ok:
+            missing.append(nm)
+    company_rows.sort(key=lambda r: (r['submitted'], r['name']))   # 미제출 먼저
+    submitted_count = sum(1 for r in company_rows if r['submitted'])
+
+    # 4) 연결조정분개 업로드 현황 — 연결그룹별 (JOURNAL_DIR/{group_id}_{period}.*)
+    journal_rows = []
+    for g in consol_list_groups():
+        journal_rows.append({
+            'name': g.get('name') or g.get('id'),
+            'uploaded': _find_journal_file(g['id'], period) is not None,
+        })
+    journal_rows.sort(key=lambda r: (r['uploaded'], r['name']))
+    journal_done = sum(1 for r in journal_rows if r['uploaded'])
+
+    return {
+        'fx_entered':      fx_entered,
+        'company_rows':    company_rows,
+        'missing_companies': missing,
+        'missing_count':   len(missing),
+        'submitted_count': submitted_count,
+        'total_companies': len(company_rows),
+        'journal_rows':    journal_rows,
+        'journal_done':    journal_done,
+        'journal_total':   len(journal_rows),
+    }
+
+
+@app.route('/')
+@login_required
+def index():
+    """메인페이지 — 마감현황 대시보드."""
+    uname = session.get('username')
+    period = YEARS_DATA.get('default') or (YEARS_DATA['years'][0] if YEARS_DATA.get('years') else None)
+    data = _closing_status_data(period) if period else {
+        'fx_entered': False, 'company_rows': [], 'missing_companies': [], 'missing_count': 0,
+        'submitted_count': 0, 'total_companies': 0, 'journal_rows': [], 'journal_done': 0, 'journal_total': 0,
+    }
+    return render_template('closing_status.html',
+                           username=uname,
+                           is_admin=_is_admin(uname),
+                           perms=_sidebar_perms(uname),
+                           years=YEARS_DATA.get('years', []),
+                           current_period=period,
+                           locked_years=YEARS_DATA.get('locked', []),
+                           **data)
+
+
+@app.route('/closing-status/current-period', methods=['POST'])
+@require_permission('years.manage')
+def set_current_period():
+    """현재 결산기간(기본 결산기간) 변경 — 관리자(years.manage) 전용."""
+    body = request.get_json(silent=True) or {}
+    period = (body.get('period') or request.form.get('period') or '').strip()
+    if period not in YEARS_DATA.get('years', []):
+        return jsonify({'error': '존재하지 않는 결산기간입니다.'}), 400
+    YEARS_DATA['default'] = period
+    _save_years()
+    return jsonify({'ok': True, 'default': period})
+
+
+@app.route('/package-upload')
+@login_required
+def package_upload_page():
+    """패키지 업로드 — 기존 메인페이지(업로드/합산/파일목록) 내용."""
+    uname = session.get('username')
     return render_template('index.html', files=uploaded_files,
                            username=uname,
                            is_admin=_is_admin(uname),
-                           perms=perms,
+                           perms=_sidebar_perms(uname),
                            years=YEARS_DATA['years'],
                            default_year=YEARS_DATA.get('default'),
                            locked_years=YEARS_DATA.get('locked', []))
