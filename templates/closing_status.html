@@ -167,32 +167,26 @@ body {
     <!-- 좌: 패키지 제출 현황 -->
     <div class="panel">
       <div class="panel-head">
-        <span class="panel-title"><i class="bi bi-box-seam"></i> 패키지 제출 현황</span>
-        <span class="panel-count">제출 {{ submitted_count }} / {{ total_companies }}개사</span>
+        <span class="panel-title"><i class="bi bi-box-seam"></i> 패키지 미제출 회사</span>
+        <span class="panel-count">미제출 {{ missing_count }} / {{ total_companies }}개사</span>
       </div>
       {% if missing_count > 0 %}
-      <div class="miss-box">
-        <div class="miss-h"><i class="bi bi-exclamation-circle"></i> 미제출 {{ missing_count }}개사</div>
-        {% for nm in missing_companies %}<span class="miss-chip">{{ nm }}</span>{% endfor %}
-      </div>
-      {% else %}
-      <div class="allclear"><i class="bi bi-check2-circle"></i> 모든 회사가 패키지를 제출했습니다.</div>
-      {% endif %}
       <div class="tbl-scroll">
         <table class="tbl">
           <thead><tr><th>회사명</th><th class="r">제출</th></tr></thead>
           <tbody>
-            {% for r in company_rows %}
+            {% for nm in missing_companies %}
             <tr>
-              <td class="co">{{ r.name }}</td>
-              <td class="r"><span class="ox {{ 'o' if r.submitted else 'x' }}">{{ 'O' if r.submitted else 'X' }}</span></td>
+              <td class="co">{{ nm }}</td>
+              <td class="r"><span class="ox x">X</span></td>
             </tr>
-            {% else %}
-            <tr><td colspan="2" class="empty">회사 마스터에 등록된 회사가 없습니다.</td></tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
+      {% else %}
+      <div class="allclear" style="margin:0 16px 16px"><i class="bi bi-check2-circle"></i> 모든 회사가 패키지를 제출했습니다.</div>
+      {% endif %}
     </div>
 
     <!-- 우: 연결조정분개 업로드 현황 -->

@@ -7572,12 +7572,16 @@ def _closing_status_data(period):
     company_rows.sort(key=lambda r: (r['submitted'], r['name']))   # 미제출 먼저
     submitted_count = sum(1 for r in company_rows if r['submitted'])
 
-    # 4) 연결조정분개 업로드 현황 — 연결그룹별 (JOURNAL_DIR/{group_id}_{period}.*)
+    # 4) 연결조정분개 업로드 현황 — 연결그룹별.
+    #    업로드 원본파일(JOURNAL_DIR)은 파싱 후 남지 않을 수 있으므로,
+    #    실제 분개 데이터(consol_journals.json)에 분개가 들어있는지로 판정한다.
     journal_rows = []
     for g in consol_list_groups():
+        rec = consol_get_journal(g['id'], period) or {}
+        has = bool(rec.get('adjustment_entries') or rec.get('intercompany_entries'))
         journal_rows.append({
             'name': g.get('name') or g.get('id'),
-            'uploaded': _find_journal_file(g['id'], period) is not None,
+            'uploaded': has,
         })
     journal_rows.sort(key=lambda r: (r['uploaded'], r['name']))
     journal_done = sum(1 for r in journal_rows if r['uploaded'])
