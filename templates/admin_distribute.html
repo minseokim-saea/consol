@@ -200,6 +200,10 @@
               <button type="button" class="btn btn-sm btn-outline-secondary" id="selectNoneBtn" data-i18n="dist.select_none">전체 해제</button>
             </span>
           </label>
+          <div id="distGroupArea" class="dist-group-area mb-2" style="display:none;">
+            <span class="small text-muted me-1"><i class="bi bi-collection"></i> 그룹:</span>
+            <span id="distGroupBtns" class="d-inline-flex flex-wrap gap-1"></span>
+          </div>
           <div class="company-check-list" id="companyList">
             <div class="text-muted small p-3">로딩 중...</div>
           </div>
@@ -316,7 +320,7 @@ function renderCompanyList(list) {
     return;
   }
   el.innerHTML = list.map((co, i) => `
-    <div class="form-check">
+    <div class="form-check" data-company="${escapeHtml(co)}">
       <input class="form-check-input company-cb" type="checkbox"
              value="${escapeHtml(co)}" id="co_${i}">
       <label class="form-check-label w-100" for="co_${i}">${escapeHtml(co)}</label>
@@ -330,28 +334,97 @@ function renderCompanyList(list) {
 function updateCompanyCount() {
   const n = document.querySelectorAll('.company-cb:checked').length;
   document.getElementById('companyCount').textContent = n;
+  updateDistGroupBadges();
 }
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
+// 검색: 재렌더 대신 행 표시/숨김 → 선택(체크) 상태가 검색해도 유지됨
 document.getElementById('companySearch').addEventListener('input', e => {
   const q = e.target.value.trim().toLowerCase();
-  const filtered = q ? allCompanies.filter(c => c.toLowerCase().includes(q)) : allCompanies;
-  renderCompanyList(filtered);
-  updateCompanyCount();
+  document.querySelectorAll('#companyList .form-check').forEach(row => {
+    const co = (row.dataset.company || '').toLowerCase();
+    row.style.display = (!q || co.includes(q)) ? '' : 'none';
+  });
 });
 
+// 전체 선택/해제 — 현재 보이는(검색 필터된) 회사에만 적용
+function _visibleCbs() {
+  return [...document.querySelectorAll('#companyList .form-check')]
+    .filter(row => row.style.display !== 'none')
+    .map(row => row.querySelector('.company-cb'))
+    .filter(Boolean);
+}
 document.getElementById('selectAllBtn').addEventListener('click', () => {
-  document.querySelectorAll('.company-cb').forEach(cb => cb.checked = true);
+  _visibleCbs().forEach(cb => cb.checked = true);
+  updateCompanyCount();
+});
+document.getElementById('selectNoneBtn').addEventListener('click', () => {
+  _visibleCbs().forEach(cb => cb.checked = false);
   updateCompanyCount();
 });
 
-document.getElementById('selectNoneBtn').addEventListener('click', () => {
-  document.querySelectorAll('.company-cb').forEach(cb => cb.checked = false);
-  updateCompanyCount();
-});
+// ── 그룹 필터 (패키지 업로드와 동일한 /groups 사용) ──────────
+let _distGroups = {};
+const _dnorm = s => (s || '').trim().toLowerCase();
+const _dgid  = g => 'dgb_' + g.replace(/[^a-zA-Z0-9가-힣]/g, '_');
+
+async function loadDistGroups() {
+  try {
+    const res = await fetch('/groups');
+    const data = await res.json();
+    _distGroups = data.groups || {};
+    renderDistGroupButtons();
+  } catch (e) { /* 그룹 정보 없으면 무시 */ }
+}
+
+function renderDistGroupButtons() {
+  const area = document.getElementById('distGroupArea');
+  const btns = document.getElementById('distGroupBtns');
+  // 이 화면(권한 필터된 목록)에 실제 존재하는 회사가 있는 그룹만 노출
+  const present = new Set(allCompanies.map(_dnorm));
+  const names = Object.keys(_distGroups)
+    .filter(g => (_distGroups[g] || []).some(c => present.has(_dnorm(c))));
+  if (!names.length) { area.style.display = 'none'; return; }
+  area.style.display = '';
+  btns.innerHTML = names.map(g =>
+    `<button type="button" class="btn btn-sm btn-outline-secondary dist-group-btn" data-group="${escapeHtml(g)}">`+
+    `${escapeHtml(g)} <span class="badge bg-secondary ms-1" id="${_dgid(g)}">0</span></button>`
+  ).join('');
+  btns.querySelectorAll('.dist-group-btn').forEach(b =>
+    b.addEventListener('click', () => toggleDistGroup(b.dataset.group)));
+  updateDistGroupBadges();
+}
+
+// 그룹 클릭: 그룹 소속 회사 일괄 토글(모두 체크돼 있으면 해제, 아니면 체크)
+function toggleDistGroup(groupName) {
+  const inGroup = new Set((_distGroups[groupName] || []).map(_dnorm));
+  const matching = [...document.querySelectorAll('.company-cb')].filter(c => inGroup.has(_dnorm(c.value)));
+  if (!matching.length) return;
+  const allChecked = matching.every(c => c.checked);
+  matching.forEach(c => { c.checked = !allChecked; });
+  updateCompanyCount();   // 카운트 + 그룹 배지 함께 갱신
+}
+
+function updateDistGroupBadges() {
+  const cbs = [...document.querySelectorAll('.company-cb')];
+  Object.entries(_distGroups).forEach(([g, companies]) => {
+    const badgeEl = document.getElementById(_dgid(g));
+    const btnEl = document.querySelector(`.dist-group-btn[data-group="${g}"]`);
+    if (!badgeEl || !btnEl) return;
+    const norm = companies.map(_dnorm);
+    const matching = cbs.filter(c => norm.includes(_dnorm(c.value)));
+    const checked = matching.filter(c => c.checked).length;
+    badgeEl.textContent = `${checked}/${matching.length}`;
+    const allChecked = matching.length > 0 && checked === matching.length;
+    const anyChecked = checked > 0;
+    btnEl.classList.toggle('btn-primary', allChecked);
+    btnEl.classList.toggle('btn-outline-primary', anyChecked && !allChecked);
+    btnEl.classList.toggle('btn-outline-secondary', !anyChecked);
+  });
+}
 
 // ─── 분기 비밀번호 등록 상태 ─────────────────────────────
 async function refreshPwdStatus() {
@@ -627,6 +700,7 @@ if (recentSel) recentSel.addEventListener('change', e => selectRecentBatch(e.tar
 // ─── 초기 로드 ─────────────────────────────────────
 loadTemplates();
 initCompanies();
+loadDistGroups();
 if (IS_ADMIN) loadPwdList();
 refreshPwdStatus();
 loadRecentBatches(true);
