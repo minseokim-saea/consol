@@ -92,8 +92,8 @@
     <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
       <span><i class="bi bi-currency-exchange me-2"></i>② 통화별 환율 <small class="opacity-75" id="ratePeriodLabel"></small></span>
       <div class="d-flex gap-2 flex-wrap">
-        <button type="button" class="btn btn-sm btn-outline-secondary" id="fxTemplateBtn" title="환율 일괄 업로드용 엑셀 양식을 다운로드합니다"><i class="bi bi-file-earmark-excel me-1"></i>양식 다운로드</button>
-        <button type="button" class="btn btn-sm btn-outline-success" id="fxUploadBtn" title="원래 양식(엑셀)으로 당기 환율을 일괄 업로드합니다"><i class="bi bi-upload me-1"></i>양식 업로드</button>
+        <button type="button" class="btn btn-sm btn-light" id="fxTemplateBtn" title="환율 일괄 업로드용 엑셀 양식을 다운로드합니다"><i class="bi bi-file-earmark-excel me-1"></i>양식 다운로드</button>
+        <button type="button" class="btn btn-sm btn-success fw-semibold" id="fxUploadBtn" title="원래 양식(엑셀)으로 당기 환율을 일괄 업로드합니다"><i class="bi bi-upload me-1"></i>양식 업로드</button>
         <input type="file" id="fxUploadInput" class="d-none" accept=".xlsx,.xls,.xlsm">
         <button type="button" class="btn btn-sm btn-light" id="addCurrencyBtn"><i class="bi bi-plus-circle me-1"></i>통화 추가</button>
         <button type="button" class="btn btn-sm btn-warning fw-semibold" id="saveRatesBtn"><i class="bi bi-save me-1"></i>환율 저장</button>
@@ -117,7 +117,7 @@
       </div>
     </div>
     <div class="card-footer bg-white small text-muted">
-      <i class="bi bi-info-circle me-1"></i>여기서 저장한 환율은 <strong>당기(선택 분기)</strong> 기준입니다. 전기·최초연도 환율은 메인 화면의 「환율 관리」에서 다룹니다.
+      <i class="bi bi-info-circle me-1"></i>여기서 저장한 환율은 <strong>당기(선택 분기)</strong> 기준입니다. 전기·최초연도 환율은 <strong>「패키지 업로드」 화면 상단의 <span class="text-info">「환율 관리」</span> 버튼</strong>(모달)에서 다룹니다.
     </div>
   </div>
 
