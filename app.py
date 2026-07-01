@@ -11955,8 +11955,8 @@ def distribute_download():
     kind = (request.args.get('kind') or '').strip().lower()
     file_name = (request.args.get('file') or '').strip()
 
-    # CSV/ZIP은 시트 보호 암호가 포함될 수 있어 관리자만 허용
-    if kind in ('csv', 'zip') and not is_admin:
+    # CSV(비밀번호목록)는 항상 관리자만
+    if kind == 'csv' and not is_admin:
         return jsonify({'error': '비밀번호가 포함된 파일은 관리자만 다운로드할 수 있습니다.'}), 403
 
     if kind == 'csv':
@@ -11968,17 +11968,45 @@ def distribute_download():
                          mimetype='text/csv')
 
     if kind == 'zip':
-        # 모든 .xlsm + _비밀번호목록.csv 묶기 (관리자 전용)
+        # 일괄(ZIP) 다운로드.
+        #   · 관리자 : 모든 .xlsm + _비밀번호목록.csv
+        #   · 자회사 : 본인 담당 회사의 .xlsm 만 (비밀번호 CSV 제외)
         import zipfile, tempfile
+        include_csv = False
+        members = []   # (원본경로, zip 내부 이름)
+        if is_admin:
+            members = [(p, p.name) for p in sorted(batch_dir.glob('*.xlsm'))]
+            include_csv = True
+        else:
+            try:
+                with open(batch_dir / '_manifest.json', 'r', encoding='utf-8') as fp:
+                    mani = json.load(fp)
+            except Exception:
+                return jsonify({'error': '배치 메타데이터를 확인할 수 없습니다.'}), 403
+            for r in (mani.get('results') or []):
+                if not r.get('ok'):
+                    continue
+                outp = r.get('output_path') or ''
+                co = r.get('company')
+                if not outp:
+                    continue
+                fpath = batch_dir / Path(outp).name
+                if (fpath.exists() and fpath.suffix.lower() == '.xlsm'
+                        and _is_distribute_owner(uname, co)):
+                    members.append((fpath, fpath.name))
+            if not members:
+                return jsonify({'error': '다운로드할 수 있는 본인 담당 파일이 없습니다.'}), 404
+
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
         tmp.close()
         try:
             with zipfile.ZipFile(tmp.name, 'w', zipfile.ZIP_DEFLATED) as zf:
-                for p in sorted(batch_dir.glob('*.xlsm')):
-                    zf.write(str(p), p.name)
-                csv_p = batch_dir / '_비밀번호목록.csv'
-                if csv_p.exists():
-                    zf.write(str(csv_p), '_비밀번호목록.csv')
+                for src, arc in members:
+                    zf.write(str(src), arc)
+                if include_csv:
+                    csv_p = batch_dir / '_비밀번호목록.csv'
+                    if csv_p.exists():
+                        zf.write(str(csv_p), '_비밀번호목록.csv')
             return send_file(tmp.name, as_attachment=True,
                              download_name=f'{batch}.zip',
                              mimetype='application/zip')

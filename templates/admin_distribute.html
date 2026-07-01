@@ -245,9 +245,10 @@
           <i class="bi bi-clock-history"></i><span data-i18n="dist.recent_label">이전 생성 결과</span>
           <select id="recentBatchSelect" class="form-select form-select-sm" style="width:auto; min-width:230px"></select>
         </label>
-        <span class="text-white-50 small">
-          <i class="bi bi-info-circle me-1"></i><span data-i18n="dist.dl_note">개별 파일 다운로드만 제공됩니다</span>
-        </span>
+        <button type="button" class="btn btn-sm btn-light fw-semibold" id="batchZipBtn"
+                style="display:none" onclick="downloadBatchZip()">
+          <i class="bi bi-file-earmark-zip-fill me-1"></i>일괄 다운로드 (ZIP)
+        </button>
       </div>
     </div>
     <div class="card-body p-0">
@@ -559,6 +560,7 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
   allResults = [];
   lastBatchId = null;
   document.getElementById('resultBody').innerHTML = '';
+  document.getElementById('batchZipBtn').style.display = 'none';
   document.getElementById('resultCard').style.display = '';
 
   const total = companies.length;
@@ -613,9 +615,17 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
   loadRecentBatches(false);
 });
 
+// 현재 배치를 ZIP으로 일괄 다운로드 (관리자=전체+비밀번호, 자회사=본인 파일만)
+function downloadBatchZip() {
+  if (!lastBatchId) { showAlert('warn', `<i class="bi bi-exclamation-triangle"></i> ${window.t('dist.select_co_min')}`); return; }
+  window.location.href = `/distribute/download?batch=${encodeURIComponent(lastBatchId)}&kind=zip`;
+}
+
 function renderResults(results) {
   document.getElementById('resultCard').style.display = '';
   const tbody = document.getElementById('resultBody');
+  const zbtn = document.getElementById('batchZipBtn');
+  if (zbtn) zbtn.style.display = (lastBatchId && results.some(r => r.ok)) ? '' : 'none';
   tbody.innerHTML = results.map((r, i) => {
     if (!r.ok) {
       return `<tr>
