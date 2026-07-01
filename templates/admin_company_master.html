@@ -91,7 +91,10 @@
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
       <span><i class="bi bi-currency-exchange me-2"></i>② 통화별 환율 <small class="opacity-75" id="ratePeriodLabel"></small></span>
-      <div class="d-flex gap-2">
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="fxTemplateBtn" title="환율 일괄 업로드용 엑셀 양식을 다운로드합니다"><i class="bi bi-file-earmark-excel me-1"></i>양식 다운로드</button>
+        <button type="button" class="btn btn-sm btn-outline-success" id="fxUploadBtn" title="원래 양식(엑셀)으로 당기 환율을 일괄 업로드합니다"><i class="bi bi-upload me-1"></i>양식 업로드</button>
+        <input type="file" id="fxUploadInput" class="d-none" accept=".xlsx,.xls,.xlsm">
         <button type="button" class="btn btn-sm btn-light" id="addCurrencyBtn"><i class="bi bi-plus-circle me-1"></i>통화 추가</button>
         <button type="button" class="btn btn-sm btn-warning fw-semibold" id="saveRatesBtn"><i class="bi bi-save me-1"></i>환율 저장</button>
       </div>
@@ -296,6 +299,40 @@ function renderRates(currencies) {
 document.getElementById('rateBody').addEventListener('click', e=>{
   const btn = e.target.closest('.del-rate'); if(!btn) return;
   btn.closest('tr')?.remove();
+});
+
+// ── 환율 양식(엑셀) 다운로드 / 업로드 — 기존 FX 엔드포인트 재사용 ──
+document.getElementById('fxTemplateBtn').addEventListener('click', ()=>{
+  const qs = curYear ? ('?year=' + encodeURIComponent(curYear)) : '';
+  window.location.href = '/admin/fx-rates/template' + qs;
+});
+document.getElementById('fxUploadBtn').addEventListener('click', ()=>{
+  if(!curYear) { showAlert('warn','<i class="bi bi-exclamation-triangle"></i> 먼저 분기를 선택하세요.'); return; }
+  document.getElementById('fxUploadInput').click();
+});
+document.getElementById('fxUploadInput').addEventListener('change', async (ev)=>{
+  const input = ev.target;
+  const file = input.files && input.files[0];
+  if(!file) return;
+  if(!curYear) { showAlert('warn','<i class="bi bi-exclamation-triangle"></i> 먼저 분기를 선택하세요.'); input.value=''; return; }
+  if(!confirm(`${curYear} 당기 환율을 업로드한 파일로 대체합니다.\n(시트 "당기환율" · 칼럼: 통화코드 | Spot Rate | Avg Rate)\n계속할까요?`)) { input.value=''; return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  const btn = document.getElementById('fxUploadBtn');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(curYear)}/upload`, { method:'POST', body: fd });
+    const data = await res.json();
+    if(!res.ok || data.error) throw new Error(data.error || '업로드 실패');
+    const priorMsg = (data.is_first_year && data.prior_saved) ? `, 전기 ${data.prior_saved}개` : '';
+    showAlert('success', `<i class="bi bi-check-circle"></i> 환율 업로드 완료 — 당기 ${data.currencies_saved}개${priorMsg} (회사별 적용 환율에 반영됨)`);
+    await loadData(curYear);   // 재로딩으로 ②표·회사별 적용환율 동기화
+  } catch(e) {
+    showAlert('error', `<i class="bi bi-x-circle"></i> ${escapeHtml(e.message)}`);
+  } finally {
+    btn.disabled = false;
+    input.value = '';
+  }
 });
 
 document.getElementById('addCurrencyBtn').addEventListener('click', ()=>{
