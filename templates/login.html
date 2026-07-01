@@ -48,6 +48,8 @@
   .form-control:focus { border-color: #1F3864; box-shadow: 0 0 0 0.2rem rgba(31,56,100,0.15); }
   .login-header { position: relative; }
   .login-lang { position: absolute; top: 12px; right: 12px; }
+  .login-sign { text-align:center; margin-top:1.5rem; font-size:0.74rem; color:#94a3b8; letter-spacing:0.3px; user-select:none; }
+  .login-sign span { font-weight:600; color:#1F3864; }
 </style>
 </head>
 <body>
@@ -87,6 +89,9 @@
         <i class="bi bi-box-arrow-in-right me-2"></i><span data-i18n="login.btn">로그인</span>
       </button>
     </form>
+    <div class="login-sign" title="기획 · 설계">
+      Planned &amp; Designed by <span>Minseo Kim</span>
+    </div>
   </div>
 </div>
 {% include '_i18n.html' %}
