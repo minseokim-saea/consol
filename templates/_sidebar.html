@@ -148,10 +148,25 @@
   </div>
   {% endif %}
   {% if perms and perms.distribute_run %}
-  <a href="/distribute" class="side-link {% if active_menu == 'distribute' %}active{% endif %}" title="배포용 패키지 생성">
-    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
-    <span class="side-label" data-i18n="side.distribute">배포용 생성</span>
-  </a>
+  <div class="side-group">
+    <button type="button" class="side-link side-group-toggle {% if active_menu in ['distribute', 'distribute_admin'] %}active{% endif %}" title="배포용 생성">
+      <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i>
+      <span class="side-label" data-i18n="side.distribute">배포용 생성</span>
+      <i class="bi bi-chevron-right side-caret" aria-hidden="true"></i>
+    </button>
+    <div class="side-flyout">
+      {% if perms.distribute_admin %}
+      <a href="/distribute/admin" class="side-link {% if active_menu == 'distribute_admin' %}active{% endif %}" title="배포 관리 (관리자)">
+        <i class="bi bi-sliders2" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="side.distribute_admin">배포 관리</span>
+      </a>
+      {% endif %}
+      <a href="/distribute" class="side-link {% if active_menu == 'distribute' %}active{% endif %}" title="배포 다운로드">
+        <i class="bi bi-download" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="side.distribute_dl">배포 다운로드</span>
+      </a>
+    </div>
+  </div>
   {% endif %}
   {% if perms and perms.wce_manage %}
   <div class="side-group">

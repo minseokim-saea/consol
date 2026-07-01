@@ -45,7 +45,7 @@
 </head>
 <body>
 
-{% set active_menu = 'distribute' %}
+{% set active_menu = 'distribute_admin' if mode == 'admin' else 'distribute' %}
 {% include '_sidebar.html' %}
 
 {% include '_topbar.html' %}
@@ -54,7 +54,7 @@
 
   <div id="alertArea"></div>
 
-  {% if is_admin %}
+  {% if mode == 'admin' %}
   <!-- ① 빈 템플릿 등록 (관리자 전용) -->
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center gap-2">
@@ -144,8 +144,52 @@
       </div>
     </div>
   </div>
-  {% else %}
-  <!-- 자회사 사용자 안내 -->
+
+  <!-- ③ 배포 오픈 / 폐쇄 (관리자 전용) -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-toggles"></i>
+      <span>③ 배포 오픈 / 폐쇄</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">환율이 확정된 뒤 해당 분기 배포를 <strong>열어야</strong> 자회사가 배포용 파일을 생성·다운로드할 수 있습니다. 닫혀 있으면 자회사의 생성·다운로드가 차단됩니다. (관리자는 상태와 무관하게 가능)</p>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">결산 연도</label>
+          <select class="form-select" id="openAdmYear">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == default_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">결산 분기</label>
+          <select class="form-select" id="openAdmQuarter">
+            <option value="1" data-i18n="q.1">1분기</option>
+            <option value="2" data-i18n="q.2">2분기</option>
+            <option value="3" data-i18n="q.3">3분기</option>
+            <option value="4" data-i18n="q.4">4분기</option>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">현재 상태</label>
+          <div id="openAdmBox" class="alert alert-secondary py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2">
+            <span><i class="bi bi-hourglass-split me-1"></i>상태 확인 중...</span>
+            <span class="d-flex gap-1">
+              <button type="button" class="btn btn-sm btn-success" onclick="setOpenAdm(true)">
+                <i class="bi bi-unlock-fill me-1"></i>배포 열기</button>
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="setOpenAdm(false)">
+                <i class="bi bi-lock-fill me-1"></i>배포 닫기</button>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if mode == 'user' %}
+  <!-- 안내 -->
   <div class="alert alert-info d-flex align-items-center gap-2">
     <i class="bi bi-info-circle-fill"></i>
     <div>
@@ -153,13 +197,12 @@
       <span class="ms-2"><span data-i18n="dist.registered_tpls_inline">등록된 템플릿:</span> <span id="templateList" class="d-inline-flex gap-2 flex-wrap"><span class="text-muted small">로딩 중...</span></span></span>
     </div>
   </div>
-  {% endif %}
 
   <!-- 배포용 파일 생성 -->
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center gap-2">
       <i class="bi bi-gear-fill"></i>
-      <span>{% if is_admin %}③ {% endif %}<span data-i18n="dist.gen_title">배포용 파일 생성</span></span>
+      <span><span data-i18n="dist.gen_title">배포용 파일 생성</span></span>
     </div>
     <div class="card-body">
 
@@ -185,6 +228,17 @@
           <label class="form-label fw-semibold" data-i18n="dist.sheet_protect">시트 보호</label>
           <div id="pwdStatusBox" class="alert alert-secondary py-2 mb-0 small">
             <i class="bi bi-hourglass-split me-1"></i><span data-i18n="dist.checking">분기 비밀번호 확인 중...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-12">
+          <label class="form-label fw-semibold">배포 상태
+            <span class="text-muted fw-normal small">(환율 확정 후 관리자가 열어야 자회사가 생성·다운로드 가능)</span>
+          </label>
+          <div id="openStatusBox" class="alert alert-secondary py-2 mb-0 small">
+            <span><i class="bi bi-hourglass-split me-1"></i>배포 상태 확인 중...</span>
           </div>
         </div>
       </div>
@@ -238,7 +292,7 @@
     <div class="card-header d-flex align-items-center justify-content-between gap-2">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-check2-square"></i>
-        <span>{% if is_admin %}③ {% endif %}<span data-i18n="dist.result_title">생성 결과</span></span>
+        <span><span data-i18n="dist.result_title">생성 결과</span></span>
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <label class="text-white small mb-0 d-flex align-items-center gap-1" id="recentBatchWrap" style="display:none">
@@ -270,12 +324,14 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 const IS_ADMIN = {{ 'true' if is_admin else 'false' }};
+const MODE = "{{ mode }}";   // 'admin' | 'user'
 const RETENTION_DAYS = {{ retention_days | default(30) }};
 
 function renderRetentionNote() {
@@ -343,7 +399,7 @@ function escapeHtml(s) {
 }
 
 // 검색: 재렌더 대신 행 표시/숨김 → 선택(체크) 상태가 검색해도 유지됨
-document.getElementById('companySearch').addEventListener('input', e => {
+document.getElementById('companySearch')?.addEventListener('input', e => {
   const q = e.target.value.trim().toLowerCase();
   document.querySelectorAll('#companyList .form-check').forEach(row => {
     const co = (row.dataset.company || '').toLowerCase();
@@ -358,11 +414,11 @@ function _visibleCbs() {
     .map(row => row.querySelector('.company-cb'))
     .filter(Boolean);
 }
-document.getElementById('selectAllBtn').addEventListener('click', () => {
+document.getElementById('selectAllBtn')?.addEventListener('click', () => {
   _visibleCbs().forEach(cb => cb.checked = true);
   updateCompanyCount();
 });
-document.getElementById('selectNoneBtn').addEventListener('click', () => {
+document.getElementById('selectNoneBtn')?.addEventListener('click', () => {
   _visibleCbs().forEach(cb => cb.checked = false);
   updateCompanyCount();
 });
@@ -449,8 +505,87 @@ async function refreshPwdStatus() {
     box.textContent = window.t('dist.pwd_check_fail');
   }
 }
-document.getElementById('targetYear').addEventListener('change', refreshPwdStatus);
-document.getElementById('targetQuarter').addEventListener('change', refreshPwdStatus);
+document.getElementById('targetYear')?.addEventListener('change', refreshPwdStatus);
+document.getElementById('targetQuarter')?.addEventListener('change', refreshPwdStatus);
+
+// ── 배포 오픈/폐쇄 상태 ─────────────────────────────────
+let _distOpen = false;
+
+async function refreshOpenStatus() {
+  const y = document.getElementById('targetYear').value;
+  const q = document.getElementById('targetQuarter').value;
+  const box = document.getElementById('openStatusBox');
+  if (!box) return;
+  const statusSpan = box.querySelector('span');   // 첫 span = 상태 텍스트
+  try {
+    const r = await fetch(`/distribute/open-status?year=${encodeURIComponent(y)}&quarter=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    _distOpen = !!j.open;
+  } catch (e) { _distOpen = false; }
+  if (_distOpen) {
+    box.className = 'alert alert-success py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
+    statusSpan.innerHTML = `<i class="bi bi-unlock-fill me-1"></i><strong>${y}-${q}Q 배포 열림</strong> — 자회사가 파일을 생성·다운로드할 수 있습니다.`;
+  } else {
+    box.className = 'alert alert-danger py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
+    statusSpan.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${y}-${q}Q 배포 닫힘</strong> — 환율 확정 후 관리자가 열어야 자회사가 생성·다운로드할 수 있습니다.`;
+  }
+  applyOpenGate();
+}
+
+// 비관리자는 폐쇄 시 생성/일괄다운로드 차단 (서버에서도 강제)
+function applyOpenGate() {
+  const blocked = !IS_ADMIN && !_distOpen;
+  const genBtn = document.getElementById('generateBtn');
+  if (genBtn) genBtn.disabled = blocked;
+  if (blocked) {
+    const zbtn = document.getElementById('batchZipBtn');
+    if (zbtn) zbtn.style.display = 'none';
+  }
+}
+
+document.getElementById('targetYear')?.addEventListener('change', refreshOpenStatus);
+document.getElementById('targetQuarter')?.addEventListener('change', refreshOpenStatus);
+
+// ── (관리자 모드) 배포 오픈/폐쇄 관리 ─────────────────────
+async function refreshOpenAdm() {
+  const yEl = document.getElementById('openAdmYear');
+  const box = document.getElementById('openAdmBox');
+  if (!yEl || !box) return;
+  const y = yEl.value, q = document.getElementById('openAdmQuarter').value;
+  let open = false;
+  try {
+    const r = await fetch(`/distribute/open-status?year=${encodeURIComponent(y)}&quarter=${encodeURIComponent(q)}`);
+    open = !!(await r.json()).open;
+  } catch (e) { open = false; }
+  const span = box.querySelector('span');
+  if (open) {
+    box.className = 'alert alert-success py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
+    span.innerHTML = `<i class="bi bi-unlock-fill me-1"></i><strong>${y}-${q}Q 배포 열림</strong>`;
+  } else {
+    box.className = 'alert alert-danger py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
+    span.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${y}-${q}Q 배포 닫힘</strong>`;
+  }
+}
+
+async function setOpenAdm(open) {
+  const y = document.getElementById('openAdmYear').value;
+  const q = document.getElementById('openAdmQuarter').value;
+  try {
+    const r = await fetch('/distribute/open', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ year: y, quarter: q, open })
+    });
+    const j = await r.json();
+    if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${escapeHtml(j.error || '실패')}`); return; }
+    showAlert('success', `<i class="bi bi-check-circle"></i> ${y}-${q}Q 배포를 ${open ? '열었습니다' : '닫았습니다'}.`);
+    refreshOpenAdm();
+  } catch (e) {
+    showAlert('error', `<i class="bi bi-x-circle"></i> ${escapeHtml(String(e))}`);
+  }
+}
+
+document.getElementById('openAdmYear')?.addEventListener('change', refreshOpenAdm);
+document.getElementById('openAdmQuarter')?.addEventListener('change', refreshOpenAdm);
 
 // ─── 분기 비밀번호 관리 (관리자 전용) ─────────────────────
 async function loadPwdList() {
@@ -540,9 +675,13 @@ if (templateForm) templateForm.addEventListener('submit', async e => {
 let lastBatchId = null;
 let allResults = [];
 
-document.getElementById('generateBtn').addEventListener('click', async () => {
+document.getElementById('generateBtn')?.addEventListener('click', async () => {
   const year = document.getElementById('targetYear').value;
   const quarter = document.getElementById('targetQuarter').value;
+
+  if (!IS_ADMIN && !_distOpen) {
+    showAlert('warn', `<i class="bi bi-lock-fill"></i> 배포가 닫혀 있어 파일을 생성할 수 없습니다. 관리자에게 문의하세요.`); return;
+  }
 
   const companies = [...document.querySelectorAll('.company-cb:checked')].map(cb => cb.value);
   if (companies.length === 0) {
@@ -625,7 +764,8 @@ function renderResults(results) {
   document.getElementById('resultCard').style.display = '';
   const tbody = document.getElementById('resultBody');
   const zbtn = document.getElementById('batchZipBtn');
-  if (zbtn) zbtn.style.display = (lastBatchId && results.some(r => r.ok)) ? '' : 'none';
+  const zipBlocked = !IS_ADMIN && !_distOpen;
+  if (zbtn) zbtn.style.display = (lastBatchId && results.some(r => r.ok) && !zipBlocked) ? '' : 'none';
   tbody.innerHTML = results.map((r, i) => {
     if (!r.ok) {
       return `<tr>
@@ -707,23 +847,31 @@ function selectRecentBatch(batchId) {
 const recentSel = document.getElementById('recentBatchSelect');
 if (recentSel) recentSel.addEventListener('change', e => selectRecentBatch(e.target.value));
 
-// ─── 초기 로드 ─────────────────────────────────────
-loadTemplates();
-initCompanies();
-loadDistGroups();
-if (IS_ADMIN) loadPwdList();
-refreshPwdStatus();
-loadRecentBatches(true);
-renderRetentionNote();
+// ─── 초기 로드 (모드별) ─────────────────────────────────
+loadTemplates();                    // templateList는 양쪽 모드에 모두 존재
+if (MODE === 'user') {
+  initCompanies();
+  loadDistGroups();
+  refreshPwdStatus();
+  refreshOpenStatus();
+  loadRecentBatches(true);
+  renderRetentionNote();
+}
+if (MODE === 'admin') {
+  loadPwdList();
+  refreshOpenAdm();
+}
 
-// 언어 전환 시 동적 영역 재렌더
+// 언어 전환 시 동적 영역 재렌더 (없는 요소는 함수 내부에서 가드됨)
 window.onI18nChange = function () {
   loadTemplates();
-  refreshPwdStatus();
-  if (IS_ADMIN) loadPwdList();
-  renderRecentSelect();
-  renderRetentionNote();
-  if (allResults.length) renderResults(allResults);   // 생성 결과가 있을 때만 재렌더
+  if (MODE === 'user') {
+    refreshPwdStatus();
+    renderRecentSelect();
+    renderRetentionNote();
+    if (allResults.length) renderResults(allResults);
+  }
+  if (MODE === 'admin') loadPwdList();
 };
 </script>
 </body>

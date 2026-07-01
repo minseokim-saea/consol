@@ -11682,10 +11682,29 @@ def _accessible_companies_for(username):
 @login_required
 @require_permission('distribute.run')
 def distribute_page():
-    """배포용 패키지 생성 페이지 (관리자: 전체 / 자회사: 본인 담당)."""
+    """배포 다운로드 (유저 모드) — 파일 생성/다운로드만."""
     uname = session.get('username')
     return render_template(
         'admin_distribute.html',
+        mode='user',
+        years=_year4_list(),
+        default_year=_default_year4(),
+        username=uname,
+        is_admin=_is_admin(uname),
+        companies=_accessible_companies_for(uname),
+        retention_days=DISTRIBUTE_RETENTION_DAYS,
+    )
+
+
+@app.route('/distribute/admin')
+@login_required
+@require_permission('distribute.admin')
+def distribute_admin_page():
+    """배포 관리 (관리자 모드) — 템플릿 등록 / 분기 비밀번호 / 배포 오픈·폐쇄."""
+    uname = session.get('username')
+    return render_template(
+        'admin_distribute.html',
+        mode='admin',
         years=_year4_list(),
         default_year=_default_year4(),
         username=uname,
@@ -11741,6 +11760,35 @@ def distribute_check_quarter_password():
     return jsonify({'has_password': bool(pwd)})
 
 
+@app.route('/distribute/open-status', methods=['GET'])
+@login_required
+def distribute_open_status():
+    """해당 분기 배포 오픈 여부 조회 (로그인 사용자 누구나). 값만 반환."""
+    year = (request.args.get('year') or '').strip()
+    quarter = (request.args.get('quarter') or '').strip()
+    if not re.match(r'^\d{4}$', year) or quarter not in ('1', '2', '3', '4'):
+        return jsonify({'error': 'year/quarter 파라미터 오류'}), 400
+    return jsonify({'open': dbuilder.is_distribute_open(year, quarter)})
+
+
+@app.route('/distribute/open', methods=['POST'])
+@require_permission('distribute.admin')
+def distribute_set_open():
+    """분기별 배포 오픈/폐쇄 (배포 관리 권한 필요).
+    body: {year: 'YYYY', quarter: '1'~'4', open: bool}
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    year = str(data.get('year') or '').strip()
+    quarter = str(data.get('quarter') or '').strip()
+    open_flag = bool(data.get('open'))
+    if not re.match(r'^\d{4}$', year):
+        return jsonify({'error': '유효한 연도(YYYY)가 필요합니다.'}), 400
+    if quarter not in ('1', '2', '3', '4'):
+        return jsonify({'error': '분기(1~4)를 선택하세요.'}), 400
+    dbuilder.set_distribute_open(year, quarter, open_flag)
+    return jsonify({'ok': True, 'open': open_flag})
+
+
 @app.route('/distribute/template', methods=['POST'])
 @require_permission('distribute.admin')
 def distribute_upload_template():
@@ -11790,6 +11838,13 @@ def distribute_generate():
         return jsonify({'error': '분기(1~4)를 선택하세요.'}), 400
     if not isinstance(companies, list) or not companies:
         return jsonify({'error': '회사를 1개 이상 선택하세요.'}), 400
+
+    # 배포 오픈 여부 — 폐쇄 상태면 자회사(비관리자)는 생성 불가 (환율 확정 전 방지)
+    if not is_admin and not dbuilder.is_distribute_open(year, quarter):
+        return jsonify({
+            'error': f'{year}-{quarter}Q 배포가 아직 열리지 않았습니다. '
+                     f'환율 확정 후 관리자가 배포를 열면 파일을 생성할 수 있습니다.'
+        }), 403
 
     # 분기별 비밀번호 조회 — 미등록이면 생성 불가
     quarter_pwd = dbuilder.get_quarter_password(year, quarter)
@@ -11951,6 +12006,13 @@ def distribute_download():
     batch_dir = DISTRIBUTE_RESULTS_DIR / batch
     if not batch_dir.exists() or not batch_dir.is_dir():
         return jsonify({'error': '배치를 찾을 수 없음'}), 404
+
+    # 배포 폐쇄 분기의 파일은 자회사(비관리자)에게 다운로드 차단
+    # (batch_id 접두사 'YYYY-NQ_' 로 분기 판별)
+    if not is_admin:
+        _pm = re.match(r'^(\d{4})-([1-4])Q', batch)
+        if _pm and not dbuilder.is_distribute_open(_pm.group(1), _pm.group(2)):
+            return jsonify({'error': '해당 분기 배포가 닫혀 있어 다운로드할 수 없습니다. 관리자에게 문의하세요.'}), 403
 
     kind = (request.args.get('kind') or '').strip().lower()
     file_name = (request.args.get('file') or '').strip()

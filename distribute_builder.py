@@ -431,6 +431,49 @@ def set_quarter_password(year: int | str, quarter: int | str, password: str) -> 
 
 
 # ─────────────────────────────────────────────────────────────
+# 배포 오픈/폐쇄 상태 (분기별) — 환율 확정 전 배포 방지용
+#   기본값 = 폐쇄. 관리자가 명시적으로 열어야 자회사가 생성·다운로드 가능.
+# ─────────────────────────────────────────────────────────────
+DISTRIBUTE_OPEN_FILE = BASE_DIR / "distribute_open.json"
+
+
+def load_distribute_open() -> dict:
+    """분기별 배포 오픈 상태 dict. 키 'YYYY-NQ' → True. 없으면 빈 dict(=전부 폐쇄)."""
+    if not DISTRIBUTE_OPEN_FILE.exists():
+        return {}
+    try:
+        with open(DISTRIBUTE_OPEN_FILE, 'r', encoding='utf-8') as fp:
+            data = json.load(fp) or {}
+        return {k: bool(v) for k, v in data.items()}
+    except Exception:
+        return {}
+
+
+def save_distribute_open(data: dict) -> None:
+    tmp = DISTRIBUTE_OPEN_FILE.with_suffix('.tmp')
+    with open(tmp, 'w', encoding='utf-8') as fp:
+        json.dump(data, fp, ensure_ascii=False, indent=2)
+    tmp.replace(DISTRIBUTE_OPEN_FILE)
+
+
+def is_distribute_open(year: int | str, quarter: int | str) -> bool:
+    """해당 분기 배포가 열려 있는지. 기본값=폐쇄(미설정 시 False)."""
+    return bool(load_distribute_open().get(_quarter_key(year, quarter), False))
+
+
+def set_distribute_open(year: int | str, quarter: int | str, open_flag: bool) -> dict:
+    """분기별 배포 오픈/폐쇄. 폐쇄(open_flag=False)는 키를 제거."""
+    data = load_distribute_open()
+    key = _quarter_key(year, quarter)
+    if open_flag:
+        data[key] = True
+    else:
+        data.pop(key, None)
+    save_distribute_open(data)
+    return data
+
+
+# ─────────────────────────────────────────────────────────────
 # WCE 자본 입력값 (전년 4Q) — BS 자본항목 대체용
 # ─────────────────────────────────────────────────────────────
 def _load_wce_overrides() -> dict:
