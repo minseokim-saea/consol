@@ -948,6 +948,17 @@ def fill_template(template_path: Path, output_path: Path,
                 ws.protection.enable()
                 protected_sheets.append(sn)
 
+        # ── 파일을 열면 Cover 시트가 먼저 보이도록 활성 시트 지정 ──
+        # (템플릿은 Master에서 열리므로 activeTab + 각 시트 tabSelected를 함께 맞춘다)
+        if 'Cover' in wb.sheetnames:
+            cover_idx = wb.sheetnames.index('Cover')
+            wb.active = cover_idx
+            for i, sn in enumerate(wb.sheetnames):
+                try:
+                    wb[sn].sheet_view.tabSelected = (i == cover_idx)
+                except Exception:
+                    pass
+
         wb.save(str(output_path))
 
         return {
