@@ -19,6 +19,11 @@
   .table-wce { font-size:.82rem; }
   .table-wce th { background:#EBF0FA; color:#1F3864; font-weight:600; vertical-align:middle; text-align:center; }
   .table-wce td { vertical-align:middle; padding:6px 8px; }
+  /* 클릭 한 번으로 셀 전체 선택 → Ctrl+C 복사 / 화살표로 셀 이동 */
+  .table-wce td, .table-wce th { cursor:cell; -webkit-user-select:all; -moz-user-select:all; user-select:all; }
+  .table-wce td.cell-active, .table-wce th.cell-active {
+    background:#dbe7ff !important; outline:2px solid #1d4ed8; outline-offset:-2px;
+  }
   .num { text-align:right; font-family:'Courier New',monospace; }
   .num-local {
     color:#6c757d; font-size:.72rem; line-height:1.1; display:block;
@@ -485,6 +490,63 @@ document.getElementById('optHideZeroRows').addEventListener('change', () => {
 document.getElementById('companyList').addEventListener('change', e => {
   if (e.target.classList.contains('co-chk')) updateGroupBadges();
 });
+
+// ── 표 셀: 클릭하면 셀 전체 선택(Ctrl+C 복사) + 화살표로 이동 ──
+(function () {
+  const area = document.getElementById('resultArea');
+  let active = null;
+
+  function selectText(cell) {
+    const sel = window.getSelection();
+    if (!sel) return;
+    sel.removeAllRanges();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    sel.addRange(range);
+  }
+  function setActive(cell) {
+    if (!cell) return;
+    if (active) active.classList.remove('cell-active');
+    active = cell;
+    cell.classList.add('cell-active');
+    selectText(cell);
+    cell.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+
+  // 셀 클릭 → 활성 + 전체 선택
+  area.addEventListener('click', e => {
+    const cell = e.target.closest('.table-wce td, .table-wce th');
+    if (cell) setActive(cell);
+  });
+
+  // 화살표 이동 (같은 표 안에서)
+  document.addEventListener('keydown', e => {
+    if (!active || !active.isConnected) return;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+    const tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+
+    const row = active.parentElement;
+    const col = [...row.children].indexOf(active);
+    let target = null;
+    if (e.key === 'ArrowLeft') target = active.previousElementSibling;
+    else if (e.key === 'ArrowRight') target = active.nextElementSibling;
+    else {
+      const rows = [...active.closest('table').querySelectorAll('tr')];
+      const nr = rows[rows.indexOf(row) + (e.key === 'ArrowDown' ? 1 : -1)];
+      if (nr) target = nr.children[col];
+    }
+    if (target) { e.preventDefault(); setActive(target); }
+  });
+
+  // 표 밖 클릭 시 활성 해제
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.table-wce') && active) {
+      active.classList.remove('cell-active');
+      active = null;
+    }
+  });
+})();
 
 // 초기 로드
 loadGroups();
