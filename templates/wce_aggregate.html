@@ -391,7 +391,7 @@ function renderTable(table, companies, showLocal, hideZero) {
 // 대분류(자본금/자본잉여금/자본조정 등)별 기말금액 합계 테이블 + 자본총계 행
 function renderCategorySummary(table, companies, showLocal) {
   let thead = `<tr>
-    <th class="sticky-left" style="text-align:left; min-width:160px;">대분류 (기말금액)</th>`;
+    <th class="sticky-left" style="text-align:left; min-width:160px;">${table.title_ko} (기말금액)</th>`;
   companies.forEach(co => {
     thead += `<th>${co.company}<br><span class="badge-cur">${co.currency}</span></th>`;
   });
@@ -420,7 +420,7 @@ function renderCategorySummary(table, companies, showLocal) {
 
   // 자본총계 행
   tbody += `<tr class="row-ending">`;
-  tbody += `<td class="sticky-left row-ending">자본총계 (대분류 합계)</td>`;
+  tbody += `<td class="sticky-left row-ending">${table.title_ko} 합계</td>`;
   companies.forEach(co => {
     const bc = grand[co.company];
     if (showLocal) {
@@ -439,7 +439,7 @@ function renderCategorySummary(table, companies, showLocal) {
 
   return `
     <div class="code-header" style="background:#eef5ff; color:#0f2a52;">
-      <i class="bi bi-list-columns-reverse me-1"></i>대분류 합계 (기말금액)
+      <i class="bi bi-list-columns-reverse me-1"></i>${table.title_ko} 합계 (기말금액)
     </div>
     <div class="table-responsive mb-3">
       <table class="table table-bordered table-hover table-wce mb-0">
