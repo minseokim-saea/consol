@@ -628,6 +628,38 @@ document.getElementById('companyList').addEventListener('change', e => {
       active = null;
     }
   });
+
+  // ── 복사 시: 셀의 KRW 숫자만 깨끗하게(부호 유지·콤마 제거) 클립보드에 넣기 ──
+  //    (현지통화 '-' 줄이나 콤마 서식이 함께 붙어 엑셀에서 깨지는 문제 해결)
+  function _closestCell(node) {
+    if (!node) return null;
+    const el = node.nodeType === 1 ? node : node.parentElement;
+    return el ? el.closest('.table-wce td, .table-wce th') : null;
+  }
+  function _cellCopyText(cell) {
+    const krwEl = cell.querySelector('.num-krw');
+    if (krwEl) {
+      const t = (krwEl.textContent || '').trim();
+      if (t === '' || t === '-' || t === '–') return '0';
+      const neg = /^[-–—]/.test(t);            // 음수(fmtNum은 마이너스 기호 사용)
+      const digits = t.replace(/[^\d.]/g, ''); // 콤마·공백·기호 제거
+      if (digits === '') return '0';
+      return (neg ? '-' : '') + digits;
+    }
+    // 숫자 셀이 아니면(라벨/헤더) 텍스트 그대로
+    return (cell.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+  document.addEventListener('copy', e => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const aCell = _closestCell(sel.anchorNode);
+    const fCell = _closestCell(sel.focusNode);
+    if (!aCell || aCell !== fCell) return;    // 셀 밖이거나 여러 셀 선택 → 기본 복사 동작
+    if (e.clipboardData) {
+      e.clipboardData.setData('text/plain', _cellCopyText(aCell));
+      e.preventDefault();
+    }
+  });
 })();
 
 // 초기 로드
