@@ -86,7 +86,7 @@
           <label class="form-label fw-semibold mb-1">표시 옵션</label>
           <div class="display-toggle">
             <div class="form-check form-switch mb-1">
-              <input type="checkbox" id="optShowLocal" class="form-check-input" checked>
+              <input type="checkbox" id="optShowLocal" class="form-check-input">
               <label for="optShowLocal" class="form-check-label small">현지통화 함께 표시</label>
             </div>
             <div class="form-check form-switch mb-0">
@@ -367,8 +367,8 @@ function renderTotalCell(totalKrw, showLocal, isEnding) {
 }
 
 function renderTable(table, companies, showLocal, hideZero) {
-  // 맨 위에 대분류 합계(기말금액) 요약 테이블 → 이어서 코드별 상세
-  let inner = renderCategorySummary(table, companies, showLocal);
+  // 맨 위에 증감항목별 합산 요약 테이블 → 이어서 코드별 상세
+  let inner = renderCategorySummary(table, companies, showLocal, hideZero);
   table.columns.forEach(col => {
     inner += renderCodeSubsection(table, col, companies, showLocal, hideZero);
   });
@@ -388,41 +388,62 @@ function renderTable(table, companies, showLocal, hideZero) {
     </div>`;
 }
 
-// 대분류(자본금/자본잉여금/자본조정 등)별 기말금액 합계 테이블 + 자본총계 행
-function renderCategorySummary(table, companies, showLocal) {
+// 증감항목(기초금액/각 증감/환산효과 등)별로 모든 계정과목을 합산한 요약 테이블
+function renderCategorySummary(table, companies, showLocal, hideZero) {
+  const cells = table.cells || {};
+
   let thead = `<tr>
-    <th class="sticky-left" style="text-align:left; min-width:160px;">${table.title_ko} (기말금액)</th>`;
+    <th class="sticky-left" style="text-align:left; min-width:160px;">${table.title_ko}</th>`;
   companies.forEach(co => {
     thead += `<th>${co.company}<br><span class="badge-cur">${co.currency}</span></th>`;
   });
   thead += `<th class="col-total">합계 (KRW)</th></tr>`;
 
-  // 자본총계 누적 (회사별 현지·KRW + 전체 KRW)
-  const grand = {};
-  companies.forEach(co => { grand[co.company] = { local: 0, krw: 0 }; });
-  let grandTotalKrw = 0;
-
   let tbody = '';
-  table.columns.forEach(col => {
-    const ending = (table.ending || {})[col.code] || { by_company: {}, total_krw: 0 };
-    tbody += `<tr>`;
-    tbody += `<td class="sticky-left"><span class="badge-ko">${col.code}</span> <span class="ms-1">${col.name}</span></td>`;
-    companies.forEach(co => {
-      const bc = (ending.by_company || {})[co.company] || { local: 0, krw: 0 };
-      tbody += renderCell(bc, showLocal, co.currency);
-      grand[co.company].local += bc.local || 0;
-      grand[co.company].krw   += bc.krw   || 0;
+  table.rows.forEach(row => {
+    const rk = row.key;
+    // 이 증감항목을 모든 계정과목(columns)에 걸쳐 합산
+    const perCo = {};
+    companies.forEach(co => { perCo[co.company] = { local: 0, krw: 0 }; });
+    let rowTotalKrw = 0;
+    table.columns.forEach(col => {
+      const cell = cells[`${col.code}::${rk}`] || { by_company: {}, total_krw: 0 };
+      companies.forEach(co => {
+        const bc = (cell.by_company || {})[co.company] || { local: 0, krw: 0 };
+        perCo[co.company].local += bc.local || 0;
+        perCo[co.company].krw   += bc.krw   || 0;
+      });
+      rowTotalKrw += cell.total_krw || 0;
     });
-    tbody += renderTotalCell(ending.total_krw || 0, showLocal, false);
-    grandTotalKrw += ending.total_krw || 0;
+    // 0행 숨기기 옵션
+    if (hideZero && rowTotalKrw === 0 &&
+        companies.every(co => perCo[co.company].local === 0 && perCo[co.company].krw === 0)) {
+      return;
+    }
+    tbody += `<tr>`;
+    tbody += `<td class="sticky-left">${rk}</td>`;
+    companies.forEach(co => { tbody += renderCell(perCo[co.company], showLocal, co.currency); });
+    tbody += renderTotalCell(rowTotalKrw, showLocal, false);
     tbody += `</tr>`;
   });
 
-  // 자본총계 행
+  // ${title} 합계 = 기말금액 (모든 계정과목의 ending 합산, 환산효과 제외)
+  const endCo = {};
+  companies.forEach(co => { endCo[co.company] = { local: 0, krw: 0 }; });
+  let endTotalKrw = 0;
+  table.columns.forEach(col => {
+    const e = (table.ending || {})[col.code] || { by_company: {}, total_krw: 0 };
+    companies.forEach(co => {
+      const bc = (e.by_company || {})[co.company] || { local: 0, krw: 0 };
+      endCo[co.company].local += bc.local || 0;
+      endCo[co.company].krw   += bc.krw   || 0;
+    });
+    endTotalKrw += e.total_krw || 0;
+  });
   tbody += `<tr class="row-ending">`;
   tbody += `<td class="sticky-left row-ending">${table.title_ko} 합계</td>`;
   companies.forEach(co => {
-    const bc = grand[co.company];
+    const bc = endCo[co.company];
     if (showLocal) {
       const localCls = bc.local === 0 ? 'num-local num-zero' : 'num-local';
       const krwCls   = bc.krw   === 0 ? 'num-krw num-zero'   : 'num-krw';
@@ -434,12 +455,12 @@ function renderCategorySummary(table, companies, showLocal) {
       tbody += `<td class="num row-ending"><span class="num-krw">${fmtNum(bc.krw)}</span></td>`;
     }
   });
-  tbody += renderTotalCell(grandTotalKrw, showLocal, true);
+  tbody += renderTotalCell(endTotalKrw, showLocal, true);
   tbody += `</tr>`;
 
   return `
     <div class="code-header" style="background:#eef5ff; color:#0f2a52;">
-      <i class="bi bi-list-columns-reverse me-1"></i>${table.title_ko} 합계 (기말금액)
+      <i class="bi bi-list-columns-reverse me-1"></i>${table.title_ko} 합계 (증감항목별)
     </div>
     <div class="table-responsive mb-3">
       <table class="table table-bordered table-hover table-wce mb-0">
