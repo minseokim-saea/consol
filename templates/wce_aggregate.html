@@ -650,15 +650,20 @@ document.getElementById('companyList').addEventListener('change', e => {
     return (cell.textContent || '').replace(/\s+/g, ' ').trim();
   }
   document.addEventListener('copy', e => {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-    const aCell = _closestCell(sel.anchorNode);
-    const fCell = _closestCell(sel.focusNode);
-    if (!aCell || aCell !== fCell) return;    // 셀 밖이거나 여러 셀 선택 → 기본 복사 동작
-    if (e.clipboardData) {
-      e.clipboardData.setData('text/plain', _cellCopyText(aCell));
-      e.preventDefault();
+    // 활성 셀(클릭/화살표로 선택) 우선, 없으면 단일 셀 선택 판정
+    let cell = (active && active.isConnected) ? active : null;
+    if (!cell) {
+      const sel = window.getSelection();
+      const a = sel && _closestCell(sel.anchorNode);
+      const f = sel && _closestCell(sel.focusNode);
+      if (a && a === f) cell = a;
     }
+    if (!cell || !e.clipboardData) return;     // 표 밖이면 기본 복사 동작
+    const val = _cellCopyText(cell);
+    e.clipboardData.setData('text/plain', val);
+    // 서식 없는 html도 함께 넣어, 엑셀이 html을 우선해도 폰트·색·배경이 안 붙게 함
+    e.clipboardData.setData('text/html', val);
+    e.preventDefault();
   });
 })();
 
