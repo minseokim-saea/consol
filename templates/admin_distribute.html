@@ -55,7 +55,9 @@
   <div id="alertArea"></div>
 
   {% if mode == 'admin' %}
-  <!-- ① 빈 템플릿 등록 (관리자 전용) -->
+  {% if is_admin %}
+  <!-- ①②③ 은 시스템관리자 전용 -->
+  <!-- ① 빈 템플릿 등록 (시스템관리자 전용) -->
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center gap-2">
       <i class="bi bi-file-earmark-arrow-up"></i>
@@ -187,11 +189,13 @@
     </div>
   </div>
 
-  <!-- ④ 배포 파일 보호 일괄 해제 (관리자 전용) -->
+  {% endif %}{# /is_admin — 여기부터 ④는 배포관리 접근자(연결담당자 포함) 모두 노출 #}
+
+  <!-- ④ 배포 파일 시트 보호 일괄 해제 (배포관리 권한자: 시스템관리자 + 연결담당자) -->
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center gap-2">
       <i class="bi bi-unlock-fill"></i>
-      <span>④ 배포 파일 시트 보호 일괄 해제</span>
+      <span>배포 파일 시트 보호 일괄 해제</span>
     </div>
     <div class="card-body">
       <p class="text-muted small mb-3">시트 보호(암호)가 걸린 배포용 파일 여러 개를 올리면 <strong>시트 보호를 한 번에 제거</strong>한 ZIP을 내려받습니다. 서식·수식·매크로는 그대로 보존됩니다. (파일 열기암호가 걸린 파일은 해제 대상이 아닙니다)</p>

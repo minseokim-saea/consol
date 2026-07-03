@@ -11722,14 +11722,14 @@ def distribute_list_templates():
 
 
 @app.route('/distribute/quarter-passwords', methods=['GET'])
-@require_permission('distribute.admin')
+@admin_required
 def distribute_list_quarter_passwords():
     """등록된 분기별 시트 보호 비밀번호 목록 (배포 관리 권한 필요)."""
     return jsonify({'passwords': dbuilder.load_quarter_passwords()})
 
 
 @app.route('/distribute/quarter-passwords', methods=['POST'])
-@require_permission('distribute.admin')
+@admin_required
 def distribute_set_quarter_password():
     """분기별 비밀번호 설정/삭제 (배포 관리 권한 필요).
     body: {year: 'YYYY', quarter: '1'~'4', password: str (빈 문자열이면 삭제)}
@@ -11772,7 +11772,7 @@ def distribute_open_status():
 
 
 @app.route('/distribute/open', methods=['POST'])
-@require_permission('distribute.admin')
+@admin_required
 def distribute_set_open():
     """분기별 배포 오픈/폐쇄 (배포 관리 권한 필요).
     body: {year: 'YYYY', quarter: '1'~'4', open: bool}
@@ -11861,7 +11861,7 @@ def distribute_unprotect():
 
 
 @app.route('/distribute/template', methods=['POST'])
-@require_permission('distribute.admin')
+@admin_required
 def distribute_upload_template():
     """빈 패키지 템플릿 업로드 — 배포 관리 권한 필요. form: year, file"""
     year = (request.form.get('year') or '').strip()
