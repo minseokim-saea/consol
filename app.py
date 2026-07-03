@@ -11789,6 +11789,77 @@ def distribute_set_open():
     return jsonify({'ok': True, 'open': open_flag})
 
 
+def _strip_sheet_protection_bytes(data: bytes) -> bytes:
+    """xlsx/xlsm(zip)의 각 워크시트 XML에서 <sheetProtection.../>(및 workbookProtection)를
+    제거해 반환. openpyxl 재저장을 거치지 않으므로 서식·수식·매크로가 그대로 보존된다.
+    """
+    import io as _io, zipfile as _zip
+    src = _io.BytesIO(data)
+    out = _io.BytesIO()
+    with _zip.ZipFile(src, 'r') as zin, _zip.ZipFile(out, 'w', _zip.ZIP_DEFLATED) as zout:
+        for item in zin.infolist():
+            content = zin.read(item.filename)
+            nm = item.filename
+            if nm.startswith('xl/worksheets/') and nm.endswith('.xml'):
+                txt = content.decode('utf-8', 'ignore')
+                txt = re.sub(r'<sheetProtection\b[^>]*?/>', '', txt)
+                content = txt.encode('utf-8')
+            elif nm == 'xl/workbook.xml':
+                txt = content.decode('utf-8', 'ignore')
+                txt = re.sub(r'<workbookProtection\b[^>]*?/>', '', txt)
+                content = txt.encode('utf-8')
+            zout.writestr(item, content)
+    return out.getvalue()
+
+
+@app.route('/distribute/unprotect', methods=['POST'])
+@require_permission('distribute.admin')
+def distribute_unprotect():
+    """업로드한 배포용 파일들의 시트 보호를 일괄 해제해 ZIP으로 반환 (관리자 전용).
+    form: files (여러 개, .xlsm/.xlsx). 파일 열기암호가 걸린 파일은 해제 불가(개별 스킵).
+    """
+    import io as _io, zipfile as _zip
+    files = request.files.getlist('files')
+    if not files:
+        return jsonify({'error': '파일이 없습니다.'}), 400
+
+    results = []
+    used_names = {}
+    out_zip = _io.BytesIO()
+    with _zip.ZipFile(out_zip, 'w', _zip.ZIP_DEFLATED) as zf:
+        for f in files:
+            name = (f.filename or 'file.xlsm')
+            if not name.lower().endswith(('.xlsm', '.xlsx')):
+                results.append(f'[스킵] {name} — xlsx/xlsm 아님')
+                continue
+            try:
+                unlocked = _strip_sheet_protection_bytes(f.read())
+                # 파일명 중복 방지
+                arc = name
+                if arc in used_names:
+                    used_names[arc] += 1
+                    stem, dot, ext = arc.rpartition('.')
+                    arc = f'{stem}({used_names[name]}){dot}{ext}' if dot else f'{arc}({used_names[name]})'
+                else:
+                    used_names[arc] = 0
+                zf.writestr(arc, unlocked)
+                results.append(f'[완료] {name}')
+            except _zip.BadZipFile:
+                results.append(f'[실패] {name} — 파일 열기암호가 걸렸거나 유효한 엑셀이 아님')
+            except Exception as e:
+                results.append(f'[실패] {name} — {type(e).__name__}: {e}')
+        # 처리 결과 요약 텍스트 동봉
+        zf.writestr('_보호해제_결과.txt', '\n'.join(results))
+
+    if not any(r.startswith('[완료]') for r in results):
+        return jsonify({'error': '보호 해제된 파일이 없습니다.', 'results': results}), 400
+
+    out_zip.seek(0)
+    return send_file(out_zip, as_attachment=True,
+                     download_name='배포파일_보호해제.zip',
+                     mimetype='application/zip')
+
+
 @app.route('/distribute/template', methods=['POST'])
 @require_permission('distribute.admin')
 def distribute_upload_template():
