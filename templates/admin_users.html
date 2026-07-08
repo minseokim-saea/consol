@@ -125,7 +125,7 @@
         </div>
         <div class="col-md-5">
           <label class="form-label fw-semibold">메일 발송 (SMTP)</label>
-          <div>
+          <div class="mb-2">
             {% if smtp_ready %}
             <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>설정됨 — 발송 가능</span>
             {% else %}
@@ -133,10 +133,42 @@
             <span class="text-muted small ms-1"><code>smtp_config.json</code> 을 채우면 발송됩니다.</span>
             {% endif %}
           </div>
+          <div class="input-group input-group-sm">
+            <input type="email" id="smtpTestEmail" class="form-control" placeholder="테스트 받을 이메일">
+            <button type="button" class="btn btn-outline-secondary" id="smtpTestBtn">
+              <i class="bi bi-send me-1"></i>테스트 메일 보내기
+            </button>
+          </div>
+          <div class="form-text" id="smtpTestResult"></div>
         </div>
       </div>
     </div>
   </div>
+
+  <script>
+  document.getElementById('smtpTestBtn')?.addEventListener('click', async () => {
+    const email = (document.getElementById('smtpTestEmail').value || '').trim();
+    const out = document.getElementById('smtpTestResult');
+    const btn = document.getElementById('smtpTestBtn');
+    if (!email) { out.innerHTML = '<span class="text-warning">받을 이메일을 입력하세요.</span>'; return; }
+    btn.disabled = true;
+    out.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>발송 중…</span>';
+    try {
+      const r = await fetch('/admin/smtp-test', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+      const j = await r.json();
+      out.innerHTML = j.ok
+        ? `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${j.msg}</span>`
+        : `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>${(j.error || '실패')}</span>`;
+    } catch (e) {
+      out.innerHTML = `<span class="text-danger"><i class="bi bi-x-circle me-1"></i>요청 실패: ${e}</span>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+  </script>
 
   <!-- 계정 목록 -->
   <div class="card">

@@ -720,6 +720,24 @@ def _otp_manual_file():
     return files[0] if files else None
 
 
+def _smtp_send(cfg, msg):
+    """cfg 설정으로 SMTP 연결해 msg 발송. 예외는 호출측에서 처리."""
+    import smtplib, ssl
+    port = int(cfg.get('port') or (465 if cfg.get('use_ssl') else 587))
+    if cfg.get('use_ssl'):
+        with smtplib.SMTP_SSL(cfg['host'], port, context=ssl.create_default_context(), timeout=20) as s:
+            if cfg.get('username'):
+                s.login(cfg['username'], cfg.get('password', ''))
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(cfg['host'], port, timeout=20) as s:
+            if cfg.get('use_tls'):
+                s.starttls(context=ssl.create_default_context())
+            if cfg.get('username'):
+                s.login(cfg['username'], cfg.get('password', ''))
+            s.send_message(msg)
+
+
 def _send_credentials_email(to_addr, username, password):
     """계정 정보(아이디·비번) + OTP 매뉴얼 첨부 메일 발송. (ok, 메시지) 반환."""
     cfg = _load_smtp_config()
@@ -727,7 +745,7 @@ def _send_credentials_email(to_addr, username, password):
         return False, 'SMTP 미설정 (smtp_config.json 을 채워주세요)'
     if not to_addr:
         return False, '이메일 주소 없음'
-    import smtplib, ssl, mimetypes
+    import mimetypes
     from email.message import EmailMessage
     try:
         msg = EmailMessage()
@@ -752,22 +770,36 @@ def _send_credentials_email(to_addr, username, password):
             maintype, subtype = (ctype.split('/', 1) if ctype else ('application', 'octet-stream'))
             msg.add_attachment(manual.read_bytes(), maintype=maintype, subtype=subtype, filename=manual.name)
 
-        port = int(cfg.get('port') or (465 if cfg.get('use_ssl') else 587))
-        if cfg.get('use_ssl'):
-            with smtplib.SMTP_SSL(cfg['host'], port, context=ssl.create_default_context(), timeout=20) as s:
-                if cfg.get('username'):
-                    s.login(cfg['username'], cfg.get('password', ''))
-                s.send_message(msg)
-        else:
-            with smtplib.SMTP(cfg['host'], port, timeout=20) as s:
-                if cfg.get('use_tls'):
-                    s.starttls(context=ssl.create_default_context())
-                if cfg.get('username'):
-                    s.login(cfg['username'], cfg.get('password', ''))
-                s.send_message(msg)
+        _smtp_send(cfg, msg)
         return True, f'{to_addr} 로 발송 완료'
     except Exception as e:
         return False, f'발송 실패: {type(e).__name__}: {e}'
+
+
+@app.route('/admin/smtp-test', methods=['POST'])
+@require_permission('users.manage')
+def admin_smtp_test():
+    """현재 SMTP 설정으로 지정 주소에 테스트 메일 1통 발송 (설정 확인용)."""
+    data = request.get_json(silent=True) or {}
+    to_addr = (data.get('email') or '').strip()
+    if not to_addr:
+        return jsonify({'ok': False, 'error': '받는 이메일 주소를 입력하세요.'}), 400
+    cfg = _load_smtp_config()
+    if not cfg.get('host'):
+        return jsonify({'ok': False, 'error': 'SMTP 미설정 — smtp_config.json 을 먼저 채워주세요.'}), 400
+    from email.message import EmailMessage
+    try:
+        msg = EmailMessage()
+        from_addr = cfg.get('from_addr') or cfg.get('username') or ''
+        msg['From'] = (f"{cfg['from_name']} <{from_addr}>" if cfg.get('from_name') else from_addr)
+        msg['To'] = to_addr
+        msg['Subject'] = '[연결 재무보고 통합 시스템] SMTP 테스트 메일'
+        msg.set_content('이 메일이 보이면 SMTP 설정이 정상입니다.\n'
+                        '계정 안내 메일도 이 설정으로 발송됩니다.')
+        _smtp_send(cfg, msg)
+        return jsonify({'ok': True, 'msg': f'{to_addr} 로 테스트 메일을 보냈습니다. 받은편지함을 확인하세요.'})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'{type(e).__name__}: {e}'}), 500
 
 
 @app.route('/admin/otp-manual', methods=['POST'])
