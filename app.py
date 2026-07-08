@@ -822,6 +822,42 @@ def admin_upload_otp_manual():
     return redirect(url_for('admin_users', msg=f'OTP 매뉴얼 등록 완료: {safe}'))
 
 
+@app.route('/admin/smtp-config', methods=['POST'])
+@require_permission('users.manage')
+def admin_save_smtp_config():
+    """웹 화면에서 입력한 SMTP 설정을 서버의 smtp_config.json 에 저장.
+    비밀번호 칸이 비어 있으면 기존 비밀번호를 유지한다.
+    """
+    cur = _load_smtp_config()
+
+    def _b(v):
+        return str(v).lower() in ('1', 'true', 'on', 'yes')
+
+    try:
+        port = int((request.form.get('port') or '587').strip())
+    except ValueError:
+        port = 587
+
+    pw = request.form.get('password') or ''
+    new = {
+        'host':      (request.form.get('host') or '').strip(),
+        'port':      port,
+        'use_tls':   _b(request.form.get('use_tls')),
+        'use_ssl':   _b(request.form.get('use_ssl')),
+        'username':  (request.form.get('username') or '').strip(),
+        'password':  pw if pw else cur.get('password', ''),   # 빈칸이면 기존 유지
+        'from_addr': (request.form.get('from_addr') or '').strip(),
+        'from_name': (request.form.get('from_name') or '연결 재무보고 통합 시스템').strip(),
+        'login_url': (request.form.get('login_url') or '').strip(),
+    }
+    try:
+        with open(SMTP_CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(new, f, ensure_ascii=False, indent=2)
+        return redirect(url_for('admin_users', msg='메일(SMTP) 설정을 저장했습니다. 테스트 메일로 확인해 보세요.'))
+    except Exception as e:
+        return redirect(url_for('admin_users', error=f'SMTP 설정 저장 실패: {e}'))
+
+
 # ─── 관리자 전용 사용자 관리 ────────────────────────────────────────────────
 
 @app.route('/admin/users', methods=['GET'])
@@ -855,10 +891,15 @@ def admin_users():
         for gid, g in pg_groups.items()
     ]
     _otp_m = _otp_manual_file()
+    _scfg = _load_smtp_config()
+    smtp_cfg_view = {k: _scfg.get(k) for k in
+                     ('host', 'port', 'use_tls', 'use_ssl', 'username', 'from_addr', 'from_name', 'login_url')}
     return render_template('admin_users.html', users=users_view,
                            permission_groups=group_options,
                            consol_groups=consol_groups,
                            smtp_ready=_smtp_ready(),
+                           smtp_cfg=smtp_cfg_view,
+                           smtp_has_password=bool(_scfg.get('password')),
                            otp_manual_name=(_otp_m.name if _otp_m else None),
                            msg=request.args.get('msg'),
                            error=request.args.get('error'))

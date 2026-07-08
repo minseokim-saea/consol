@@ -112,36 +112,82 @@
       <span>계정 안내 메일 설정</span>
     </div>
     <div class="card-body">
-      <div class="row g-3 align-items-end">
-        <div class="col-md-7">
-          <label class="form-label fw-semibold">OTP 등록 매뉴얼 <span class="text-muted small fw-normal">(메일 첨부용 · 1개 고정)</span></label>
-          <form method="POST" action="/admin/otp-manual" enctype="multipart/form-data" class="input-group">
-            <input type="file" name="file" class="form-control" required>
-            <button type="submit" class="btn btn-outline-primary"><i class="bi bi-upload me-1"></i>등록</button>
-          </form>
-          <div class="form-text">
-            {% if otp_manual_name %}현재 등록: <strong>{{ otp_manual_name }}</strong> <span class="text-muted">(새 파일 등록 시 교체)</span>{% else %}<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>아직 등록된 매뉴얼이 없습니다.</span>{% endif %}
-          </div>
-        </div>
-        <div class="col-md-5">
-          <label class="form-label fw-semibold">메일 발송 (SMTP)</label>
-          <div class="mb-2">
-            {% if smtp_ready %}
-            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>설정됨 — 발송 가능</span>
-            {% else %}
-            <span class="badge bg-secondary"><i class="bi bi-exclamation-triangle me-1"></i>미설정</span>
-            <span class="text-muted small ms-1"><code>smtp_config.json</code> 을 채우면 발송됩니다.</span>
-            {% endif %}
-          </div>
-          <div class="input-group input-group-sm">
-            <input type="email" id="smtpTestEmail" class="form-control" placeholder="테스트 받을 이메일">
-            <button type="button" class="btn btn-outline-secondary" id="smtpTestBtn">
-              <i class="bi bi-send me-1"></i>테스트 메일 보내기
-            </button>
-          </div>
-          <div class="form-text" id="smtpTestResult"></div>
-        </div>
+
+      <!-- OTP 등록 매뉴얼 -->
+      <label class="form-label fw-semibold">OTP 등록 매뉴얼 <span class="text-muted small fw-normal">(메일 첨부용 · 1개 고정)</span></label>
+      <form method="POST" action="/admin/otp-manual" enctype="multipart/form-data" class="input-group mb-1" style="max-width:640px">
+        <input type="file" name="file" class="form-control" required>
+        <button type="submit" class="btn btn-outline-primary"><i class="bi bi-upload me-1"></i>등록</button>
+      </form>
+      <div class="form-text mb-3">
+        {% if otp_manual_name %}현재 등록: <strong>{{ otp_manual_name }}</strong> <span class="text-muted">(새 파일 등록 시 교체)</span>{% else %}<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>아직 등록된 매뉴얼이 없습니다.</span>{% endif %}
       </div>
+
+      <hr>
+
+      <!-- SMTP 설정 (웹에서 저장 → 서버에 바로 기록. 파일 복사·git 불필요) -->
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <strong>메일 발송 서버(SMTP) 설정</strong>
+        {% if smtp_ready %}<span class="badge bg-success">설정됨</span>{% else %}<span class="badge bg-secondary">미설정</span>{% endif %}
+        <span class="text-muted small">— 여기서 저장하면 서버에 바로 반영됩니다 (파일 복사 불필요)</span>
+      </div>
+      <form method="POST" action="/admin/smtp-config">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">SMTP 서버 (host)</label>
+            <input name="host" class="form-control" value="{{ smtp_cfg.host or '' }}" placeholder="smtp.office365.com">
+          </div>
+          <div class="col-md-2">
+            <label class="form-label fw-semibold">포트</label>
+            <input name="port" type="number" class="form-control" value="{{ smtp_cfg.port or 587 }}">
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">보안</label>
+            <div class="d-flex gap-3 pt-2">
+              <div class="form-check"><input class="form-check-input" type="checkbox" name="use_tls" id="useTls" {% if smtp_cfg.use_tls %}checked{% endif %}><label class="form-check-label small" for="useTls">STARTTLS</label></div>
+              <div class="form-check"><input class="form-check-input" type="checkbox" name="use_ssl" id="useSsl" {% if smtp_cfg.use_ssl %}checked{% endif %}><label class="form-check-label small" for="useSsl">SSL</label></div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold">발신 표시 이름</label>
+            <input name="from_name" class="form-control" value="{{ smtp_cfg.from_name or '' }}" placeholder="연결 재무보고 통합 시스템">
+          </div>
+
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">보내는 계정 (username)</label>
+            <input name="username" class="form-control" value="{{ smtp_cfg.username or '' }}" placeholder="account@company.com">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">비밀번호</label>
+            <input name="password" type="password" class="form-control" placeholder="{% if smtp_has_password %}저장됨 — 변경 시에만 입력{% else %}메일 계정 비밀번호 / 앱 비밀번호{% endif %}">
+            <div class="form-text">비워두면 기존 비밀번호 유지</div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">보내는 주소 (from)</label>
+            <input name="from_addr" class="form-control" value="{{ smtp_cfg.from_addr or '' }}" placeholder="보통 username과 동일">
+          </div>
+
+          <div class="col-md-8">
+            <label class="form-label fw-semibold">시스템 접속 주소 <span class="text-muted small fw-normal">(메일 본문 안내용)</span></label>
+            <input name="login_url" class="form-control" value="{{ smtp_cfg.login_url or '' }}" placeholder="https://consol.sae-a.com/">
+          </div>
+          <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-gradient w-100"><i class="bi bi-save me-1"></i>메일 설정 저장</button>
+          </div>
+        </div>
+      </form>
+
+      <hr>
+
+      <!-- 테스트 메일 -->
+      <label class="form-label fw-semibold">테스트 메일 <span class="text-muted small fw-normal">(설정 저장 후 확인)</span></label>
+      <div class="input-group" style="max-width:520px">
+        <input type="email" id="smtpTestEmail" class="form-control" placeholder="테스트 받을 이메일 (예: 본인 주소)">
+        <button type="button" class="btn btn-outline-secondary" id="smtpTestBtn">
+          <i class="bi bi-send me-1"></i>테스트 메일 보내기
+        </button>
+      </div>
+      <div class="form-text" id="smtpTestResult"></div>
     </div>
   </div>
 
