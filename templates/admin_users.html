@@ -83,6 +83,11 @@
           <div class="form-text">생성 후 사용자에게 전달해 주세요.</div>
         </div>
         <div class="col-md-3">
+          <label class="form-label fw-semibold">이메일 <span class="text-muted small fw-normal">(선택)</span></label>
+          <input type="email" name="email" class="form-control" placeholder="user@company.com">
+          <div class="form-text">입력 시 아이디·비번·OTP 매뉴얼 자동 발송</div>
+        </div>
+        <div class="col-md-3">
           <label class="form-label fw-semibold">권한그룹</label>
           <select name="permission_group_create" class="form-select">
             {% for g in permission_groups %}
@@ -97,6 +102,39 @@
           </button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 계정 안내 메일 설정 (OTP 매뉴얼 + SMTP 상태) -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-envelope-paper"></i>
+      <span>계정 안내 메일 설정</span>
+    </div>
+    <div class="card-body">
+      <div class="row g-3 align-items-end">
+        <div class="col-md-7">
+          <label class="form-label fw-semibold">OTP 등록 매뉴얼 <span class="text-muted small fw-normal">(메일 첨부용 · 1개 고정)</span></label>
+          <form method="POST" action="/admin/otp-manual" enctype="multipart/form-data" class="input-group">
+            <input type="file" name="file" class="form-control" required>
+            <button type="submit" class="btn btn-outline-primary"><i class="bi bi-upload me-1"></i>등록</button>
+          </form>
+          <div class="form-text">
+            {% if otp_manual_name %}현재 등록: <strong>{{ otp_manual_name }}</strong> <span class="text-muted">(새 파일 등록 시 교체)</span>{% else %}<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>아직 등록된 매뉴얼이 없습니다.</span>{% endif %}
+          </div>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-semibold">메일 발송 (SMTP)</label>
+          <div>
+            {% if smtp_ready %}
+            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>설정됨 — 발송 가능</span>
+            {% else %}
+            <span class="badge bg-secondary"><i class="bi bi-exclamation-triangle me-1"></i>미설정</span>
+            <span class="text-muted small ms-1"><code>smtp_config.json</code> 을 채우면 발송됩니다.</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

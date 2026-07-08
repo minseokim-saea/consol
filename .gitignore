@@ -3,11 +3,16 @@
 auth_config.json
 # 배포 엑셀 시트 보호 비밀번호
 distribute_passwords.json
+# 메일 발송 SMTP 설정 (메일 계정 비밀번호 포함) — 절대 커밋 금지
+smtp_config.json
 # Flask 세션 서명 키
 secret_key.bin
 
 # ── 런타임 데이터 (사용자 업로드·결과물·상태) ────────────────────
 uploads/
+# 계정 안내 메일에 첨부하는 OTP 매뉴얼(관리자 업로드) · 배포 오픈상태
+otp_manual/
+distribute_open.json
 results/
 *.lock
 

@@ -1,0 +1,12 @@
+{
+  "_설명": "이 파일을 smtp_config.json 으로 복사한 뒤 값을 채우세요. 실제 파일(smtp_config.json)은 .gitignore로 커밋 제외됩니다. 비밀번호는 환경변수(SMTP_PASSWORD 등)로 넣어도 됩니다.",
+  "host": "",
+  "port": 587,
+  "use_tls": true,
+  "use_ssl": false,
+  "username": "",
+  "password": "",
+  "from_addr": "",
+  "from_name": "연결 재무보고 통합 시스템",
+  "login_url": ""
+}

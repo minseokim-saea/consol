@@ -149,6 +149,8 @@ AUTH_FILE = Path('auth_config.json')
 YEARS_FILE = Path('years_config.json')
 WCE_FILE = Path('wce_overrides.json')
 FX_RATES_FILE = Path('fx_rates.json')
+SMTP_CONFIG_FILE = Path('smtp_config.json')     # 메일 발송 SMTP 설정 (관리자가 채움)
+OTP_MANUAL_DIR = Path('otp_manual')             # 계정 안내 메일에 첨부할 OTP 등록 매뉴얼(고정 1개)
 ALLOWED_EXT = {'.xlsm', '.xlsx', '.xls'}
 
 UPLOAD_DIR.mkdir(exist_ok=True)
@@ -682,6 +684,112 @@ def change_password():
     return render_template('change_password.html', msg=msg, error=error)
 
 
+# ─── 계정 안내 메일 (SMTP) ──────────────────────────────────────────────────
+def _load_smtp_config():
+    """smtp_config.json + 환경변수에서 SMTP 설정 로드. host 비어있으면 미설정."""
+    cfg = {'host': '', 'port': 587, 'use_tls': True, 'use_ssl': False,
+           'username': '', 'password': '', 'from_addr': '',
+           'from_name': '연결 재무보고 시스템', 'login_url': ''}
+    if SMTP_CONFIG_FILE.exists():
+        try:
+            with open(SMTP_CONFIG_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f) or {}
+            for k in cfg:
+                if k in data and data[k] not in (None, ''):
+                    cfg[k] = data[k]
+        except Exception:
+            pass
+    import os as _os
+    for k, ev in [('host', 'SMTP_HOST'), ('port', 'SMTP_PORT'), ('username', 'SMTP_USER'),
+                  ('password', 'SMTP_PASSWORD'), ('from_addr', 'SMTP_FROM'), ('login_url', 'APP_LOGIN_URL')]:
+        v = _os.environ.get(ev)
+        if v:
+            cfg[k] = int(v) if k == 'port' else v
+    return cfg
+
+
+def _smtp_ready():
+    return bool(_load_smtp_config().get('host'))
+
+
+def _otp_manual_file():
+    """등록된 OTP 매뉴얼 파일(첫 파일). 없으면 None."""
+    if not OTP_MANUAL_DIR.exists():
+        return None
+    files = [p for p in sorted(OTP_MANUAL_DIR.iterdir()) if p.is_file()]
+    return files[0] if files else None
+
+
+def _send_credentials_email(to_addr, username, password):
+    """계정 정보(아이디·비번) + OTP 매뉴얼 첨부 메일 발송. (ok, 메시지) 반환."""
+    cfg = _load_smtp_config()
+    if not cfg.get('host'):
+        return False, 'SMTP 미설정 (smtp_config.json 을 채워주세요)'
+    if not to_addr:
+        return False, '이메일 주소 없음'
+    import smtplib, ssl, mimetypes
+    from email.message import EmailMessage
+    try:
+        msg = EmailMessage()
+        from_addr = cfg.get('from_addr') or cfg.get('username') or ''
+        msg['From'] = (f"{cfg['from_name']} <{from_addr}>" if cfg.get('from_name') else from_addr)
+        msg['To'] = to_addr
+        msg['Subject'] = '[연결 재무보고 통합 시스템] 계정 정보 안내'
+        login_url = cfg.get('login_url') or ''
+        body = (
+            "안녕하세요.\n\n"
+            "연결 재무보고 통합 시스템 계정이 생성되었습니다.\n\n"
+            f"· 아이디: {username}\n"
+            f"· 임시 비밀번호: {password}\n"
+            + (f"· 접속 주소: {login_url}\n" if login_url else "")
+            + "\n최초 로그인 후 반드시 [비밀번호 변경]을 진행해 주세요.\n"
+            "2단계 인증(OTP) 등록 방법은 첨부된 매뉴얼을 참고해 주세요.\n"
+        )
+        msg.set_content(body)
+        manual = _otp_manual_file()
+        if manual:
+            ctype, _ = mimetypes.guess_type(manual.name)
+            maintype, subtype = (ctype.split('/', 1) if ctype else ('application', 'octet-stream'))
+            msg.add_attachment(manual.read_bytes(), maintype=maintype, subtype=subtype, filename=manual.name)
+
+        port = int(cfg.get('port') or (465 if cfg.get('use_ssl') else 587))
+        if cfg.get('use_ssl'):
+            with smtplib.SMTP_SSL(cfg['host'], port, context=ssl.create_default_context(), timeout=20) as s:
+                if cfg.get('username'):
+                    s.login(cfg['username'], cfg.get('password', ''))
+                s.send_message(msg)
+        else:
+            with smtplib.SMTP(cfg['host'], port, timeout=20) as s:
+                if cfg.get('use_tls'):
+                    s.starttls(context=ssl.create_default_context())
+                if cfg.get('username'):
+                    s.login(cfg['username'], cfg.get('password', ''))
+                s.send_message(msg)
+        return True, f'{to_addr} 로 발송 완료'
+    except Exception as e:
+        return False, f'발송 실패: {type(e).__name__}: {e}'
+
+
+@app.route('/admin/otp-manual', methods=['POST'])
+@require_permission('users.manage')
+def admin_upload_otp_manual():
+    """계정 안내 메일에 첨부할 OTP 등록 매뉴얼(고정 1개) 업로드/교체."""
+    f = request.files.get('file')
+    if not f or not f.filename:
+        return redirect(url_for('admin_users', error='매뉴얼 파일이 없습니다.'))
+    OTP_MANUAL_DIR.mkdir(exist_ok=True)
+    # 기존 매뉴얼 1개만 유지 → 모두 제거 후 새로 저장
+    for p in OTP_MANUAL_DIR.iterdir():
+        if p.is_file():
+            try:
+                p.unlink()
+            except Exception:
+                pass
+    safe = os.path.basename(f.filename.replace('\\', '/'))
+    f.save(str(OTP_MANUAL_DIR / safe))
+    return redirect(url_for('admin_users', msg=f'OTP 매뉴얼 등록 완료: {safe}'))
+
+
 # ─── 관리자 전용 사용자 관리 ────────────────────────────────────────────────
 
 @app.route('/admin/users', methods=['GET'])
@@ -714,9 +822,12 @@ def admin_users():
         {'id': gid, 'name': g.get('name', gid)}
         for gid, g in pg_groups.items()
     ]
+    _otp_m = _otp_manual_file()
     return render_template('admin_users.html', users=users_view,
                            permission_groups=group_options,
                            consol_groups=consol_groups,
+                           smtp_ready=_smtp_ready(),
+                           otp_manual_name=(_otp_m.name if _otp_m else None),
                            msg=request.args.get('msg'),
                            error=request.args.get('error'))
 
@@ -726,6 +837,7 @@ def admin_users():
 def admin_create_user():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '')
+    email = (request.form.get('email') or '').strip()
     # 신규: 권한그룹 선택 (없으면 finance_member 기본)
     pg_id = (request.form.get('permission_group_create') or '').strip()
 
@@ -749,10 +861,17 @@ def admin_create_user():
         'is_admin': (pg_id == 'system_admin'),
         'permission_group': pg_id,
         'assigned_companies': [],
+        'email': email,
     }
     _save_credentials()
     pg_name = (pg_groups.get(pg_id) or {}).get('name', pg_id)
-    return redirect(url_for('admin_users', msg=f'계정 생성 완료: {username} (권한그룹: {pg_name})'))
+
+    # 이메일 입력 시 계정정보(아이디·비번) + OTP 매뉴얼 자동 발송
+    mail_note = ''
+    if email:
+        ok, m = _send_credentials_email(email, username, password)
+        mail_note = f' · 메일 {"✅" if ok else "⚠"} {m}'
+    return redirect(url_for('admin_users', msg=f'계정 생성 완료: {username} (권한그룹: {pg_name}){mail_note}'))
 
 
 @app.route('/admin/users/<username>/delete', methods=['POST'])
