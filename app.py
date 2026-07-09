@@ -882,6 +882,8 @@ def admin_users():
         agroups = rec.get('assigned_groups', []) or []
         users_view.append({
             'username': u,
+            'name': rec.get('name', ''),
+            'email': rec.get('email', ''),
             'is_admin': _is_admin(u),
             'is_self': u == session.get('username'),
             'permission_group': gid,
@@ -917,6 +919,7 @@ def admin_create_user():
     username = request.form.get('username', '').strip()
     password = request.form.get('password', '')
     email = (request.form.get('email') or '').strip()
+    name = (request.form.get('name') or '').strip()[:50]
     # 신규: 권한그룹 선택 (없으면 finance_member 기본)
     pg_id = (request.form.get('permission_group_create') or '').strip()
 
@@ -941,6 +944,7 @@ def admin_create_user():
         'permission_group': pg_id,
         'assigned_companies': [],
         'email': email,
+        'name': name,
     }
     _save_credentials()
     pg_name = (pg_groups.get(pg_id) or {}).get('name', pg_id)
@@ -951,6 +955,21 @@ def admin_create_user():
         ok, m = _send_credentials_email(email, username, password)
         mail_note = f' · 메일 {"✅" if ok else "⚠"} {m}'
     return redirect(url_for('admin_users', msg=f'계정 생성 완료: {username} (권한그룹: {pg_name}){mail_note}'))
+
+
+@app.route('/admin/users/<username>/name', methods=['POST'])
+@require_permission('users.manage')
+def admin_set_user_name(username):
+    """사용자 표시 이름/메모 저장 (누가 쓰는 아이디인지 식별용)."""
+    if username not in CREDENTIALS:
+        return redirect(url_for('admin_users', error='존재하지 않는 계정입니다.'))
+    rec = CREDENTIALS[username]
+    if not isinstance(rec, dict):
+        return redirect(url_for('admin_users', error='잘못된 계정 형식입니다.'))
+    name = (request.form.get('name') or '').strip()[:50]
+    rec['name'] = name
+    _save_credentials()
+    return redirect(url_for('admin_users', msg=f'{username} 이름 저장: {name or "(비움)"}'))
 
 
 @app.route('/admin/users/<username>/delete', methods=['POST'])

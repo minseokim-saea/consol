@@ -72,6 +72,10 @@
                  pattern="[A-Za-z0-9_\-\.]{3,30}" required>
         </div>
         <div class="col-md-3">
+          <label class="form-label fw-semibold">이름 <span class="text-muted small fw-normal">(선택)</span></label>
+          <input type="text" name="name" class="form-control" placeholder="이름 / 부서 등" maxlength="50">
+        </div>
+        <div class="col-md-3">
           <label class="form-label fw-semibold">비밀번호</label>
           <div class="input-group">
             <input type="password" name="password" class="form-control"
@@ -227,7 +231,8 @@
         <table class="table align-middle">
           <thead>
             <tr>
-              <th style="width: 16%;">아이디</th>
+              <th style="width: 13%;">아이디</th>
+              <th style="width: 14%;">이름/메모</th>
               <th style="width: 12%;">권한</th>
               <th style="width: 24%;">담당 회사</th>
               <th style="width: 10%;">2FA(OTP)</th>
@@ -240,6 +245,13 @@
               <td class="fw-semibold">
                 <i class="bi bi-person-circle me-1 text-muted"></i>{{ u.username }}
                 {% if u.is_self %}<span class="badge bg-info ms-1">나</span>{% endif %}
+              </td>
+              <td>
+                <form method="POST" action="/admin/users/{{ u.username }}/name" class="d-flex gap-1">
+                  <input type="text" name="name" class="form-control form-control-sm" value="{{ u.name }}"
+                         placeholder="이름/부서 등" maxlength="50" style="min-width:100px">
+                  <button type="submit" class="btn btn-sm btn-outline-secondary" title="이름 저장"><i class="bi bi-check-lg"></i></button>
+                </form>
               </td>
               <td>
                 <select class="form-select form-select-sm pg-select"
