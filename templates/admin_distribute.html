@@ -155,9 +155,11 @@
     </div>
     <div class="card-body">
       <p class="text-muted small mb-3">환율이 확정된 뒤 해당 분기 배포를 <strong>열어야</strong> 자회사가 배포용 파일을 생성·다운로드할 수 있습니다. 닫혀 있으면 자회사의 생성·다운로드가 차단됩니다. (관리자는 상태와 무관하게 가능) · 각 분기 상태는 아래에서 바로 확인·전환하세요.</p>
-      <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0" style="max-width:520px">
-          <thead><tr><th style="width:40%">결산기간</th><th>상태</th><th class="text-end">전환</th></tr></thead>
+      <div class="table-responsive" style="max-width:540px; max-height:300px; overflow-y:auto;">
+        <table class="table table-sm align-middle mb-0">
+          <thead style="position:sticky; top:0; z-index:1;">
+            <tr class="table-light"><th style="width:40%">결산기간</th><th>상태</th><th class="text-end">전환</th></tr>
+          </thead>
           <tbody id="openPeriodBody">
             {% for p in (open_periods or []) %}
             <tr data-period="{{ p.period }}">
