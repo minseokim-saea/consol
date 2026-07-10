@@ -11933,6 +11933,13 @@ def distribute_page():
 def distribute_admin_page():
     """배포 관리 (관리자 모드) — 템플릿 등록 / 분기 비밀번호 / 배포 오픈·폐쇄."""
     uname = session.get('username')
+    # 결산기간별 배포 오픈/폐쇄 현재 상태 (화면에서 한눈에 확인·전환)
+    open_periods = []
+    for p in YEARS_DATA.get('years', []):
+        m = re.match(r'^(\d{4})-([1-4])Q$', p)
+        if m:
+            open_periods.append({'period': p,
+                                 'open': dbuilder.is_distribute_open(m.group(1), m.group(2))})
     return render_template(
         'admin_distribute.html',
         mode='admin',
@@ -11942,6 +11949,7 @@ def distribute_admin_page():
         is_admin=_is_admin(uname),
         companies=_accessible_companies_for(uname),
         retention_days=DISTRIBUTE_RETENTION_DAYS,
+        open_periods=open_periods,
     )
 
 

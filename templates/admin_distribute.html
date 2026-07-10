@@ -154,37 +154,27 @@
       <span>③ 배포 오픈 / 폐쇄</span>
     </div>
     <div class="card-body">
-      <p class="text-muted small mb-3">환율이 확정된 뒤 해당 분기 배포를 <strong>열어야</strong> 자회사가 배포용 파일을 생성·다운로드할 수 있습니다. 닫혀 있으면 자회사의 생성·다운로드가 차단됩니다. (관리자는 상태와 무관하게 가능)</p>
-      <div class="row g-3 align-items-end">
-        <div class="col-md-3">
-          <label class="form-label fw-semibold">결산 연도</label>
-          <select class="form-select" id="openAdmYear">
-            {% for y in years %}
-            <option value="{{ y }}" {% if y == default_year %}selected{% endif %}>{{ y }}</option>
+      <p class="text-muted small mb-3">환율이 확정된 뒤 해당 분기 배포를 <strong>열어야</strong> 자회사가 배포용 파일을 생성·다운로드할 수 있습니다. 닫혀 있으면 자회사의 생성·다운로드가 차단됩니다. (관리자는 상태와 무관하게 가능) · 각 분기 상태는 아래에서 바로 확인·전환하세요.</p>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0" style="max-width:520px">
+          <thead><tr><th style="width:40%">결산기간</th><th>상태</th><th class="text-end">전환</th></tr></thead>
+          <tbody id="openPeriodBody">
+            {% for p in (open_periods or []) %}
+            <tr data-period="{{ p.period }}">
+              <td class="fw-semibold">{{ p.period }}</td>
+              <td class="op-state">
+                {% if p.open %}<span class="badge bg-success"><i class="bi bi-unlock-fill me-1"></i>열림</span>{% else %}<span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>닫힘</span>{% endif %}
+              </td>
+              <td class="text-end">
+                <button type="button" class="btn btn-sm btn-success op-open" {% if p.open %}style="display:none"{% endif %}><i class="bi bi-unlock-fill me-1"></i>열기</button>
+                <button type="button" class="btn btn-sm btn-outline-danger op-close" {% if not p.open %}style="display:none"{% endif %}><i class="bi bi-lock-fill me-1"></i>닫기</button>
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="text-muted small">등록된 결산기간이 없습니다.</td></tr>
             {% endfor %}
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label fw-semibold">결산 분기</label>
-          <select class="form-select" id="openAdmQuarter">
-            <option value="1" data-i18n="q.1">1분기</option>
-            <option value="2" data-i18n="q.2">2분기</option>
-            <option value="3" data-i18n="q.3">3분기</option>
-            <option value="4" data-i18n="q.4">4분기</option>
-          </select>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label fw-semibold">현재 상태</label>
-          <div id="openAdmBox" class="alert alert-secondary py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2">
-            <span><i class="bi bi-hourglass-split me-1"></i>상태 확인 중...</span>
-            <span class="d-flex gap-1">
-              <button type="button" class="btn btn-sm btn-success" onclick="setOpenAdm(true)">
-                <i class="bi bi-unlock-fill me-1"></i>배포 열기</button>
-              <button type="button" class="btn btn-sm btn-outline-danger" onclick="setOpenAdm(false)">
-                <i class="bi bi-lock-fill me-1"></i>배포 닫기</button>
-            </span>
-          </div>
-        </div>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -572,46 +562,45 @@ function applyOpenGate() {
 document.getElementById('targetYear')?.addEventListener('change', refreshOpenStatus);
 document.getElementById('targetQuarter')?.addEventListener('change', refreshOpenStatus);
 
-// ── (관리자 모드) 배포 오픈/폐쇄 관리 ─────────────────────
-async function refreshOpenAdm() {
-  const yEl = document.getElementById('openAdmYear');
-  const box = document.getElementById('openAdmBox');
-  if (!yEl || !box) return;
-  const y = yEl.value, q = document.getElementById('openAdmQuarter').value;
-  let open = false;
-  try {
-    const r = await fetch(`/distribute/open-status?year=${encodeURIComponent(y)}&quarter=${encodeURIComponent(q)}`);
-    open = !!(await r.json()).open;
-  } catch (e) { open = false; }
-  const span = box.querySelector('span');
-  if (open) {
-    box.className = 'alert alert-success py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
-    span.innerHTML = `<i class="bi bi-unlock-fill me-1"></i><strong>${y}-${q}Q 배포 열림</strong>`;
-  } else {
-    box.className = 'alert alert-danger py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
-    span.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${y}-${q}Q 배포 닫힘</strong>`;
-  }
-}
-
-async function setOpenAdm(open) {
-  const y = document.getElementById('openAdmYear').value;
-  const q = document.getElementById('openAdmQuarter').value;
+// ── (관리자 모드) 배포 오픈/폐쇄 — 결산기간별 행 토글 ────────
+// 각 행이 자기 분기 상태를 그대로 들고 있어 페이지 새로고침과 무관하게 유지됨.
+async function toggleOpenPeriod(tr, open) {
+  const period = tr.dataset.period;                  // 예: 2026-2Q
+  const m = /^(\d{4})-([1-4])Q$/.exec(period || '');
+  if (!m) return;
+  const btnOpen = tr.querySelector('.op-open');
+  const btnClose = tr.querySelector('.op-close');
+  if (btnOpen) btnOpen.disabled = true;
+  if (btnClose) btnClose.disabled = true;
   try {
     const r = await fetch('/distribute/open', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ year: y, quarter: q, open })
+      body: JSON.stringify({ year: m[1], quarter: m[2], open })
     });
     const j = await r.json();
     if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${escapeHtml(j.error || '실패')}`); return; }
-    showAlert('success', `<i class="bi bi-check-circle"></i> ${y}-${q}Q 배포를 ${open ? '열었습니다' : '닫았습니다'}.`);
-    refreshOpenAdm();
+    // 행 UI 갱신
+    tr.querySelector('.op-state').innerHTML = open
+      ? '<span class="badge bg-success"><i class="bi bi-unlock-fill me-1"></i>열림</span>'
+      : '<span class="badge bg-secondary"><i class="bi bi-lock-fill me-1"></i>닫힘</span>';
+    if (btnOpen)  btnOpen.style.display  = open ? 'none' : '';
+    if (btnClose) btnClose.style.display = open ? '' : 'none';
+    showAlert('success', `<i class="bi bi-check-circle"></i> ${period} 배포를 ${open ? '열었습니다' : '닫았습니다'}.`);
   } catch (e) {
     showAlert('error', `<i class="bi bi-x-circle"></i> ${escapeHtml(String(e))}`);
+  } finally {
+    if (btnOpen) btnOpen.disabled = false;
+    if (btnClose) btnClose.disabled = false;
   }
 }
 
-document.getElementById('openAdmYear')?.addEventListener('change', refreshOpenAdm);
-document.getElementById('openAdmQuarter')?.addEventListener('change', refreshOpenAdm);
+document.getElementById('openPeriodBody')?.addEventListener('click', (e) => {
+  const onBtn = e.target.closest('.op-open');
+  const offBtn = e.target.closest('.op-close');
+  if (!onBtn && !offBtn) return;
+  const tr = e.target.closest('tr[data-period]');
+  if (tr) toggleOpenPeriod(tr, !!onBtn);
+});
 
 // ─── 배포 파일 시트 보호 일괄 해제 (관리자 전용) ─────────────
 document.getElementById('unprotectBtn')?.addEventListener('click', async () => {
@@ -919,7 +908,7 @@ if (MODE === 'user') {
 }
 if (MODE === 'admin') {
   loadPwdList();
-  refreshOpenAdm();
+  // 배포 오픈/폐쇄 상태는 서버 렌더(open_periods)로 이미 표시됨 — 별도 조회 불필요
 }
 
 // 언어 전환 시 동적 영역 재렌더 (없는 요소는 함수 내부에서 가드됨)
