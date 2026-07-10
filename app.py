@@ -11931,25 +11931,37 @@ def distribute_page():
 @login_required
 @require_permission('distribute.admin')
 def distribute_admin_page():
-    """배포 관리 (관리자 모드) — 템플릿 등록 / 분기 비밀번호 / 배포 오픈·폐쇄."""
+    """배포 관리 (관리자 모드) — 상단 결산연도 선택 → 그 연도의 템플릿/분기(비번·오픈폐쇄)만 표시."""
     uname = session.get('username')
-    # 결산기간별 배포 오픈/폐쇄 현재 상태 (화면에서 한눈에 확인·전환)
-    open_periods = []
-    for p in YEARS_DATA.get('years', []):
-        m = re.match(r'^(\d{4})-([1-4])Q$', p)
-        if m:
-            open_periods.append({'period': p,
-                                 'open': dbuilder.is_distribute_open(m.group(1), m.group(2))})
+    years4 = _year4_list()
+    sel_year = (request.args.get('year') or '').strip()
+    if not re.match(r'^\d{4}$', sel_year):
+        dy = _default_year4()
+        sel_year = dy if dy else (years4[0] if years4 else str(datetime.now().year))
+
+    # 선택 연도의 4개 분기: 비밀번호 설정 여부 + 배포 오픈 상태
+    quarters = []
+    for q in (1, 2, 3, 4):
+        quarters.append({
+            'q': q,
+            'period': f'{sel_year}-{q}Q',
+            'has_password': bool(dbuilder.get_quarter_password(sel_year, q)),
+            'open': dbuilder.is_distribute_open(sel_year, q),
+        })
+    template_registered = dbuilder.get_template_path(sel_year) is not None
+
     return render_template(
         'admin_distribute.html',
         mode='admin',
-        years=_year4_list(),
+        years=years4,
         default_year=_default_year4(),
+        sel_year=sel_year,
+        quarters=quarters,
+        template_registered=template_registered,
         username=uname,
         is_admin=_is_admin(uname),
         companies=_accessible_companies_for(uname),
         retention_days=DISTRIBUTE_RETENTION_DAYS,
-        open_periods=open_periods,
     )
 
 
