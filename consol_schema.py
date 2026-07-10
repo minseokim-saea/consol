@@ -202,26 +202,70 @@ def _period_key(period: str) -> int | None:
         return None
 
 
+# ─── 회사 마스터 '적용 시작 분기(since)' 연동 ────────────────────────────────
+# 회사 마스터(company_master.json)에서 회사별 since를 읽어 연결 멤버십에도 반영.
+# → 신생 자회사는 마스터 한 곳만 설정하면 마감현황·연결 모두 그 분기부터 포함된다.
+COMPANY_MASTER_FILE = Path('company_master.json')
+_master_since_cache = {'mtime': None, 'map': {}}
+
+
+def _norm_co_name(s) -> str:
+    """회사명 정규화 — 비단어문자 제거 + casefold (app._norm_company_name과 동일 규칙)."""
+    import re as _re
+    return _re.sub(r'[\W_]+', '', str(s or '').casefold(), flags=_re.UNICODE)
+
+
+def _master_since_map() -> dict:
+    """{정규화된 회사명: since_period_key(int)} — since가 지정된 회사만. mtime 캐시."""
+    try:
+        mtime = COMPANY_MASTER_FILE.stat().st_mtime
+    except OSError:
+        return {}
+    if _master_since_cache['mtime'] == mtime:
+        return _master_since_cache['map']
+    out = {}
+    try:
+        with open(COMPANY_MASTER_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f) or {}
+        for c in (data.get('companies') or []):
+            sk = _period_key((c.get('since') or '').strip())
+            if sk is not None:
+                out[_norm_co_name(c.get('name'))] = sk
+    except Exception:
+        out = {}
+    _master_since_cache['mtime'] = mtime
+    _master_since_cache['map'] = out
+    return out
+
+
 def effective_companies(group: dict, period: str) -> list[str]:
     """`group['companies']` 중 해당 `period`에 멤버였던 회사만 반환.
 
-    `company_periods`에 항목이 없으면 영구 멤버로 간주 → 그대로 포함.
+    포함 조건 (모두 만족해야 함):
+      1) 그룹별 company_periods 의 since/until 범위 안 (미지정 시 영구 멤버)
+      2) 회사 마스터의 '적용 시작 분기(since)' 이후 (미지정 시 제한 없음)
     """
     cfg = (group or {}).get('company_periods') or {}
     full = list((group or {}).get('companies') or [])
-    if not cfg or not period:
+    if not period:
         return full
     pk = _period_key(period)
     if pk is None:
         return full
+    master_since = _master_since_map()
     out = []
     for c in full:
+        # 1) 그룹별 기간 제한
         sub = cfg.get(c) or {}
         since_k = _period_key(sub.get('since')) if sub.get('since') else None
         until_k = _period_key(sub.get('until')) if sub.get('until') else None
         if since_k is not None and pk < since_k:
             continue
         if until_k is not None and pk > until_k:
+            continue
+        # 2) 회사 마스터 적용 시작 분기
+        mk = master_since.get(_norm_co_name(c))
+        if mk is not None and pk < mk:
             continue
         out.append(c)
     return out

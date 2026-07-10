@@ -7263,7 +7263,9 @@ def _seed_company_master():
 
 
 def _save_company_master(companies):
-    """회사 마스터 저장. companies: [{name, currency, active}]. 중복 회사명은 병합."""
+    """회사 마스터 저장. companies: [{name, currency, active, since}]. 중복 회사명은 병합.
+    since: 'YYYY-NQ' — 이 분기부터 제출대상(마감현황)에 포함. 비우면 항상 포함.
+    """
     clean, seen = [], set()
     for c in (companies or []):
         if not isinstance(c, dict):
@@ -7275,10 +7277,14 @@ def _save_company_master(companies):
         if key in seen:
             continue
         seen.add(key)
+        since = str(c.get('since') or '').strip().upper()
+        if since and not PERIOD_RE.match(since):
+            since = ''   # 형식(YYYY-NQ) 아니면 무시
         clean.append({
             'name': name,
             'currency': str(c.get('currency') or '').strip().upper(),
             'active': bool(c.get('active', True)),
+            'since': since,
         })
     with _company_master_filelock:
         _atomic_write_json(COMPANY_MASTER_FILE, {'companies': clean})
@@ -7771,8 +7777,16 @@ def _closing_status_data(period):
     fx_entered = bool((fx_all.get(period) or {}).get('current'))
 
     # 3) 패키지 제출 현황 — 회사 마스터(active) 대비 업로드 여부
+    #    '적용 시작 분기(since)'가 있으면 그 분기부터만 제출대상에 포함 (문자열 비교: YYYY-NQ 고정폭)
     master = _load_company_master().get('companies') or []
-    active = [c for c in master if c.get('active', True)]
+    active = []
+    for c in master:
+        if not c.get('active', True):
+            continue
+        since = (c.get('since') or '').strip()
+        if since and period and period < since:
+            continue   # 아직 적용 시작 전 → 제출대상 제외
+        active.append(c)
     submitted_norms = {
         _norm_company_name(f.get('company'))
         for f in uploaded_files if f.get('year') == period
