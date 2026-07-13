@@ -6660,6 +6660,21 @@ def admin_company_master_page():
                            is_admin=_is_admin(uname))
 
 
+@app.route('/admin/settlement')
+@login_required
+def admin_settlement_page():
+    """결산관리 — 결산기간(연도·분기) 관리 + 환율 관리(예정 통합)."""
+    uname = session.get('username')
+    if not (_has_permission(uname, 'years.manage') or _has_permission(uname, 'fx.manage')):
+        return '결산관리 권한이 없습니다.', 403
+    return render_template('admin_settlement.html',
+                           username=uname,
+                           is_admin=_is_admin(uname),
+                           periods=list(YEARS_DATA.get('years', [])),
+                           current_period=YEARS_DATA.get('default'),
+                           locked=list(YEARS_DATA.get('locked', [])))
+
+
 @app.route('/admin/company-master/data', methods=['GET'])
 @admin_required
 def admin_company_master_data():

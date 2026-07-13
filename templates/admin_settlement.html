@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>결산관리 — 연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+  body { background:#f0f4f8; font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif; }
+  .navbar { background:#1F3864 !important; }
+  .card { border:none; border-radius:12px; box-shadow:0 2px 12px rgba(31,56,100,0.08); }
+  .card-header { background:linear-gradient(135deg,#1F3864 0%, #2d5aa0 100%); color:#fff; border-radius:12px 12px 0 0 !important; padding:0.85rem 1.25rem; font-weight:600; }
+  .badge-cur { background:#eef3fb; color:#1F3864; font-family:monospace; font-weight:700; padding:3px 8px; border-radius:5px; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'settlement' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid px-4 pb-5">
+
+  <div id="alertArea"></div>
+
+  <!-- 결산기간 관리 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-calendar-range"></i>
+      <span>결산기간 관리</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">결산기간(연도·분기)을 추가·삭제하고, <strong>현재 결산기간</strong> 지정 및 <strong>마감(잠금)</strong>을 관리합니다. 마감된 기간은 패키지 업로드가 차단됩니다.</p>
+
+      {% if perms and perms.years_manage %}
+      <form id="addPeriodForm" class="row g-2 align-items-end mb-3" style="max-width:560px">
+        <div class="col-4">
+          <label class="form-label fw-semibold">연도</label>
+          <input type="number" id="addYear" class="form-control" min="2000" max="2099" value="2026" required>
+        </div>
+        <div class="col-4">
+          <label class="form-label fw-semibold">분기</label>
+          <select id="addQuarter" class="form-select">
+            <option value="1">1분기</option>
+            <option value="2">2분기</option>
+            <option value="3">3분기</option>
+            <option value="4">4분기</option>
+          </select>
+        </div>
+        <div class="col-4">
+          <button type="submit" class="btn btn-primary w-100"><i class="bi bi-plus-circle me-1"></i>결산기간 추가</button>
+        </div>
+      </form>
+      <hr>
+      {% endif %}
+
+      <div class="table-responsive" style="max-height:460px; overflow-y:auto;">
+        <table class="table align-middle mb-0">
+          <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+            <tr>
+              <th style="width:22%">결산기간</th>
+              <th style="width:20%">현재 기간</th>
+              <th style="width:20%">상태</th>
+              <th class="text-end">관리</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for p in periods|sort(reverse=true) %}
+            <tr data-period="{{ p }}">
+              <td class="fw-semibold">
+                {% set parts = p.split('-') %}
+                {{ parts[0] }}년 {{ parts[1][0] }}분기 <span class="text-muted small">({{ p }})</span>
+              </td>
+              <td>
+                {% if p == current_period %}
+                <span class="badge bg-primary"><i class="bi bi-star-fill me-1"></i>현재 기간</span>
+                {% elif perms and perms.years_manage %}
+                <button type="button" class="btn btn-sm btn-outline-primary set-current"><i class="bi bi-star me-1"></i>현재로 지정</button>
+                {% else %}
+                <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+              <td class="lock-state">
+                {% if p in locked %}
+                <span class="badge bg-danger"><i class="bi bi-lock-fill me-1"></i>마감됨</span>
+                {% else %}
+                <span class="badge bg-success"><i class="bi bi-unlock me-1"></i>진행 중</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if perms and perms.years_manage %}
+                <button type="button" class="btn btn-sm btn-outline-warning lock-toggle" data-locked="{{ '1' if p in locked else '0' }}">
+                  {% if p in locked %}<i class="bi bi-unlock me-1"></i>마감 해제{% else %}<i class="bi bi-lock me-1"></i>마감{% endif %}
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-danger period-del"><i class="bi bi-trash me-1"></i>삭제</button>
+                {% else %}
+                <span class="text-muted small">조회 전용</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="text-muted text-center py-4">등록된 결산기간이 없습니다.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- 환율 관리 (통화별 당기·전기 환율) -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2 flex-wrap">
+      <i class="bi bi-currency-exchange"></i>
+      <span>환율 관리</span>
+      <select id="fxPeriodSelect" class="form-select form-select-sm ms-2" style="width:auto; min-width:180px; font-size:.85rem;" aria-label="환율 입력 분기 선택"></select>
+      <span id="fxRatesYearBadge" class="badge bg-warning text-dark fw-normal d-none" style="font-size:.7rem;">비교용</span>
+    </div>
+    <div class="card-body">
+      <div class="alert alert-info small mb-3">
+        <i class="bi bi-info-circle me-1"></i>
+        중앙 관리 환율은 패키지 파일의 환율보다 <strong>우선 적용</strong>됩니다. (WCE 자동 환산: 당기순이익·보험수리적손익 등)
+      </div>
+
+      <!-- 당기 환율 -->
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="mb-0 fw-bold" style="color:#1F3864;"><i class="bi bi-graph-up me-1"></i>당기 환율</h6>
+        {% if perms and perms.fx_manage %}
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" id="btnFxTemplate" class="btn btn-sm btn-outline-secondary"><i class="bi bi-file-earmark-excel me-1"></i>양식 다운로드</button>
+          <button type="button" id="btnFxUpload" class="btn btn-sm btn-outline-success"><i class="bi bi-upload me-1"></i>엑셀 업로드</button>
+          <input type="file" id="fxUploadInput" class="d-none" accept=".xlsx,.xlsm">
+          <button type="button" id="btnFxAddRow" class="btn btn-sm btn-outline-primary"><i class="bi bi-plus-circle me-1"></i>통화 추가</button>
+        </div>
+        {% endif %}
+      </div>
+      <div class="table-responsive mb-4">
+        <table class="table table-sm table-hover mb-0" id="fxCurrentTable">
+          <thead class="table-light"><tr>
+            <th style="width:90px;">통화</th>
+            <th>Spot Rate <span class="text-muted small">(기말 ₩/1단위)</span></th>
+            <th>Avg Rate <span class="text-muted small">(평균 ₩/1단위)</span></th>
+            <th style="width:50px;"></th>
+          </tr></thead>
+          <tbody id="fxCurrentTbody"><tr><td colspan="4" class="text-muted text-center py-3">분기를 선택하세요.</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- 전기 환율 -->
+      <div class="d-flex align-items-center justify-content-between mb-2">
+        <h6 class="mb-0 fw-bold" style="color:#2d5a27;"><i class="bi bi-clock-history me-1"></i>전기 환율
+          <span id="fxPriorBadge" class="badge bg-secondary fw-normal ms-2" style="font-size:.7rem;">-</span>
+        </h6>
+        {% if perms and perms.fx_manage %}
+        <button type="button" id="btnFxPriorAddRow" class="btn btn-sm btn-outline-success d-none"><i class="bi bi-plus-circle me-1"></i>통화 추가</button>
+        {% endif %}
+      </div>
+      <div id="fxPriorNote" class="alert alert-success small py-2 mb-2 d-none">
+        <i class="bi bi-check-circle me-1"></i> 전기 환율은 <strong id="fxPriorYearLabel">-</strong>의 당기 환율에서 자동으로 가져옵니다. <span class="text-muted">(수정하려면 해당 기간을 선택해서 변경)</span>
+      </div>
+      <div id="fxPriorManualNote" class="alert alert-warning small py-2 mb-2 d-none">
+        <i class="bi bi-pencil-square me-1"></i> <strong>최초연도</strong>이므로 전기 환율을 직접 입력합니다.
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm mb-0" id="fxPriorTable">
+          <thead class="table-light"><tr>
+            <th style="width:90px;">통화</th><th>Spot Rate</th><th>Avg Rate</th>
+            <th id="fxPriorActionTh" style="width:50px;" class="d-none"></th>
+          </tr></thead>
+          <tbody id="fxPriorTbody"><tr><td colspan="3" class="text-muted text-center py-3">-</td></tr></tbody>
+        </table>
+      </div>
+
+      {% if perms and perms.fx_manage %}
+      <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap gap-2">
+        <button type="button" id="btnFxReapply" class="btn btn-outline-warning" title="이 기간 업로드된 모든 패키지를 저장된 중앙 환율로 재환산합니다">
+          <i class="bi bi-arrow-repeat me-1"></i>이 기간 패키지 재환산
+        </button>
+        <button type="button" id="btnFxSave" class="btn btn-primary"><i class="bi bi-floppy me-1"></i>환율 저장</button>
+      </div>
+      {% else %}
+      <div class="text-muted small mt-2"><i class="bi bi-eye me-1"></i>조회 전용 (환율 입력·업로드는 권한자만 가능)</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function showAlert(kind, html) {
+  const cls = {success:'alert-success', error:'alert-danger', info:'alert-info', warn:'alert-warning'}[kind] || 'alert-info';
+  document.getElementById('alertArea').innerHTML =
+    `<div class="alert ${cls} d-flex align-items-center gap-2 alert-dismissible">${html}
+     <button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>`;
+}
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// 결산기간 추가
+document.getElementById('addPeriodForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const year = document.getElementById('addYear').value.trim();
+  const quarter = document.getElementById('addQuarter').value;
+  if (!/^\d{4}$/.test(year)) { showAlert('warn', '연도는 4자리 숫자여야 합니다.'); return; }
+  const fd = new FormData(); fd.append('year', year); fd.append('quarter', quarter);
+  try {
+    const r = await fetch('/years', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${esc(j.error || '추가 실패')}`); return; }
+    location.reload();
+  } catch (err) { showAlert('error', `<i class="bi bi-x-circle"></i> ${esc(String(err))}`); }
+});
+
+// 행 액션 (현재 지정 / 마감 토글 / 삭제)
+document.querySelector('.table')?.addEventListener('click', async (e) => {
+  const tr = e.target.closest('tr[data-period]');
+  if (!tr) return;
+  const period = tr.dataset.period;
+
+  // 현재 기간으로 지정
+  if (e.target.closest('.set-current')) {
+    try {
+      const r = await fetch('/closing-status/current-period', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period })
+      });
+      const j = await r.json();
+      if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${esc(j.error || '실패')}`); return; }
+      location.reload();
+    } catch (err) { showAlert('error', esc(String(err))); }
+    return;
+  }
+
+  // 마감 / 마감 해제
+  const lockBtn = e.target.closest('.lock-toggle');
+  if (lockBtn) {
+    const locked = lockBtn.dataset.locked === '1';
+    const action = locked ? 'unlock' : 'lock';
+    if (!confirm(`${period} 결산기간을 ${locked ? '마감 해제' : '마감'}하시겠습니까?`)) return;
+    try {
+      const r = await fetch(`/years/${encodeURIComponent(period)}/${action}`, { method: 'POST' });
+      const j = await r.json();
+      if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${esc(j.error || '실패')}`); return; }
+      location.reload();
+    } catch (err) { showAlert('error', esc(String(err))); }
+    return;
+  }
+
+  // 삭제
+  if (e.target.closest('.period-del')) {
+    if (!confirm(`${period} 결산기간을 삭제하시겠습니까?\n(해당 기간에 업로드된 파일이 있으면 삭제할 수 없습니다.)`)) return;
+    try {
+      const r = await fetch(`/years/${encodeURIComponent(period)}`, { method: 'DELETE' });
+      const j = await r.json();
+      if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${esc(j.error || '삭제 실패')}`); return; }
+      location.reload();
+    } catch (err) { showAlert('error', esc(String(err))); }
+    return;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// 환율 관리 (당기·전기 환율)
+// ─────────────────────────────────────────────────────────────
+const CAN_MANAGE_FX = {{ 'true' if (perms and perms.fx_manage) else 'false' }};
+const CURRENT_PERIOD = "{{ current_period or '' }}";
+
+function fxToast(msg, kind) {
+  const m = { danger:'error', success:'success', warning:'warn', info:'info' }[kind] || 'info';
+  showAlert(m, `<i class="bi bi-${kind==='success'?'check-circle':'info-circle'} me-1"></i>${esc(msg)}`);
+}
+function formatPeriod(p) {
+  const m = String(p||'').match(/^(\d{4})-([1-4])Q$/);
+  return m ? `${m[1]}년 ${m[2]}분기` : (p || '');
+}
+function fmtRate(v) {
+  if (v == null || v === '' || isNaN(v)) return '';
+  return Number(v).toLocaleString('en-US', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+}
+function parseRate(s) {
+  if (s == null) return null;
+  const t = String(s).replace(/[,\s]/g, '').trim();
+  if (!t) return null;
+  const n = Number(t);
+  return isNaN(n) ? null : n;
+}
+function buildFxRow(cur, rates, section, editable) {
+  const isKrw = (cur === 'KRW');
+  const spotVal = isKrw ? '1.0000' : fmtRate(rates && rates.spot);
+  const avgVal  = isKrw ? '1.0000' : fmtRate(rates && rates.avg);
+  const ro = (isKrw || !editable) ? 'readonly' : '';
+  const tdAction = editable && !isKrw
+    ? `<td><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" onclick="this.closest('tr').remove()" aria-label="삭제"><i class="bi bi-x"></i></button></td>`
+    : (editable ? '<td></td>' : '');
+  const badge = isKrw
+    ? '<span class="badge bg-warning text-dark" style="min-width:50px;">KRW</span>'
+    : `<span class="badge-cur">${esc(cur)}</span>`;
+  return `<tr data-currency="${esc(cur)}" data-section="${section}">
+    <td class="align-middle">${badge}</td>
+    <td><input type="text" class="form-control form-control-sm fx-input" data-field="spot" value="${spotVal}" placeholder="0.0000" ${ro} style="text-align:right;font-family:monospace;"></td>
+    <td><input type="text" class="form-control form-control-sm fx-input" data-field="avg" value="${avgVal}" placeholder="0.0000" ${ro} style="text-align:right;font-family:monospace;"></td>
+    ${tdAction}
+  </tr>`;
+}
+
+let __fxYear = null;
+let __fxOnlySet = new Set();
+function fxSelectedYear() { return __fxYear; }
+
+async function populateFxPeriodSelect(initialYear) {
+  const sel = document.getElementById('fxPeriodSelect');
+  sel.innerHTML = '<option>불러오는 중...</option>';
+  let years = [], fxOnly = [];
+  try {
+    const res = await fetch('/admin/fx-rates/periods');
+    const data = await res.json();
+    years = data.years || []; fxOnly = data.fx_only_years || [];
+  } catch (e) {}
+  __fxOnlySet = new Set(fxOnly);
+  const opts = [];
+  if (years.length) { opts.push('<optgroup label="결산기간">'); years.forEach(y => opts.push(`<option value="${y}">${formatPeriod(y)}</option>`)); opts.push('</optgroup>'); }
+  if (fxOnly.length) { opts.push('<optgroup label="비교용 (결산 미노출)">'); fxOnly.forEach(y => opts.push(`<option value="${y}">${formatPeriod(y)}</option>`)); opts.push('</optgroup>'); }
+  sel.innerHTML = opts.join('') || '<option value="">(분기 없음)</option>';
+  const all = [...years, ...fxOnly];
+  const pick = [initialYear, ...all].find(y => y && all.includes(y)) || sel.options[0]?.value || '';
+  sel.value = pick;
+  return pick;
+}
+function applyFxModeForYear(year) {
+  const isFxOnly = __fxOnlySet.has(year);
+  document.getElementById('fxRatesYearBadge')?.classList.toggle('d-none', !isFxOnly);
+  const reBtn = document.getElementById('btnFxReapply');
+  if (reBtn) reBtn.disabled = isFxOnly;
+}
+async function loadFxData(year) {
+  __fxYear = year; applyFxModeForYear(year);
+  document.getElementById('fxCurrentTbody').innerHTML = '<tr><td colspan="4" class="text-muted text-center py-3">불러오는 중...</td></tr>';
+  document.getElementById('fxPriorTbody').innerHTML = '<tr><td colspan="4" class="text-muted text-center py-3">-</td></tr>';
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}/data`);
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '환율 정보를 불러오지 못했습니다.');
+    renderFx(data);
+  } catch (e) {
+    fxToast(e.message, 'danger');
+    document.getElementById('fxCurrentTbody').innerHTML = `<tr><td colspan="4" class="text-danger text-center py-3">조회 실패: ${esc(e.message)}</td></tr>`;
+  }
+}
+function renderFx(data) {
+  const currencies = data.all_currencies || [];
+  const rows = ['KRW', ...currencies].map(c => buildFxRow(c, (data.current_rates || {})[c] || {}, 'current', CAN_MANAGE_FX)).join('');
+  document.getElementById('fxCurrentTbody').innerHTML = rows || `<tr><td colspan="4" class="text-muted text-center py-3">${CAN_MANAGE_FX ? '통화 없음 — "통화 추가"로 입력하세요' : '등록된 환율이 없습니다.'}</td></tr>`;
+
+  const priorBadge = document.getElementById('fxPriorBadge');
+  const priorNote  = document.getElementById('fxPriorNote');
+  const priorManualNote = document.getElementById('fxPriorManualNote');
+  const priorAddBtn = document.getElementById('btnFxPriorAddRow');
+  const priorActionTh = document.getElementById('fxPriorActionTh');
+  const priorTbody = document.getElementById('fxPriorTbody');
+
+  if (data.prior_auto) {
+    priorBadge.textContent = `${data.prior_year_label || ''} 자동`;
+    priorBadge.className = 'badge bg-secondary fw-normal ms-2';
+    priorNote.classList.remove('d-none'); priorManualNote.classList.add('d-none');
+    priorAddBtn?.classList.add('d-none'); priorActionTh.classList.add('d-none');
+    document.getElementById('fxPriorYearLabel').textContent = data.prior_year_label || '-';
+    const priorList = Object.keys(data.prior_rates || {}).sort();
+    priorTbody.innerHTML = priorList.length === 0
+      ? `<tr><td colspan="3" class="text-muted text-center py-3">${data.prior_year_label || '전년도'} 환율이 아직 입력되지 않았습니다.</td></tr>`
+      : ['KRW', ...priorList].map(c => buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', false).replace(/<td><button[^]*?<\/td>/, '')).join('');
+  } else {
+    priorBadge.textContent = '수동 입력';
+    priorBadge.className = 'badge bg-warning text-dark fw-normal ms-2';
+    priorNote.classList.add('d-none'); priorManualNote.classList.remove('d-none');
+    if (CAN_MANAGE_FX) priorAddBtn?.classList.remove('d-none');
+    priorActionTh.classList.toggle('d-none', !CAN_MANAGE_FX);
+    const rows2 = ['KRW', ...currencies].map(c => buildFxRow(c, (data.prior_rates || {})[c] || {}, 'prior', CAN_MANAGE_FX)).join('');
+    priorTbody.innerHTML = rows2 || '<tr><td colspan="4" class="text-muted text-center py-3">통화 없음</td></tr>';
+  }
+}
+function addFxRow(section) {
+  const cur = prompt('추가할 통화 코드를 입력하세요 (예: USD, VND, CNY)');
+  if (!cur) return;
+  const key = cur.trim().toUpperCase();
+  if (!key || key === 'KRW') { fxToast('KRW는 추가할 수 없습니다 (자동 1.0).', 'warning'); return; }
+  const tbody = document.getElementById(section === 'prior' ? 'fxPriorTbody' : 'fxCurrentTbody');
+  if (tbody.querySelector(`tr[data-currency="${key}"]`)) { fxToast(`${key} 행이 이미 있습니다.`, 'warning'); return; }
+  const ph = tbody.querySelector('tr td[colspan]'); if (ph) ph.closest('tr').remove();
+  tbody.insertAdjacentHTML('beforeend', buildFxRow(key, {}, section, true));
+}
+function collectFxSection(section) {
+  const out = {};
+  document.querySelectorAll(`#fx${section === 'prior' ? 'Prior' : 'Current'}Tbody tr[data-currency]`).forEach(tr => {
+    const cur = tr.dataset.currency;
+    if (cur === 'KRW') return;
+    const inputs = tr.querySelectorAll('input.fx-input');
+    const spot = parseRate(inputs[0]?.value), avg = parseRate(inputs[1]?.value);
+    if (spot != null || avg != null) out[cur] = { spot, avg };
+  });
+  return out;
+}
+async function saveFxRates() {
+  const year = fxSelectedYear();
+  if (!year) return;
+  const payload = { current: collectFxSection('current') };
+  if (!document.getElementById('btnFxPriorAddRow').classList.contains('d-none')) payload.prior = collectFxSection('prior');
+  const btn = document.getElementById('btnFxSave'); btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '저장 실패');
+    fxToast(`저장 완료 — ${data.currencies_saved}개 통화`, 'success');
+    loadFxData(year);
+  } catch (e) { fxToast(e.message, 'danger'); } finally { btn.disabled = false; }
+}
+function downloadFxTemplate() {
+  const year = fxSelectedYear();
+  window.location.href = '/admin/fx-rates/template' + (year ? ('?year=' + encodeURIComponent(year)) : '');
+}
+async function uploadFxExcel(ev) {
+  const year = fxSelectedYear();
+  if (!year) { fxToast('환율을 등록할 분기를 선택해주세요.', 'warning'); return; }
+  const input = ev.target; const file = input.files && input.files[0]; if (!file) return;
+  if (!confirm(`${formatPeriod(year)} 환율을 업로드한 파일로 대체합니다.\n\n· 시트 "당기환율" → 당기\n· 시트 "전기환율" → 전기(최초연도만)\n· 칼럼: 통화코드 | Spot | Avg\n\n계속할까요?`)) { input.value=''; return; }
+  const fd = new FormData(); fd.append('file', file);
+  const btn = document.getElementById('btnFxUpload'); btn.disabled = true;
+  try {
+    const res = await fetch(`/admin/fx-rates/${encodeURIComponent(year)}/upload`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '업로드 실패');
+    const priorMsg = (data.is_first_year && data.prior_saved) ? `, 전기 ${data.prior_saved}개` : '';
+    fxToast(`업로드 완료 — 당기 ${data.currencies_saved}개${priorMsg}`, 'success');
+    loadFxData(year);
+  } catch (e) { fxToast(e.message, 'danger'); } finally { btn.disabled = false; input.value = ''; }
+}
+async function reapplyFxRates() {
+  const year = fxSelectedYear();
+  if (!year) return;
+  if (__fxOnlySet.has(year)) { fxToast('비교용 분기는 결산 패키지가 없어 재환산 대상이 없습니다.', 'info'); return; }
+  if (!confirm(`${formatPeriod(year)}에 업로드된 모든 패키지를 저장된 중앙 환율로 다시 환산합니다.\n(KRW 회사·중앙환율 미입력 통화는 스킵)\n\n계속할까요?`)) return;
+  const btn = document.getElementById('btnFxReapply'); const orig = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>재환산 중…';
+  try {
+    const res = await fetch('/files/reanalyze?year=' + encodeURIComponent(year), { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || data.error) throw new Error(data.error || '재환산 실패');
+    fxToast(`재환산 완료 — ${data.reanalyzed != null ? data.reanalyzed + '개 파일' : '완료'}`, 'success');
+  } catch (e) { fxToast(e.message, 'danger'); } finally { btn.disabled = false; btn.innerHTML = orig; }
+}
+
+// FX 초기화
+(function initFx() {
+  const sel = document.getElementById('fxPeriodSelect');
+  if (!sel) return;
+  sel.addEventListener('change', () => loadFxData(sel.value));
+  document.getElementById('btnFxSave')?.addEventListener('click', saveFxRates);
+  document.getElementById('btnFxReapply')?.addEventListener('click', reapplyFxRates);
+  document.getElementById('btnFxAddRow')?.addEventListener('click', () => addFxRow('current'));
+  document.getElementById('btnFxPriorAddRow')?.addEventListener('click', () => addFxRow('prior'));
+  document.getElementById('btnFxTemplate')?.addEventListener('click', downloadFxTemplate);
+  document.getElementById('btnFxUpload')?.addEventListener('click', () => document.getElementById('fxUploadInput').click());
+  document.getElementById('fxUploadInput')?.addEventListener('change', uploadFxExcel);
+  populateFxPeriodSelect(CURRENT_PERIOD).then(pick => { if (pick) loadFxData(pick); });
+})();
+</script>
+</body>
+</html>
