@@ -64,8 +64,8 @@
   <div class="alert alert-danger d-flex align-items-center gap-2 mb-3">
     <i class="bi bi-exclamation-octagon-fill"></i>
     <div class="small">
-      <strong>{{ total_missing_co }}개사에서 총 {{ total_missing_cells }}개 셀이 미입력입니다.</strong>
-      현지통화에는 값이 있는데 KRW 환산값이 비어있는 셀입니다. 아래 표의 빨간 배지 회사들을 확인하세요.
+      <strong>{{ total_missing_co }}개사에서 총 {{ total_missing_cells }}개 셀에 이상이 있습니다.</strong>
+      현지통화에 값이 있는데 KRW 환산값이 없거나, 반대로 현지통화 없이 KRW 값만 있는 셀입니다. 아래 표의 빨간 배지 회사들을 확인하세요.
     </div>
   </div>
   {% endif %}
@@ -110,8 +110,8 @@
                     <i class="bi bi-dash-circle me-1"></i>입력 불필요
                   </span>
                 {% elif row.missing_count > 0 %}
-                  <span class="badge bg-danger" title="현지통화에 값이 있는데 KRW 환산값이 비어있는 셀 수 (저장 안 한 회사도 포함)">
-                    <i class="bi bi-exclamation-triangle-fill me-1"></i>미입력 {{ row.missing_count }}개 셀
+                  <span class="badge bg-danger" title="현지통화에 값이 있는데 KRW 환산값이 없거나, 현지통화 없이 KRW 값만 있는 셀 수 (저장 안 한 회사도 포함)">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>이상 {{ row.missing_count }}개 셀
                   </span>
                 {% else %}
                   <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>이상없음</span>

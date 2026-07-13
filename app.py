@@ -1340,7 +1340,7 @@ def admin_wce_edit(year, company):
                            missing=overrides['missing'],
                            missing_set=missing_set,
                            has_local=overrides['has_local'],
-                           locked=(_is_locked(year) and not _is_admin(session.get('username'))),
+                           locked=_is_locked(year),
                            username=session.get('username'))
 
 
@@ -1349,8 +1349,8 @@ def admin_wce_edit(year, company):
 def admin_wce_save(year, company):
     if not _valid_year(year):
         return jsonify({'error': '유효하지 않은 결산기간'}), 400
-    if _is_locked(year) and not _is_admin(session.get('username')):
-        return jsonify({'error': f'{year} 결산기간은 마감되어 자본입력(WCE)을 저장할 수 없습니다. (관리자 문의)'}), 403
+    if _is_locked(year):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 자본입력(WCE)을 저장할 수 없습니다. (수정하려면 결산기간 관리에서 마감 해제)'}), 403
     if not _can_access_company(session.get('username'), company):
         return jsonify({'error': f'{company} 회사 WCE에 접근 권한이 없습니다.'}), 403
     payload = request.get_json(silent=True) or {}
@@ -1443,8 +1443,8 @@ def admin_wce_save(year, company):
 @app.route('/admin/wce/<year>/<path:company>', methods=['DELETE'])
 @require_permission('wce.manage')
 def admin_wce_delete(year, company):
-    if _is_locked(year) and not _is_admin(session.get('username')):
-        return jsonify({'error': f'{year} 결산기간은 마감되어 자본입력(WCE)을 삭제할 수 없습니다. (관리자 문의)'}), 403
+    if _is_locked(year):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 자본입력(WCE)을 삭제할 수 없습니다. (마감 해제 후 가능)'}), 403
     if not _can_access_company(session.get('username'), company):
         return jsonify({'error': f'{company} 회사 WCE에 접근 권한이 없습니다.'}), 403
     data = _load_wce()
@@ -7115,15 +7115,29 @@ def _compute_wce_missing(local_data, fx_avg, current_tables):
                     continue
 
                 local_v = _lookup_local(local_data, t['id'], code, rk)
-                if not local_v:
-                    continue  # 로컬 값이 없으면 미입력 아님
                 converted_v = (((current_tables.get(tid) or {}).get(code) or {}).get(rk, 0)) or 0
-                if abs(converted_v) < 0.5:  # 사실상 0
+                if not local_v:
+                    # 해외사업환산손익은 자동 환산조정으로 KRW만 채워지는 게 정상 — 이상 아님
+                    if rk == '해외사업환산손익':
+                        continue
+                    # 로컬 값이 없는데 KRW 환산값만 있으면 이상 (불일치)
+                    if abs(converted_v) >= 0.5:
+                        missing.append({
+                            'table_id': tid,
+                            'code': code,
+                            'row_key': rk,
+                            'local': local_v,
+                            'converted': converted_v,
+                            'kind': 'krw_only',
+                        })
+                    continue
+                if abs(converted_v) < 0.5:  # 로컬은 있는데 KRW 환산값이 비어있음
                     missing.append({
                         'table_id': tid,
                         'code': code,
                         'row_key': rk,
                         'local': local_v,
+                        'kind': 'missing_krw',
                     })
     return {'count': len(missing), 'cells': missing}
 
