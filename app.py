@@ -1340,6 +1340,7 @@ def admin_wce_edit(year, company):
                            missing=overrides['missing'],
                            missing_set=missing_set,
                            has_local=overrides['has_local'],
+                           locked=(_is_locked(year) and not _is_admin(session.get('username'))),
                            username=session.get('username'))
 
 
@@ -1348,6 +1349,8 @@ def admin_wce_edit(year, company):
 def admin_wce_save(year, company):
     if not _valid_year(year):
         return jsonify({'error': '유효하지 않은 결산기간'}), 400
+    if _is_locked(year) and not _is_admin(session.get('username')):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 자본입력(WCE)을 저장할 수 없습니다. (관리자 문의)'}), 403
     if not _can_access_company(session.get('username'), company):
         return jsonify({'error': f'{company} 회사 WCE에 접근 권한이 없습니다.'}), 403
     payload = request.get_json(silent=True) or {}
@@ -1440,6 +1443,8 @@ def admin_wce_save(year, company):
 @app.route('/admin/wce/<year>/<path:company>', methods=['DELETE'])
 @require_permission('wce.manage')
 def admin_wce_delete(year, company):
+    if _is_locked(year) and not _is_admin(session.get('username')):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 자본입력(WCE)을 삭제할 수 없습니다. (관리자 문의)'}), 403
     if not _can_access_company(session.get('username'), company):
         return jsonify({'error': f'{company} 회사 WCE에 접근 권한이 없습니다.'}), 403
     data = _load_wce()
