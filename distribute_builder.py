@@ -755,7 +755,7 @@ def _apply_fx_to_master(ws, fx_current: dict, fx_prior: dict) -> dict:
     """Master 시트의 환율 영역에 중앙 환율을 채워 넣는다.
 
     채움 규칙: K열 통화코드를 매칭 키로 사용, L=Spot, M=Avg 셀에 값 기록.
-      · KRW 행은 건드리지 않음
+      · KRW 행은 원화이므로 환율 관리 대상이 아님 — 항상 Spot/Avg = 1 기록
       · 중앙 환율에 해당 통화가 없으면 해당 행 스킵 (기존 템플릿 값 유지)
       · spot / avg 중 None 인 항목은 해당 셀만 스킵
     """
@@ -766,7 +766,13 @@ def _apply_fx_to_master(ws, fx_current: dict, fx_prior: dict) -> dict:
             if cur is None:
                 continue
             key = str(cur).strip().upper()
-            if not key or key == 'KRW':
+            if not key:
+                continue
+            if key == 'KRW':
+                # 원화는 환산 대상이 아니므로 환율 1 고정
+                ws.cell(r, MASTER_FX_SPOT_COL).value = 1
+                ws.cell(r, MASTER_FX_AVG_COL).value = 1
+                wrote += 2
                 continue
             rec = table.get(key)
             if not rec:
