@@ -48,13 +48,49 @@ FX_RATES_FILE = BASE_DIR / "fx_rates.json"
 
 # Master 시트 환율 영역 (extractor.py / 템플릿 구조와 동일)
 #   J(10)=Nation, K(11)=Currency, L(12)=Spot, M(13)=Avg, N(14)=Cross
-#   당기  : 헤더 J4, 컬럼라벨 5행, 데이터 6~21
-#   전년Q4: 헤더 J27, 컬럼라벨 28행, 데이터 29~45
+#   당기  : 헤더 J4('Fx rate'), 컬럼라벨 5행, 데이터 6행~
+#   전년Q4: 헤더 J27('Fx rate'), 컬럼라벨 28행, 데이터 29행~
+# 행 위치는 통화가 추가되면 밀리므로 상수로 두지 않고 런타임에 탐지한다.
+# (아래 상수는 탐지 실패 시 폴백용 — extractor.py._get_fx_rate_tables와 동일 규칙)
 MASTER_FX_CURRENT_ROWS = range(6, 22)
 MASTER_FX_PRIOR_ROWS   = range(29, 46)
+MASTER_FX_NATION_COL = 10   # J
 MASTER_FX_CUR_COL  = 11   # K
 MASTER_FX_SPOT_COL = 12   # L
 MASTER_FX_AVG_COL  = 13   # M
+MASTER_FX_MAX_SCAN = 25     # 한 블록에서 스캔할 최대 행 수 (extractor와 동일)
+
+
+def _find_fx_blocks(ws) -> list[list[int]]:
+    """Master 시트의 환율 블록 데이터 행 번호를 위에서부터 순서대로 반환.
+
+    extractor.py._get_fx_rate_tables와 동일한 앵커를 쓴다:
+      J열 'Fx rate' 헤더 → 2행 뒤부터 데이터 시작 → K열(통화)이 빌 때까지.
+    통화 행이 추가/삭제되어 위치가 밀려도 따라간다.
+    반환 예: [[6..21], [29..45]]  (당기, 전기)
+    """
+    header_rows = [
+        r for r in range(1, ws.max_row + 1)
+        if isinstance(ws.cell(r, MASTER_FX_NATION_COL).value, str)
+        and ws.cell(r, MASTER_FX_NATION_COL).value.strip() == 'Fx rate'
+    ]
+    blocks = []
+    for hr in header_rows:
+        rows = []
+        for r in range(hr + 2, hr + 2 + MASTER_FX_MAX_SCAN):
+            if r > ws.max_row:
+                break
+            nation = ws.cell(r, MASTER_FX_NATION_COL).value
+            # 다음 블록 헤더를 만나면 중단 (extractor와 동일 규칙)
+            if isinstance(nation, str) and ('Fx rate' in nation or 'Prior' in nation):
+                break
+            cur = ws.cell(r, MASTER_FX_CUR_COL).value
+            if cur is None or not str(cur).strip():
+                break
+            rows.append(r)
+        if rows:
+            blocks.append(rows)
+    return blocks
 
 # WCE 내부 코드 → BS 시트 코드 매핑
 WCE_TO_BS_CODE = {'FS32000000': '3600101'}
@@ -848,9 +884,13 @@ def _apply_fx_to_master(ws, fx_current: dict, fx_prior: dict) -> dict:
                 wrote += 1
         return wrote
 
+    # 통화 추가로 행이 밀려도 따라가도록 런타임 탐지. 실패 시 상수 폴백.
+    blocks = _find_fx_blocks(ws)
+    current_rows = blocks[0] if len(blocks) >= 1 else MASTER_FX_CURRENT_ROWS
+    prior_rows   = blocks[1] if len(blocks) >= 2 else MASTER_FX_PRIOR_ROWS
     return {
-        'current': _fill_block(MASTER_FX_CURRENT_ROWS, fx_current or {}),
-        'prior':   _fill_block(MASTER_FX_PRIOR_ROWS,   fx_prior or {}),
+        'current': _fill_block(current_rows, fx_current or {}),
+        'prior':   _fill_block(prior_rows,   fx_prior or {}),
     }
 
 
