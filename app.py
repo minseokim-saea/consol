@@ -7300,8 +7300,11 @@ def _seed_company_master():
 
 
 def _save_company_master(companies):
-    """회사 마스터 저장. companies: [{name, currency, active, since}]. 중복 회사명은 병합.
-    since: 'YYYY-NQ' — 이 분기부터 제출대상(마감현황)에 포함. 비우면 항상 포함.
+    """회사 마스터 저장. companies: [{name, currency, active, since, py_basis}]. 중복 회사명은 병합.
+    since:    'YYYY-NQ' — 이 분기부터 제출대상(마감현황)에 포함. 비우면 항상 포함.
+    py_basis: 배포용파일의 전기금액(PY) 기준.
+              'auto'(기본) — 전년 패키지에서 추출, 자료 없으면 배포 차단.
+              'none'       — 신설법인, 전년 자료가 없으면 PY 공란으로 배포 허용.
     """
     clean, seen = [], set()
     for c in (companies or []):
@@ -7317,11 +7320,15 @@ def _save_company_master(companies):
         since = str(c.get('since') or '').strip().upper()
         if since and not PERIOD_RE.match(since):
             since = ''   # 형식(YYYY-NQ) 아니면 무시
+        py_basis = str(c.get('py_basis') or 'auto').strip().lower()
+        if py_basis not in ('auto', 'none'):
+            py_basis = 'auto'
         clean.append({
             'name': name,
             'currency': str(c.get('currency') or '').strip().upper(),
             'active': bool(c.get('active', True)),
             'since': since,
+            'py_basis': py_basis,
         })
     with _company_master_filelock:
         _atomic_write_json(COMPANY_MASTER_FILE, {'companies': clean})

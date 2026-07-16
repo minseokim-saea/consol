@@ -73,11 +73,12 @@
               <th style="width:150px" class="text-end">적용 Avg</th>
               <th style="width:70px" class="text-center">활성</th>
               <th style="width:130px" class="text-center">적용 시작 분기<br><span class="text-muted small fw-normal">(비우면 항상)</span></th>
+              <th style="width:130px" class="text-center">전기금액<br><span class="text-muted small fw-normal">(배포용 PY)</span></th>
               <th style="width:60px" class="text-center">삭제</th>
             </tr>
           </thead>
           <tbody id="companyBody">
-            <tr><td colspan="8" class="text-muted text-center py-4">분기를 선택하세요.</td></tr>
+            <tr><td colspan="9" class="text-muted text-center py-4">분기를 선택하세요.</td></tr>
           </tbody>
         </table>
       </div>
@@ -138,7 +139,7 @@ async function loadData(year) {
   try {
     const r = await fetch(`/admin/company-master/data?year=${encodeURIComponent(year||'')}`);
     const j = await r.json();
-    companies = (j.companies||[]).map(c=>({name:c.name||'', currency:(c.currency||'').toUpperCase(), active:c.active!==false, since:(c.since||'').toUpperCase()}));
+    companies = (j.companies||[]).map(c=>({name:c.name||'', currency:(c.currency||'').toUpperCase(), active:c.active!==false, since:(c.since||'').toUpperCase(), py_basis:(c.py_basis==='none'?'none':'auto')}));
     ratesMap = j.current_rates || {};
     renderCompanies();
   } catch(e) {
@@ -168,7 +169,7 @@ function renderCompanies() {
     .map((c,idx)=>({c,idx}))
     .filter(({c})=> !q || c.name.toLowerCase().includes(q) || (c.currency||'').toLowerCase().includes(q));
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-muted text-center py-4">${companies.length?'검색 결과 없음':'회사가 없습니다 — "회사 추가"로 등록하세요.'}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="text-muted text-center py-4">${companies.length?'검색 결과 없음':'회사가 없습니다 — "회사 추가"로 등록하세요.'}</td></tr>`;
   } else {
     tbody.innerHTML = rows.map(({c,idx})=>{
       const ac = appliedCells(c.currency);
@@ -180,6 +181,13 @@ function renderCompanies() {
         <td class="${ac.aCls}">${escapeHtml(ac.avg)}</td>
         <td class="text-center"><input type="checkbox" class="form-check-input" data-field="active" ${c.active?'checked':''}></td>
         <td class="text-center"><input type="text" class="form-control form-control-sm text-center" data-field="since" value="${escapeHtml(c.since||'')}" placeholder="예:2026-3Q" maxlength="7" style="width:96px; display:inline-block"></td>
+        <td class="text-center">
+          <select class="form-select form-select-sm" data-field="py_basis" style="width:112px; display:inline-block"
+                  title="자동: 전년 패키지에서 전기금액을 가져옵니다.&#10;없음(신설): 신설법인이라 전기금액이 없으므로 PY를 공란으로 배포합니다.">
+            <option value="auto" ${c.py_basis!=='none'?'selected':''}>자동</option>
+            <option value="none" ${c.py_basis==='none'?'selected':''}>없음(신설)</option>
+          </select>
+        </td>
         <td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger py-0 px-2 del-co" title="삭제"><i class="bi bi-x"></i></button></td>
       </tr>`;
     }).join('');
@@ -210,6 +218,8 @@ document.getElementById('companyBody').addEventListener('change', e=>{
   if (e.target.dataset.field==='active') {
     companies[idx].active = e.target.checked;
     document.getElementById('companyActive').textContent = companies.filter(c=>c.active).length;
+  } else if (e.target.dataset.field==='py_basis') {
+    companies[idx].py_basis = e.target.value;
   }
 });
 document.getElementById('companyBody').addEventListener('click', e=>{
@@ -229,7 +239,7 @@ document.getElementById('addCompanyBtn').addEventListener('click', ()=>{
   const norm = s=>s.replace(/[\W_]+/g,'').toLowerCase();
   if (companies.some(c=>norm(c.name)===norm(name))) { showAlert('warn', `<i class="bi bi-exclamation-triangle"></i> 이미 있는 회사입니다.`); return; }
   const cur = (prompt(`"${name}"의 통화 코드 (예: USD, VND — 원화면 KRW 또는 비워두기)`)||'').trim().toUpperCase();
-  companies.push({name, currency:cur, active:true, since:''});
+  companies.push({name, currency:cur, active:true, since:'', py_basis:'auto'});
   document.getElementById('companySearch').value='';
   renderCompanies();
 });

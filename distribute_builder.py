@@ -559,6 +559,60 @@ def _norm_company(name: str) -> str:
     return re.sub(r'\s+', '', str(name)).lower()
 
 
+# ─────────────────────────────────────────────────────────────
+# 회사 마스터 — 전기금액(PY) 기준
+#   'auto' (기본) : 전년 패키지에서 추출. 자료가 없으면 오류로 차단.
+#   'none'        : 신설법인 — 전년 자료가 없어도 PY 공란으로 배포 허용.
+#   ※ 'none'은 "공란 강제"가 아니라 "공란 허용"이다. 전년 자료가 생기면
+#      (신설 다음 해 등) 자동으로 정상 경로를 탄다.
+#   ※ M&A 취득 회사는 'auto' 그대로 두고, 취득시 BS/PL을 패키지 양식으로
+#      전년 4Q에 업로드하면 된다. 연결 포함 여부는 회사마스터 since가
+#      따로 통제하므로 전년도 연결에 섞이지 않는다.
+# ─────────────────────────────────────────────────────────────
+COMPANY_MASTER_FILE = BASE_DIR / "company_master.json"
+PY_BASIS_AUTO = 'auto'
+PY_BASIS_NONE = 'none'
+
+_company_master_cache = {'mtime': None, 'map': {}}
+
+
+def _norm_master_name(name: str) -> str:
+    """app.py의 _norm_company_name과 동일 규칙 (회사마스터 조회용)."""
+    return re.sub(r'[\W_]+', '', str(name or '').casefold(), flags=re.UNICODE)
+
+
+def _company_py_basis_map() -> dict:
+    """{정규화 회사명: 'auto'|'none'} — mtime 캐시."""
+    try:
+        mtime = COMPANY_MASTER_FILE.stat().st_mtime
+    except OSError:
+        return {}
+    if _company_master_cache['mtime'] == mtime:
+        return _company_master_cache['map']
+    out = {}
+    try:
+        with open(COMPANY_MASTER_FILE, 'r', encoding='utf-8') as fp:
+            data = json.load(fp) or {}
+        for c in (data.get('companies') or []):
+            if not isinstance(c, dict):
+                continue
+            key = _norm_master_name(c.get('name'))
+            if not key:
+                continue
+            basis = str(c.get('py_basis') or PY_BASIS_AUTO).strip().lower()
+            out[key] = basis if basis in (PY_BASIS_AUTO, PY_BASIS_NONE) else PY_BASIS_AUTO
+    except Exception:
+        return _company_master_cache['map'] or {}
+    _company_master_cache['mtime'] = mtime
+    _company_master_cache['map'] = out
+    return out
+
+
+def get_company_py_basis(company: str) -> str:
+    """회사의 전기금액 기준. 마스터에 없으면 'auto'."""
+    return _company_py_basis_map().get(_norm_master_name(company), PY_BASIS_AUTO)
+
+
 def find_prior_packages(uploaded_files: Iterable[dict], company: str,
                         target_year: int, target_quarter: int) -> dict:
     """
@@ -638,14 +692,7 @@ def resolve_py_data(uploaded_files: Iterable[dict], company: str,
 
     # ── 신규 회사 경로 — 전년 Q4 없음 ────────────────────────────────
     if not found['q4']:
-        # 케이스 A: 1Q 자체 — 전년 자료 없음 → 사용자가 PY 시트를 수기로 입력
-        if target_quarter == 1:
-            out['ok'] = True
-            out['is_new_company'] = True
-            out['source_bs'] = '신규 회사 — PY 시트 수기 입력 필요'
-            out['source_pl'] = '신규 회사 — PY 시트 수기 입력 필요'
-            out['pl_scale'] = 0.0
-            return out
+        py_basis = get_company_py_basis(company)
         # 케이스 B: 2~4Q — 같은 연도 1Q 패키지에서 PY 시트 재사용
         if found['same_year_q1']:
             py1 = extract_py_sheet(found['same_year_q1'])
@@ -662,9 +709,25 @@ def resolve_py_data(uploaded_files: Iterable[dict], company: str,
             out['is_new_company']  = True
             out['ok']              = True
             return out
-        # 케이스 C: 자료 전무
-        out['reason'] = (f'전년({target_year - 1}) Q4 패키지가 없습니다. '
-                         f'신규 회사라면 {target_year}-1Q 패키지를 먼저 업로드하세요.')
+
+        # 케이스 C: 전년 자료 전무 — 회사마스터의 '전기금액' 선언으로 판단
+        if py_basis == PY_BASIS_NONE:
+            # 신설법인 — 전기금액이 존재하지 않음. PY 전 항목 공란으로 배포.
+            out['ok'] = True
+            out['is_new_company'] = True
+            out['source_bs'] = '신설법인 — 전기금액 없음 (PY 공란)'
+            out['source_pl'] = '신설법인 — 전기금액 없음 (PY 공란)'
+            out['pl_scale'] = 0.0
+            return out
+        # 선언되지 않았다면 '전년 패키지 누락'과 구분할 수 없으므로 차단한다.
+        out['reason'] = (
+            f'전년({target_year - 1}-4Q) 패키지가 없어 전기금액(PY)을 만들 수 없습니다.\n'
+            f'· 신설법인이라 전기금액이 없다면 → 회사마스터에서 이 회사의 '
+            f'[전기금액]을 「없음(신설)」로 지정하세요. PY를 공란으로 배포합니다.\n'
+            f'· M&A 취득 회사라면 → 취득시 BS/PL을 패키지 양식으로 만들어 '
+            f'{target_year - 1}-4Q 로 업로드하세요.\n'
+            f'· 그 외에는 {target_year - 1}-4Q 패키지 업로드 누락이 아닌지 확인하세요.'
+        )
         return out
     bs_pkg = extract_bs_pl_from_package(found['q4'])
     out['bs'] = dict(bs_pkg['bs'])
