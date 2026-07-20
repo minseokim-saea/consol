@@ -1294,7 +1294,6 @@ function currentYear() {
 }
 
 function onYearChange() {
-  localStorage.setItem('selectedYear', currentYear());
   document.getElementById('resultCard').style.display = 'none';
   document.getElementById('dashboardCard').style.display = 'none';
   refreshLockUI();
@@ -2002,14 +2001,8 @@ function rebuildYearOptions(years, selected) {
   ).join('');
 }
 
-// localStorage에서 마지막 선택 복원
-(function restoreYear() {
-  const saved = localStorage.getItem('selectedYear');
-  const sel = document.getElementById('yearSelect');
-  if (saved && sel && [...sel.options].some(o => o.value === saved)) {
-    sel.value = saved;
-  }
-})();
+// 결산기간 초기값은 항상 서버가 렌더한 '현재 결산기간'(결산기간 관리에서 지정)을 사용.
+// 직전 선택을 복원하지 않는다(현재 기간이 항상 기본으로 보이도록).
 
 // ── 부호 경고 렌더 ────────────────────────────────────
 // 서버가 sign_warnings 배열을 내려주면 모달의 해당 행에 펼침 형태로 표시.

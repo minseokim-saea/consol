@@ -673,7 +673,7 @@ function renderWcfAccountsResult(data) {
       <div class="card"><div class="empty-state">
         <i class="bi bi-check-circle-fill"></i>
         <h5 class="mt-2 mb-1">특이사항 없음</h5>
-        <p class="mb-0">WCF의 J열(비용), M열(수익)에 잘못 입력된 계정이 없습니다.</p>
+        <p class="mb-0">WCF 영업활동으로 인한 현금흐름에서 비용열에 수익이 입력되거나 수익열에 비용이 입력된 계정이 없습니다.</p>
       </div></div>`;
     return;
   }
@@ -749,7 +749,7 @@ function renderWcfSignsResult(data) {
       <div class="card"><div class="empty-state">
         <i class="bi bi-check-circle-fill"></i>
         <h5 class="mt-2 mb-1">특이사항 없음</h5>
-        <p class="mb-0">U/X/AB/AE 컬럼의 모든 CF 코드 합계가 0 이상입니다.</p>
+        <p class="mb-0">투자/재무활동으로 인한 현금흐름이 음수로 입력된 항목이 없습니다.</p>
       </div></div>`;
     return;
   }
@@ -831,7 +831,7 @@ function renderWcfSeveranceResult(data) {
       <div class="card"><div class="empty-state">
         <i class="bi bi-check-circle-fill"></i>
         <h5 class="mt-2 mb-1">특이사항 없음</h5>
-        <p class="mb-0">${escHtml(tcode)} 합계가 양수인 회사가 없습니다 (음수/0 = 정상).</p>
+        <p class="mb-0">${escHtml(tname)}이 양수로 입력된 항목이 없습니다.</p>
       </div></div>`;
     return;
   }
