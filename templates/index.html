@@ -552,13 +552,13 @@
       </div>
       {% endif %}
 
-      {% if is_admin %}
+      {% if perms.files_force_upload %}
       <div class="alert alert-warning small d-flex align-items-center py-2 mb-3"
            style="border-style:dashed;">
         <div class="form-check form-switch mb-0 me-3">
           <input class="form-check-input" type="checkbox" id="forceUploadToggle">
           <label class="form-check-label fw-semibold" for="forceUploadToggle">
-            <i class="bi bi-shield-exclamation me-1"></i>토큰 검증 우회 (관리자 강제 업로드)
+            <i class="bi bi-shield-exclamation me-1"></i>토큰 검증 우회 (강제 업로드)
           </label>
         </div>
         <span class="text-muted">
@@ -2205,7 +2205,7 @@ async function uploadFiles(files) {
 
     const fd = new FormData();
     fd.append('files', f);
-    // 관리자 강제 업로드(토큰 검증 우회) 옵션 — 체크된 경우만 전송
+    // 강제 업로드(토큰 검증 우회) 옵션 — 체크된 경우만 전송
     const forceEl = document.getElementById('forceUploadToggle');
     if (forceEl && forceEl.checked) fd.append('force_upload', 'true');
 

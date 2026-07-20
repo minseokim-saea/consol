@@ -314,6 +314,7 @@ def _inject_sidebar_perms():
             'consol_compute':  _has_permission(uname, 'consol.compute'),
             'consol_journal':  _has_permission(uname, 'consol.journal'),
             'files_upload':    _has_permission(uname, 'files.upload'),
+            'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
             'files_reanalyze': _has_permission(uname, 'files.reanalyze'),
             'aggregate_run':   _has_permission(uname, 'aggregate.run'),
@@ -403,6 +404,48 @@ def _save_permission_groups(data):
     # _atomic_write_json 이 이미 ensure_ascii=False, indent=2 를 적용함 — 중복 전달 금지
     _atomic_write_json(PERMISSION_GROUPS_FILE, data)
     _PG_CACHE = data
+
+
+def _ensure_permission_catalog():
+    """코드가 새로 도입한 권한 키가 permission_groups.json 에 없으면 보강한다.
+    permission_groups.json 은 gitignore 대상이라 배포로 갱신되지 않으므로,
+    새 권한은 여기서 시작 시 자가 등록해야 운영 서버 UI에도 나타난다.
+
+    · 정의(definitions)에 없으면 지정 위치에 추가.
+    · 그룹 perms 에 키가 '아예 없을 때만' 기본값을 넣는다(관리자가 나중에
+      끈 것을 매 재시작마다 되살리지 않도록 idempotent).
+    """
+    # (key, label, after_key, default_on_groups)
+    NEW_PERMS = [
+        ('files.force_upload', '토큰 검증 우회 업로드(강제)', 'files.upload',
+         {'system_admin', 'finance_lead'}),
+    ]
+    data = _load_permission_groups(force=True)
+    defs = data.get('definitions') or []
+    groups = data.get('groups') or {}
+    def_keys = [d.get('key') for d in defs]
+    changed = False
+    for key, label, after_key, default_on in NEW_PERMS:
+        if key not in def_keys:
+            newdef = {'key': key, 'label': label}
+            if after_key in def_keys:
+                defs.insert(def_keys.index(after_key) + 1, newdef)
+            else:
+                defs.append(newdef)
+            def_keys = [d.get('key') for d in defs]
+            changed = True
+        for gid, g in groups.items():
+            perms = g.setdefault('perms', {})
+            if key not in perms:            # 처음 도입 시에만 기본값 설정
+                perms[key] = (gid in default_on)
+                changed = True
+    if changed:
+        data['definitions'] = defs
+        data['groups'] = groups
+        _save_permission_groups(data)
+
+
+_ensure_permission_catalog()
 
 
 def _user_permission_group_id(username):
@@ -7799,6 +7842,7 @@ def _sidebar_perms(uname):
         'consol_compute':   _has_permission(uname, 'consol.compute'),
         'consol_journal':   _has_permission(uname, 'consol.journal'),
         'files_upload':     _has_permission(uname, 'files.upload'),
+        'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
         'files_reanalyze':  _has_permission(uname, 'files.reanalyze'),
         'aggregate_run':    _has_permission(uname, 'aggregate.run'),
@@ -7956,12 +8000,13 @@ def upload():
             f.save(str(save_path))
 
             # ─── 무결성 토큰 검증 (정식 배포 파일 여부) ───
-            # 기본은 모두 차단. 관리자가 force_upload=true 로 명시적으로 켜야만 우회.
-            is_admin_user = _is_admin(session.get('username'))
+            # 기본은 모두 차단. 우회 권한(files.force_upload) 보유자가 force_upload=true 로
+            # 명시적으로 켜야만 우회 (시스템관리자·연결담당자).
+            can_force = _has_permission(session.get('username'), 'files.force_upload')
             force_upload = (str(request.form.get('force_upload') or
                                 request.args.get('force_upload') or '').lower()
                             in ('1', 'true', 'yes', 'on'))
-            allow_bypass = is_admin_user and force_upload
+            allow_bypass = can_force and force_upload
             bypass_warning = None
             tok = verify_dist_token(str(save_path))
             if not tok['ok']:
@@ -7975,7 +8020,7 @@ def upload():
                     save_path.unlink(missing_ok=True)
                     results.append({'name': f.filename, 'error': err_msg})
                     continue
-                bypass_warning = f'토큰 검증 우회(관리자 강제): {err_msg}'
+                bypass_warning = f'토큰 검증 우회(강제 업로드): {err_msg}'
             else:
                 # 토큰 유효 → 분기 일치 확인
                 tok_year = (tok['payload'] or {}).get('year')
@@ -7986,7 +8031,7 @@ def upload():
                         save_path.unlink(missing_ok=True)
                         results.append({'name': f.filename, 'error': err_msg})
                         continue
-                    bypass_warning = f'분기 불일치 우회(관리자 강제): {err_msg}'
+                    bypass_warning = f'분기 불일치 우회(강제 업로드): {err_msg}'
 
             # 중앙 관리 환율이 입력돼 있으면 우선 적용 (없으면 패키지 환율)
             data = extract(
@@ -8006,7 +8051,7 @@ def upload():
                         save_path.unlink(missing_ok=True)
                         results.append({'name': f.filename, 'error': err_msg})
                         continue
-                    bypass_warning = f'회사 불일치 우회(관리자 강제): {err_msg}'
+                    bypass_warning = f'회사 불일치 우회(강제 업로드): {err_msg}'
 
             # Index!C12 Error 개수 검증
             err_cnt = data.get('index_error_count')
@@ -8114,7 +8159,7 @@ def upload():
                 'currency': data.get('currency'),
                 'fx_rate': data.get('fx_rate'),
                 'sheets': entry['sheet_summary'],
-                # 토큰 검증 우회한 경우 사용자에게 경고 노출 (관리자만 발생)
+                # 토큰 검증 우회한 경우 사용자에게 경고 노출 (우회 권한자만 발생)
                 **({'warning': bypass_warning} if bypass_warning else {}),
                 # 현지통화 vs 환산값 부호/정합성 경고 (있으면 모달에서 ⚠로 표시)
                 **({'sign_warnings': sign_warnings} if sign_warnings else {}),
