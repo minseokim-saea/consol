@@ -91,12 +91,15 @@
                 {% endif %}
               </td>
               <td class="text-end">
-                {% if perms and perms.years_manage %}
+                {% if is_admin %}
                 <button type="button" class="btn btn-sm btn-outline-warning lock-toggle" data-locked="{{ '1' if p in locked else '0' }}">
                   {% if p in locked %}<i class="bi bi-unlock me-1"></i>마감 해제{% else %}<i class="bi bi-lock me-1"></i>마감{% endif %}
                 </button>
+                {% endif %}
+                {% if perms and perms.years_manage %}
                 <button type="button" class="btn btn-sm btn-outline-danger period-del"><i class="bi bi-trash me-1"></i>삭제</button>
-                {% else %}
+                {% endif %}
+                {% if not is_admin and not (perms and perms.years_manage) %}
                 <span class="text-muted small">조회 전용</span>
                 {% endif %}
               </td>

@@ -7580,7 +7580,7 @@ def _is_locked(year):
 
 
 @app.route('/years/<year>/lock', methods=['POST'])
-@require_permission('years.manage')
+@admin_required
 def lock_year(year):
     if year not in YEARS_DATA['years']:
         return jsonify({'error': '존재하지 않는 결산기간입니다.'}), 404
@@ -7592,7 +7592,7 @@ def lock_year(year):
 
 
 @app.route('/years/<year>/unlock', methods=['POST'])
-@require_permission('years.manage')
+@admin_required
 def unlock_year(year):
     if year not in YEARS_DATA['years']:
         return jsonify({'error': '존재하지 않는 결산기간입니다.'}), 404
