@@ -443,9 +443,7 @@ def _ensure_permission_catalog():
         data['definitions'] = defs
         data['groups'] = groups
         _save_permission_groups(data)
-
-
-_ensure_permission_catalog()
+    # 호출은 _atomic_write_json 정의 이후로 미룬다(_save_permission_groups 가 사용).
 
 
 def _user_permission_group_id(username):
@@ -7674,6 +7672,11 @@ def _atomic_write_json(path: Path, data, **dump_kw):
     with open(tmp, 'w', encoding='utf-8') as fp:
         json.dump(data, fp, ensure_ascii=False, indent=2, default=str, **dump_kw)
     tmp.replace(path)  # os.replace() — 원자적 파일 교체
+
+
+# 권한 카탈로그 자가 등록: _atomic_write_json(위) 정의 이후에 호출해야
+# 최초 도입 권한을 저장할 때 NameError 가 나지 않는다.
+_ensure_permission_catalog()
 
 
 def _save_state_sync():
