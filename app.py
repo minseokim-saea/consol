@@ -20,7 +20,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.routing import BaseConverter
 from filelock import FileLock
 
-from extractor import extract, validate_local_vs_value_signs
+from extractor import extract, validate_local_vs_value_signs, _round_krw
 from aggregator import aggregate, write_excel
 from company_compare_builder import build_company_compare
 from package_verify import (verify_wcf_diff, verify_wcf_accounts,
@@ -6973,29 +6973,48 @@ def _wce_auto_re_cells_for(year, company):
     fx_avg = info['fx_avg'] or 0
     if local and fx_avg:
         out = {}
-        # 5번 이익잉여금 — 행별 회계 귀속 코드:
-        #   당기순이익 → 3500105 (Current Net Income, 자동 환산)
-        # 자동 채움에서 제외 (수기 입력):
-        #   보험수리적손익     → 3500104에 수기 입력
-        #   지분법이익잉여금   → 3500104에 수기 입력 (구 'R/E조정')
-        t5 = wce_get_table(5)
-        T5_TARGET = {
-            '당기순이익': '3500105',
-        }
-        for row_key, target_code in T5_TARGET.items():
-            # 로컬값: 귀속 코드 컬럼 우선, 없으면 반대 컬럼 폴백
-            # (col 7(3500105) 우선, 없으면 col 6(3500104))
-            # abs() 금지 — 음수(순손실) 부호 반드시 유지
-            if target_code == '3500104':
-                total_v = (_lookup_local(local, 5, '3500104', row_key)
-                           or _lookup_local(local, 5, '3500105', row_key))
-            else:
-                total_v = (_lookup_local(local, 5, '3500105', row_key)
-                           or _lookup_local(local, 5, '3500104', row_key))
-            if total_v:
-                for col in t5['columns']:
+
+        # 당기순이익은 환산된 손익계산서(PL 4700004 = 지배+비지배 총액)에서 가져온다.
+        # 로컬×환율로 재계산하면 개별 반올림된 PL과 단수차이가 날 수 있으므로,
+        # 자본변동표가 손익계산서와 정확히 맞물리도록 PL 총액을 기준으로 삼는다.
+        pl_ni_total = None
+        _uf = _find_uploaded_for(year, company)
+        if _uf:
+            _pl = ((_uf.get('extracted') or {}).get('sheets') or {}).get('PL_MF') or {}
+            _ni = _pl.get('4700004')
+            if isinstance(_ni, dict) and isinstance(_ni.get('value'), (int, float)):
+                pl_ni_total = float(_ni['value'])
+
+        # 6번 비지배지분(NCI) — 로컬×환율 반올림.
+        # 당기순이익은 PL 총액에서 지배분을 빼는 데 쓰므로 먼저 산출.
+        t6 = wce_get_table(6)
+        nci_ni = 0.0
+        for row_key in ('당기순이익', '보험수리적손익'):
+            v = _lookup_local(local, 6, 'FS32000000', row_key)
+            if v:
+                conv = _round_krw(v * fx_avg)   # abs() 금지 — 음수(손실) 부호 유지
+                if row_key == '당기순이익':
+                    nci_ni = conv
+                for col in t6['columns']:
                     code = col['code']
-                    out.setdefault(code, {})[row_key] = (total_v * fx_avg) if code == target_code else 0.0
+                    out.setdefault(code, {})[row_key] = conv
+
+        # 5번 이익잉여금 당기순이익(지배분) → 3500105
+        #   원칙: 환산 PL 당기순이익 총액 − 비지배 당기순이익  → 손익계산서와 정확히 일치
+        #   PL을 못 읽는 옛 데이터는 로컬×환율(반올림)로 폴백.
+        t5 = wce_get_table(5)
+        if pl_ni_total is not None:
+            owner_ni = _round_krw(pl_ni_total - nci_ni)
+            fill_t5_ni = True
+        else:
+            local_owner = (_lookup_local(local, 5, '3500105', '당기순이익')
+                           or _lookup_local(local, 5, '3500104', '당기순이익'))
+            owner_ni = _round_krw((local_owner or 0) * fx_avg)
+            fill_t5_ni = bool(local_owner)
+        if fill_t5_ni:
+            for col in t5['columns']:
+                code = col['code']
+                out.setdefault(code, {})['당기순이익'] = owner_ni if code == '3500105' else 0.0
 
         # 회계상 위치하면 안 되는 셀: 강제 0 + readonly 마킹
         # (이전에 자동으로 채워졌다가 wce_overrides.json에 잘못 저장된 값 정리용)
@@ -7005,15 +7024,6 @@ def _wce_auto_re_cells_for(year, company):
         ]
         for (code, rk) in T5_FORCE_ZERO:
             out.setdefault(code, {})[rk] = 0.0
-
-        # 6번 비지배지분 (Non-controlling Interest)
-        t6 = wce_get_table(6)
-        for row_key in ('당기순이익', '보험수리적손익'):
-            v = _lookup_local(local, 6, 'FS32000000', row_key)
-            if v:
-                for col in t6['columns']:
-                    code = col['code']
-                    out.setdefault(code, {})[row_key] = v * fx_avg
 
         if out:
             return out
