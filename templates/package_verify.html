@@ -409,6 +409,11 @@ function countSelected() { return ALL_KINDS.filter(k => selected[k]).length; }
 function currentItems()  { return TABS[activeTab].items.map(([k]) => k); }
 
 function switchTab(group) {
+  // 탭을 바꾸면 이전 탭에서 선택한 항목은 모두 해제 (탭별로 독립 검증)
+  if (group !== activeTab) {
+    ALL_KINDS.forEach(k => { if (selected[k]) { selected[k] = false; syncItemRow(k); } });
+    if (phase !== 'idle') phase = 'idle';
+  }
   activeTab = group;
   document.querySelectorAll('.pv-tab').forEach(b => b.classList.toggle('active', b.dataset.group === group));
   document.querySelectorAll('.pv-pane').forEach(p => { p.hidden = (p.dataset.group !== group); });
