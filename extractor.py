@@ -410,14 +410,22 @@ def _extract_coded_sheet(ws, cfg, rate=None):
                 pkg_v = ws.cell(r, cfg['value_col']).value
                 val = float(pkg_v) if _is_num(pkg_v) else 0
         else:
-            # 중앙환율 미적용 모드: local 셀이 있으면 raw로 보관, 환산값은 패키지값
+            # 중앙환율 미적용 모드(=KRW 국내 회사): local 셀이 있으면 raw로 보관, 환산값은 패키지값
             if 'local_col' in cfg:
                 lv = ws.cell(r, cfg['local_col']).value
                 if _is_num(lv):
                     local_raw = float(lv)
             v = ws.cell(r, cfg['value_col']).value
-            val = float(v) if _is_num(v) else 0
-            # KRW 회사 등으로 local이 비어 있으면 환산값=로컬값(동일)
+            vf = float(v) if _is_num(v) else 0.0
+            if vf != 0:
+                val = vf
+            elif local_raw:
+                # KRW 회사: 환산값(G열)이 0이거나 비어 있으면 원화 금액이 담긴 로컬(F열)을 사용.
+                # (일부 국내 패키지는 F열에만 금액을 채우고 G열은 0/빈칸으로 둠)
+                val = local_raw
+            else:
+                val = vf
+            # local이 비어 있으면 환산값=로컬값(동일)
             if local_raw is None:
                 local_raw = val
 
