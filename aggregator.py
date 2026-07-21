@@ -46,6 +46,34 @@ TOTAL_FONT = Font(bold=True, name='Arial', size=10, color='9C5700')
 NUM_FMT = '#,##0;(#,##0);"-"'
 
 
+def _merge_code_order(extracted_list, sheet_name):
+    """여러 회사의 시트를 합칠 때 계정 표시 순서를 결정.
+
+    단순 '첫 등장' 방식은 맨 처음 회사(시드)에 없는 계정을 union 맨 뒤에 붙여,
+    부채·자산 계정이 자본총계(3000000) 아래로 밀리는 문제가 있었다.
+    → 각 회사의 지역(local) 계정 순서를 보존하며 병합한다:
+      새로 등장한 계정은 그 회사에서의 '직전 계정' 바로 뒤에 삽입.
+    모든 회사가 동일 순서를 공유하면 결과는 첫 등장 방식과 동일(무해),
+    일부 회사에만 있는 계정만 제 위치로 삽입된다.
+
+    반환: [code, ...] (표시 순서)
+    """
+    order = []
+    idx = {}   # code -> order 내 현재 인덱스
+    for e in extracted_list:
+        prev = -1   # 이 회사에서 지금까지 배치/확인한 마지막 계정의 order 인덱스
+        for code in e['sheets'].get(sheet_name, {}):
+            if code in idx:
+                prev = idx[code]
+            else:
+                at = prev + 1
+                order.insert(at, code)
+                for j in range(at, len(order)):
+                    idx[order[j]] = j
+                prev = at
+    return order
+
+
 def _reorder_cf_expense_codes(code_order):
     """CF 시트에서 4500xxx/5xxxxx 비용 코드를 '2. 현금유출 없는 비용 등의 가산' 섹션 끝으로 재배치.
 
@@ -127,14 +155,14 @@ def aggregate(extracted_list):
     sheets_agg = {}
 
     for sheet_name in SHEET_DISPLAY:
-        code_order = OrderedDict()
         meta = {}
-
         for e in extracted_list:
             for code, info in e['sheets'].get(sheet_name, {}).items():
-                code_order[code] = True
                 if code not in meta:
                     meta[code] = (info['kor'], info['eng'])
+
+        # 계정 순서: 각 회사의 지역 순서를 보존하며 병합 (첫 등장 방식의 '시드 누락 → 맨뒤' 문제 해결)
+        code_order = OrderedDict((c, True) for c in _merge_code_order(extracted_list, sheet_name))
 
         # CF 시트만: 4500xxx/5xxxxx 비용 코드를 "현금유출 없는 비용 등의 가산" 섹션으로 재배치
         if sheet_name == 'CF':
