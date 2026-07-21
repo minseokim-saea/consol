@@ -1540,7 +1540,7 @@ def admin_wce_aggregate_data():
                 'total_krw': float,
               }
             },
-            'ending': {  # 자동 계산된 기말금액 (환산효과 제외)
+            'ending': {  # 자동 계산된 기말금액 (환산효과 포함)
               '<code>': {
                 'by_company': {'<company>': {'local': float, 'krw': float}},
                 'total_krw': float,
@@ -1635,7 +1635,7 @@ def admin_wce_aggregate_data():
                     'total_krw': total_krw,
                 }
 
-        # 기말금액 자동 계산 (환산효과 제외)
+        # 기말금액 자동 계산 (환산효과 포함 — 수기 단수 조정 반영, 평소 0)
         ending = {}
         for col in t['columns']:
             code = col['code']
@@ -1646,8 +1646,6 @@ def admin_wce_aggregate_data():
                 local_sum = 0.0
                 krw_sum = 0.0
                 for row in t['rows']:
-                    if row['key'] == '환산효과':
-                        continue
                     cell = cells.get(f'{code}::{row["key"]}', {})
                     bc = (cell.get('by_company') or {}).get(cname, {})
                     local_sum += bc.get('local', 0) or 0
@@ -7197,16 +7195,15 @@ def _compute_wce_missing(local_data, fx_avg, current_tables):
 
 
 def _compute_table_ending(table_def, table_data):
-    """저장된 테이블 데이터로부터 코드별 기말금액(=기초+증감, 환산효과 제외) 계산.
-    반환: {code: ending_value}
+    """저장된 테이블 데이터로부터 코드별 기말금액(=기초+증감+환산효과) 계산.
+    환산효과는 최초연도 공시금액 정렬 등 수기 단수 조정용으로 기말에 반영된다
+    (평소 0이므로 영향 없음). 반환: {code: ending_value}
     """
     out = {}
     for col in table_def['columns']:
         code = col['code']
         ending = 0
         for r in table_def['rows']:
-            if r['key'] == '환산효과':
-                continue
             v = (table_data.get(code) or {}).get(r['key'], 0) or 0
             ending += float(v)
         out[code] = ending

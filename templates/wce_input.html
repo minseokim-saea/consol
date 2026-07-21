@@ -326,7 +326,7 @@
             </tr>
             {% endfor %}
 
-            <!-- 자동 계산: 기말금액 = 기초 + 증감 (환산효과 제외) -->
+            <!-- 자동 계산: 기말금액 = 기초 + 증감 (환산효과 포함) -->
             <tr style="background:#fff5e6;" data-computed="ending">
               <td class="label-cell"><strong>기말금액 (자동)</strong><span class="text-muted small d-block">Ending = 기초 + 증감</span></td>
               {% for col in table.columns %}
@@ -439,7 +439,7 @@ function recalcTable(card) {
     if (totalCell) totalCell.textContent = fmtNum(rowSum);
   });
 
-  // 기말금액 = 기초금액 + 모든 증감행 (환산효과 제외)
+  // 기말금액 = 기초금액 + 모든 증감행 (환산효과 포함 — 수기 단수 조정 반영)
   const endingRow = card.querySelector('tr[data-computed="ending"]');
   if (!endingRow) return;
   let endingTotal = 0;
@@ -452,8 +452,6 @@ function recalcTable(card) {
     let localSum = 0;
     let localAny = false;
     rows.forEach(tr => {
-      const key = tr.dataset.rowKey;
-      if (key === '환산효과') return;  // 기말금액 산정에서 제외
       const inp = tr.querySelector(`input[data-code="${code}"]`);
       if (inp) {
         sum += parseNum(inp.value);
