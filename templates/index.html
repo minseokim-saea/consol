@@ -2032,6 +2032,7 @@ function renderSignWarnings(containerId, warnings) {
       <td class="text-end font-monospace">${fmtNum(w.local_value)}</td>
       <td class="text-end font-monospace">${fmtNum(w.value)}</td>
       <td><span class="badge ${kindBadge(w.kind)}">${kindLabel(w.kind)}</span></td>
+      <td class="small text-muted">${escapeHtml(w.detail || '')}</td>
     </tr>`).join('');
   el.style.display = '';
   el.innerHTML = `
@@ -2040,14 +2041,21 @@ function renderSignWarnings(containerId, warnings) {
         <i class="bi bi-exclamation-triangle-fill me-1"></i>
         현지통화·환산값 부호 또는 금액 불일치 <strong>${warnings.length}건</strong> — 패키지 셀/수식 확인 권장
       </summary>
-      <div class="table-responsive mt-2">
+      <div class="small text-muted mt-2 mb-1" style="line-height:1.6;">
+        아래 계정들은 <b>현지통화 금액</b>과 <b>KRW 환산값</b>이 맞지 않아 표시된 것입니다(합산은 정상 완료). 유형별 뜻:
+        <span class="badge bg-danger">부호 반대</span> 현지통화와 KRW의 부호가 다름 ·
+        <span class="badge bg-warning text-dark">한쪽만 0</span> 현지통화 없이 KRW만 입력됨 ·
+        <span class="badge bg-warning text-dark">KRW 금액 불일치</span> 국내(KRW) 회사인데 두 값이 다름.
+        해당 회사 패키지에서 아래 계정 셀·수식을 확인하세요.
+      </div>
+      <div class="table-responsive mt-1">
         <table class="table table-sm table-bordered mb-0" style="font-size:0.82rem;">
           <thead class="table-light">
             <tr>
               <th>코드</th><th>계정명</th><th>시트</th>
               <th class="text-end">현지통화(F)</th>
               <th class="text-end">환산값(G·KRW)</th>
-              <th>유형</th>
+              <th>유형</th><th>사유</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>

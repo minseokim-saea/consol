@@ -1253,8 +1253,14 @@ def validate_local_vs_value_signs(extracted: dict,
 
             kor = info.get('kor', '') or ''
 
-            # 한쪽만 0인 경우
-            if (lv_f == 0) != (v_f == 0):  # XOR
+            # 환산값(KRW)만 0이고 현지통화만 있는 경우:
+            # 환산값은 round(현지통화×환율)이므로 0 = 0.5원 미만(미미한 단수 dust).
+            # 실제 금액이면 환산값이 0이 될 수 없으므로 경고하지 않는다.
+            if v_f == 0 and lv_f != 0:
+                continue
+
+            # 현지통화가 0인데 환산값(KRW)만 있는 경우 — 근거 없는 KRW (실제 이상 후보)
+            if lv_f == 0 and v_f != 0:
                 out.append({
                     'sheet': sheet_name,
                     'code': str(code),
@@ -1262,8 +1268,7 @@ def validate_local_vs_value_signs(extracted: dict,
                     'local_value': lv_f,
                     'value': v_f,
                     'kind': 'one_side_zero',
-                    'detail': (f'{"현지통화" if lv_f == 0 else "환산값(KRW)"}이 0인데 '
-                               f'{"환산값(KRW)" if lv_f == 0 else "현지통화"}만 입력됨'),
+                    'detail': '현지통화가 0인데 환산값(KRW)만 입력됨',
                 })
                 continue
 
