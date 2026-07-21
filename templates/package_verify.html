@@ -150,8 +150,6 @@ body { background:#eef1f6; }
 .pv-bar { width:4px; height:16px; background:var(--pv-blue); border-radius:2px; flex-shrink:0; }
 .pv-head-right { margin-left:auto; display:flex; align-items:center; gap:14px; }
 .pv-tab-hint { font-size:12px; color:var(--pv-faint); font-weight:600; }
-.pv-toggle-all { font-size:12px; font-weight:700; color:var(--pv-blue); cursor:pointer; user-select:none; }
-.pv-toggle-all:hover { text-decoration:underline; }
 
 /* 2) 결산기간 카드 본문 */
 .pv-period-body { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:18px 22px; flex-wrap:wrap; }
@@ -174,6 +172,15 @@ body { background:#eef1f6; }
 .pv-tab-count { font-size:11px; font-weight:700; min-width:18px; text-align:center; padding:1px 7px; border-radius:999px;
   background:var(--pv-neu-bd); color:var(--pv-sub); font-feature-settings:'tnum' 1; }
 .pv-tab.active .pv-tab-count { background:var(--pv-blue); color:#fff; }
+
+/* 전체 선택 바 (항목 위, 체크박스형) */
+.pv-selectall { display:flex; align-items:center; gap:11px; padding:11px 22px; cursor:pointer;
+  background:#fbfcfe; border-bottom:1px solid var(--pv-bd); user-select:none; transition:background .12s; }
+.pv-selectall:hover { background:#f2f6fc; }
+.pv-selectall-label { font-size:13px; font-weight:700; color:var(--pv-sub); }
+.pv-selectall.selected .pv-check { background:var(--pv-blue); border-color:var(--pv-blue); }
+.pv-selectall.selected .pv-check::after { opacity:1; }
+.pv-selectall.selected .pv-selectall-label { color:var(--pv-ink); }
 
 /* 항목 리스트 */
 .pv-pane[hidden] { display:none; }
@@ -251,7 +258,6 @@ body { background:#eef1f6; }
       <span class="pv-bar"></span>검증 항목
       <span class="pv-head-right">
         <span class="pv-tab-hint" id="tabHint">현금흐름표 검증 · 6개 항목</span>
-        <span class="pv-toggle-all" id="toggleAll" onclick="toggleAllCurrent()">전체 선택</span>
       </span>
     </div>
 
@@ -260,6 +266,12 @@ body { background:#eef1f6; }
       <button class="pv-tab active" data-group="wcf" type="button" onclick="switchTab('wcf')">현금흐름표 검증 <span class="pv-tab-count">6</span></button>
       <button class="pv-tab" data-group="note" type="button" onclick="switchTab('note')">주석 검증 <span class="pv-tab-count">2</span></button>
       <button class="pv-tab" data-group="asset" type="button" onclick="switchTab('asset')">유무형자산검증 <span class="pv-tab-count">2</span></button>
+    </div>
+
+    <!-- 전체 선택 (항목 위, 체크박스형) -->
+    <div class="pv-selectall" id="toggleAll" onclick="toggleAllCurrent()">
+      <span class="pv-check" id="toggleAllCheck"></span>
+      <span class="pv-selectall-label" id="toggleAllLabel">전체 선택</span>
     </div>
 
     <!-- 항목 리스트 -->
@@ -449,7 +461,8 @@ function updateUI() {
   document.getElementById('tabHint').textContent = `${TABS[activeTab].label} · ${TABS[activeTab].items.length}개 항목`;
   const items = currentItems();
   const allOn = items.length && items.every(k => selected[k]);
-  document.getElementById('toggleAll').textContent = allOn ? '전체 해제' : '전체 선택';
+  document.getElementById('toggleAll').classList.toggle('selected', !!allOn);
+  document.getElementById('toggleAllLabel').textContent = allOn ? '전체 해제' : '전체 선택';
 
   // 푸터 버튼/헬퍼 — phase별
   const btn = document.getElementById('runBtn');
