@@ -37,6 +37,19 @@ def _is_num(v):
     return isinstance(v, (int, float)) and not isinstance(v, bool)
 
 
+def _round_krw(x):
+    """KRW 환산값을 원(₩) 단위로 반올림 — 소수점 이하 제거.
+    KRW 는 소수 단위가 없으므로 현지통화×환율 결과는 항상 정수 원으로 맞춘다.
+    0.5 는 Excel ROUND 과 동일하게 절댓값이 큰 쪽으로(half-away-from-zero).
+    현지통화 raw 값에는 적용하지 않는다(원 단위 환산값에만)."""
+    if not _is_num(x):
+        try:
+            x = float(x)
+        except (TypeError, ValueError):
+            return x
+    return float(int(x + 0.5)) if x >= 0 else float(-int(-x + 0.5))
+
+
 def _get_company_name(wb):
     if 'Cover' in wb.sheetnames:
         v = wb['Cover']['D11'].value
@@ -254,7 +267,7 @@ def _extract_coded_sheet(ws, cfg, rate=None):
         result[code_str] = {
             'kor': str(kor).strip() if kor else '',
             'eng': str(eng).strip() if eng else '',
-            'value': val,
+            'value': _round_krw(val),
             'local_value': local_raw if local_raw is not None else 0,
             'compare': 0,         # 본체에서 채움 (KRW)
             'compare_local': 0,   # 본체에서 채움 (현지통화 raw)
@@ -335,7 +348,7 @@ def _extract_py_compare(wb, avg_rate_prior, bs_rescale_ratio=1.0, spot_prior=Non
         if bs_c and bs_c[0].isdigit() and bs_c not in result['bs']:
             amt = ws.cell(r, 5).value
             base = float(amt) if _is_num(amt) else 0
-            krw = base * bs_rescale_ratio
+            krw = _round_krw(base * bs_rescale_ratio)
             result['bs'][bs_c] = krw
             result['bs_pkg_raw'][bs_c] = base    # PY 시트 KRW 원본 (회사별 비교용)
             # 로컬 raw 역산 (KRW / 적용 spot_prior) — sp가 1.0이면 KRW와 동일(KRW 회사)
@@ -347,7 +360,7 @@ def _extract_py_compare(wb, avg_rate_prior, bs_rescale_ratio=1.0, spot_prior=Non
             amt = ws.cell(r, 8).value
             raw = float(amt) if _is_num(amt) else 0
             result['pl_local'][pl_c] = raw
-            result['pl'][pl_c] = raw * avg_rate_prior
+            result['pl'][pl_c] = _round_krw(raw * avg_rate_prior)
 
     return result
 
@@ -431,7 +444,7 @@ def _extract_cf1_sheet(ws, avg_rate, spot_current, spot_prior, value_col=7, coa=
                 rate = spot_current
             else:
                 rate = avg_rate
-            converted[label] = raw * rate
+            converted[label] = _round_krw(raw * rate)
 
         # 해외사업환산손익 = 기말금액 − (기초부터 외화평가감소까지의 합)
         ending = 0
@@ -537,7 +550,7 @@ def _extract_cf4_section(ws, header_row, end_row, avg_rate, spot_current, spot_p
             raw = ws.cell(r, c).value
             raw_f = float(raw) if _is_num(raw) else 0.0
             local_raws[label] = raw_f
-            val = raw_f * spot_prior
+            val = _round_krw(raw_f * spot_prior)
             converted[label] = val
             beginning_plus_middle += val
 
@@ -545,13 +558,13 @@ def _extract_cf4_section(ws, header_row, end_row, avg_rate, spot_current, spot_p
             raw = ws.cell(r, c).value
             raw_f = float(raw) if _is_num(raw) else 0.0
             local_raws[label] = raw_f
-            val = raw_f * avg_rate
+            val = _round_krw(raw_f * avg_rate)
             converted[label] = val
             beginning_plus_middle += val
 
         ending_raw = ws.cell(r, ending_col[0]).value
         ending_raw_f = float(ending_raw) if _is_num(ending_raw) else 0.0
-        ending_val = ending_raw_f * spot_current
+        ending_val = _round_krw(ending_raw_f * spot_current)
 
         # 해외사업환산손익 = 기말 − (기초~기타변동 합)  → 기말잔액 바로 앞에 삽입
         fx_diff = ending_val - beginning_plus_middle
@@ -691,7 +704,7 @@ def _extract_cf_sheet(ws, avg_rate, spot_current, spot_prior, coa=None):
             rate = avg_rate
             rate_kind = 'avg'
 
-        converted = v * rate
+        converted = _round_krw(v * rate)
 
         # 코드 인식: 숫자 시작 또는 "CF"로 시작 (CF1xxx~CF6xxx)
         code_str = str(ref_code).strip() if ref_code is not None else ''
