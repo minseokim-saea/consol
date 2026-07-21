@@ -10,6 +10,9 @@
        · 환산값 없음 → 해당 통화의 Master 평균환율을 곱해 KRW 환산
 """
 
+import json
+import os
+import re
 from collections import OrderedDict
 from openpyxl import load_workbook
 
@@ -48,6 +51,98 @@ def _round_krw(x):
         except (TypeError, ValueError):
             return x
     return float(int(x + 0.5)) if x >= 0 else float(-int(-x + 0.5))
+
+
+# ─────────────────────────────────────────────────────────────
+# BS 합계/소계 계정: '하위계정 환산값의 합'으로 재계산
+#   합계계정을 개별 환산(로컬합계×환율)하면, 하위계정을 각각 반올림한 합과
+#   단수(1~2원)가 어긋난다. 합계는 반드시 하위합과 일치해야 하므로
+#   consol_template.json 의 합계 구조를 이용해 하위합으로 덮어쓴다.
+# ─────────────────────────────────────────────────────────────
+_BS_SUBTOTAL_MAP = None
+
+
+def _sum_rows_of(row):
+    """합계 행이 참조하는 하위 행 번호 목록. sum_range(잎 소계) 또는
+    formula '=SUM(R60:R78)' / '=SUM(R44,R59,...)'(중첩 소계) 둘 다 해석."""
+    if row.get('sum_range'):
+        return list(row['sum_range'])
+    f = row.get('formula') or ''
+    rows = []
+    for m in re.finditer(r'R(\d+):R(\d+)', f):        # 범위 Ra:Rb
+        rows.extend(range(int(m.group(1)), int(m.group(2)) + 1))
+    for m in re.finditer(r'R(\d+)', re.sub(r'R\d+:R\d+', '', f)):  # 개별 Rc
+        rows.append(int(m.group(1)))
+    return rows
+
+
+def _load_bs_subtotal_map():
+    """consol_template.json BS 섹션에서 [(합계코드, [하위코드...]), ...] (템플릿 순서). 캐시."""
+    global _BS_SUBTOTAL_MAP
+    if _BS_SUBTOTAL_MAP is not None:
+        return _BS_SUBTOTAL_MAP
+    result = []
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'consol_template.json')
+        with open(path, encoding='utf-8') as fp:
+            tpl = json.load(fp)
+        rows = tpl.get('rows') or []
+        by_row = {r['row']: r for r in rows if 'row' in r}
+        for r in rows:
+            if r.get('kind') == 'subtotal' and r.get('section') == 'BS' and r.get('code'):
+                kids = [str(by_row[rw]['code']) for rw in _sum_rows_of(r)
+                        if rw in by_row and by_row[rw].get('code')]
+                if kids:
+                    result.append((str(r['code']), kids))
+    except Exception:
+        result = []
+    _BS_SUBTOTAL_MAP = result
+    return result
+
+
+def _recompute_bs_subtotals(bs):
+    """BS 합계/소계 계정의 KRW 환산값(value)을 하위계정 환산값의 합으로 재계산.
+    중첩 소계(예: 비유동자산 = 유형자산 + 무형자산 + ...)는 다회 패스로 하위→상위 순 해소."""
+    submap = _load_bs_subtotal_map()
+    if not submap or not bs:
+        return
+    for _ in range(8):
+        changed = False
+        for sub_code, kids in submap:
+            if sub_code not in bs:
+                continue
+            s = _round_krw(sum((bs[c].get('value', 0) or 0) for c in kids if c in bs))
+            if bs[sub_code].get('value') != s:
+                bs[sub_code]['value'] = s
+                changed = True
+        if not changed:
+            break
+
+
+# 대차 반올림 잔단 흡수 대상 (BS 총계 코드 + 흡수 계정)
+_BS_ASSET_TOTAL = '1000000'      # 자산총계
+_BS_LIAB_TOTAL = '2000000'       # 부채총계
+_BS_EQUITY_TOTAL = '3000000'     # 자본총계
+_BS_FX_TRANSLATION = '3400104'   # 해외사업환산손익(누적환산조정) — 잔단 흡수
+_BS_BALANCE_PLUG_MAX = 200       # 이 이하(원)만 흡수. 초과는 실제 불일치로 보고 건드리지 않음
+
+
+def _balance_bs_rounding(bs):
+    """소계를 하위합으로 맞춘 뒤 남는 대차(자산총계 − (부채총계+자본총계)) 반올림 잔단을
+    해외사업환산손익(3400104)에 흡수해 대차를 0으로 만든다.
+    잔단이 반올림 규모를 넘으면(실제 데이터 불일치 가능) 손대지 않는다."""
+    a = bs.get(_BS_ASSET_TOTAL, {}).get('value')
+    l = bs.get(_BS_LIAB_TOTAL, {}).get('value')
+    e = bs.get(_BS_EQUITY_TOTAL, {}).get('value')
+    if a is None or l is None or e is None:
+        return
+    r = a - (l + e)
+    if abs(r) < 0.5 or abs(r) > _BS_BALANCE_PLUG_MAX:
+        return
+    if _BS_FX_TRANSLATION not in bs:
+        return
+    bs[_BS_FX_TRANSLATION]['value'] = (bs[_BS_FX_TRANSLATION].get('value', 0) or 0) + r
+    _recompute_bs_subtotals(bs)   # 자본 소계·자본총계 재합산 → 대차 0
 
 
 def _get_company_name(wb):
@@ -948,6 +1043,13 @@ def extract(file_path, central_rates=None, central_rates_lookup=None):
                 sheets[sheet_name] = data
             else:
                 sheets[sheet_name] = OrderedDict()
+
+        # BS 합계/소계 계정은 개별 환산이 아니라 하위계정 환산값의 합으로 맞춘다
+        # (외화 회사에서 개별 반올림으로 합계≠하위합 단수차이가 생기는 것 방지)
+        # 이어서 남는 대차 반올림 잔단은 해외사업환산손익으로 흡수 → 대차 0
+        if currency != 'KRW' and sheets.get('BS'):
+            _recompute_bs_subtotals(sheets['BS'])
+            _balance_bs_rounding(sheets['BS'])
 
         if 'CF' in wb.sheetnames:
             sheets['CF'] = _extract_cf_sheet(wb['CF'], avg_rate, spot_current, spot_prior, coa=coa)
