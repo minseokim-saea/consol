@@ -145,6 +145,81 @@ def _balance_bs_rounding(bs):
     _recompute_bs_subtotals(bs)   # 자본 소계·자본총계 재합산 → 대차 0
 
 
+# ─────────────────────────────────────────────────────────────
+# PL(손익) 합계/공식 계정도 하위계정으로 재계산
+#   · subtotal(매출액·매출원가·판관비·영업외수익/비용): 하위 상세의 합
+#   · formula(매출총이익·영업이익·법인세차감전이익·당기순이익 등): 공식대로 소계 가감
+#     (예: 매출총이익 = 매출액 − 매출원가, 당기순이익 = 계속사업이익 + 중단사업이익)
+#   개별 환산(로컬×환율)의 반올림 단수차이를 제거하고 손익계산서 정합성 확보.
+# ─────────────────────────────────────────────────────────────
+_PL_TOTAL_MAP = None
+
+
+def _pl_formula_refs(row):
+    """행이 참조하는 (가산 행 목록, 차감 행 목록).
+    sum_range / '=SUM(R..:R..)' / '=SUM(Ra,Rb,..)' → 전부 가산.
+    '=R191-R199', '=R245+R246-R280' 같은 산술식은 부호대로 가감 분리."""
+    if row.get('sum_range'):
+        return (list(row['sum_range']), [])
+    body = (row.get('formula') or '')
+    if body.startswith('='):
+        body = body[1:]
+    add, sub = [], []
+    for m in re.finditer(r'R(\d+):R(\d+)', body):          # 범위(항상 가산)
+        add.extend(range(int(m.group(1)), int(m.group(2)) + 1))
+    for m in re.finditer(r'([+\-]?)R(\d+)', re.sub(r'R\d+:R\d+', '', body)):
+        (sub if m.group(1) == '-' else add).append(int(m.group(2)))
+    return (add, sub)
+
+
+def _load_pl_total_map():
+    """consol_template.json IS 섹션의 합계/공식 행 → [(코드, 가산코드[], 차감코드[]), ...] (템플릿 순서). 캐시."""
+    global _PL_TOTAL_MAP
+    if _PL_TOTAL_MAP is not None:
+        return _PL_TOTAL_MAP
+    result = []
+    try:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'consol_template.json')
+        with open(path, encoding='utf-8') as fp:
+            tpl = json.load(fp)
+        rows = tpl.get('rows') or []
+        by_row = {r['row']: r for r in rows if 'row' in r}
+
+        def _codes(row_nums):
+            return [str(by_row[rw]['code']) for rw in row_nums
+                    if rw in by_row and by_row[rw].get('code')]
+
+        for r in rows:
+            if r.get('section') == 'IS' and r.get('kind') in ('subtotal', 'formula') and r.get('code'):
+                add_rows, sub_rows = _pl_formula_refs(r)
+                add_c, sub_c = _codes(add_rows), _codes(sub_rows)
+                if add_c or sub_c:
+                    result.append((str(r['code']), add_c, sub_c))
+    except Exception:
+        result = []
+    _PL_TOTAL_MAP = result
+    return result
+
+
+def _recompute_pl_totals(pl):
+    """PL 합계/공식 계정의 KRW 환산값을 하위계정 가감으로 재계산. 다회 패스로 의존성 해소."""
+    entries = _load_pl_total_map()
+    if not entries or not pl:
+        return
+    for _ in range(8):
+        changed = False
+        for code, add_c, sub_c in entries:
+            if code not in pl:
+                continue
+            s = _round_krw(sum((pl[c].get('value', 0) or 0) for c in add_c if c in pl)
+                           - sum((pl[c].get('value', 0) or 0) for c in sub_c if c in pl))
+            if pl[code].get('value') != s:
+                pl[code]['value'] = s
+                changed = True
+        if not changed:
+            break
+
+
 def _get_company_name(wb):
     if 'Cover' in wb.sheetnames:
         v = wb['Cover']['D11'].value
@@ -1050,6 +1125,10 @@ def extract(file_path, central_rates=None, central_rates_lookup=None):
         if currency != 'KRW' and sheets.get('BS'):
             _recompute_bs_subtotals(sheets['BS'])
             _balance_bs_rounding(sheets['BS'])
+
+        # PL 합계/공식 계정도 하위계정 가감으로 재계산 (손익계산서 정합성)
+        if currency != 'KRW' and sheets.get('PL_MF'):
+            _recompute_pl_totals(sheets['PL_MF'])
 
         if 'CF' in wb.sheetnames:
             sheets['CF'] = _extract_cf_sheet(wb['CF'], avg_rate, spot_current, spot_prior, coa=coa)
