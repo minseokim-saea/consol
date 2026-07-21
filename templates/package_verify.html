@@ -69,7 +69,7 @@
   .side-J { background:#fde2e2; color:#842029; }
   .side-M { background:#dce9fc; color:#1e4a8a; }
   .rows-table { font-size:.84rem; margin:0; }
-  .rows-table th { background:#f5f8ff; color:#1F3864; font-weight:600; padding:7px 8px; }
+  .rows-table th { background:#f5f8ff; color:#1F3864; font-weight:600; padding:7px 8px; text-align:center; }
   .rows-table td { padding:6px 8px; vertical-align:middle; }
   .num { text-align:right; }
   td.num { font-family:'Courier New',monospace; }
@@ -643,7 +643,7 @@ function renderWcfDiffResult(data) {
                   <td class="text-muted">${r.row}</td>
                   <td>${escHtml(r.j ?? '')}</td>
                   <td>${escHtml(r.k ?? '')}</td>
-                  <td>${escHtml(r.l ?? '')}</td>
+                  <td class="num">${fmtNum(r.l)}</td>
                   <td class="num">${fmtNum(r.m)}</td>
                   <td class="num text-danger fw-bold">${fmtNum(r.n)}</td>
                   <td>${reasonCell}</td>
