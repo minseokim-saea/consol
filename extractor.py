@@ -62,22 +62,9 @@ def _round_krw(x):
 _BS_SUBTOTAL_MAP = None
 
 
-def _sum_rows_of(row):
-    """합계 행이 참조하는 하위 행 번호 목록. sum_range(잎 소계) 또는
-    formula '=SUM(R60:R78)' / '=SUM(R44,R59,...)'(중첩 소계) 둘 다 해석."""
-    if row.get('sum_range'):
-        return list(row['sum_range'])
-    f = row.get('formula') or ''
-    rows = []
-    for m in re.finditer(r'R(\d+):R(\d+)', f):        # 범위 Ra:Rb
-        rows.extend(range(int(m.group(1)), int(m.group(2)) + 1))
-    for m in re.finditer(r'R(\d+)', re.sub(r'R\d+:R\d+', '', f)):  # 개별 Rc
-        rows.append(int(m.group(1)))
-    return rows
-
-
 def _load_bs_subtotal_map():
-    """consol_template.json BS 섹션에서 [(합계코드, [하위코드...]), ...] (템플릿 순서). 캐시."""
+    """consol_template.json BS 섹션의 합계/소계/공식 행 → [(코드, 가산코드[], 차감코드[]), ...].
+    subtotal(유형자산 등 순수 합) + formula(자산총계=유동+비유동, 유동자산=당좌+재고+기타 등) 모두 포함. 캐시."""
     global _BS_SUBTOTAL_MAP
     if _BS_SUBTOTAL_MAP is not None:
         return _BS_SUBTOTAL_MAP
@@ -88,12 +75,17 @@ def _load_bs_subtotal_map():
             tpl = json.load(fp)
         rows = tpl.get('rows') or []
         by_row = {r['row']: r for r in rows if 'row' in r}
+
+        def _codes(row_nums):
+            return [str(by_row[rw]['code']) for rw in row_nums
+                    if rw in by_row and by_row[rw].get('code')]
+
         for r in rows:
-            if r.get('kind') == 'subtotal' and r.get('section') == 'BS' and r.get('code'):
-                kids = [str(by_row[rw]['code']) for rw in _sum_rows_of(r)
-                        if rw in by_row and by_row[rw].get('code')]
-                if kids:
-                    result.append((str(r['code']), kids))
+            if r.get('section') == 'BS' and r.get('kind') in ('subtotal', 'formula') and r.get('code'):
+                add_rows, sub_rows = _pl_formula_refs(r)
+                add_c, sub_c = _codes(add_rows), _codes(sub_rows)
+                if add_c or sub_c:
+                    result.append((str(r['code']), add_c, sub_c))
     except Exception:
         result = []
     _BS_SUBTOTAL_MAP = result
@@ -101,19 +93,21 @@ def _load_bs_subtotal_map():
 
 
 def _recompute_bs_subtotals(bs):
-    """BS 합계/소계 계정의 KRW 환산값(value)을 하위계정 환산값의 합으로 재계산.
-    중첩 소계(예: 비유동자산 = 유형자산 + 무형자산 + ...)는 다회 패스로 하위→상위 순 해소."""
-    submap = _load_bs_subtotal_map()
-    if not submap or not bs:
+    """BS 합계/소계/공식 계정의 KRW 환산값(value)을 하위계정 가감으로 재계산.
+    중첩(자산총계=유동자산+비유동자산, 유동자산=당좌+재고+기타유동, 유형자산=상세합)은
+    다회 패스로 하위→상위 순 해소."""
+    entries = _load_bs_subtotal_map()
+    if not entries or not bs:
         return
     for _ in range(8):
         changed = False
-        for sub_code, kids in submap:
-            if sub_code not in bs:
+        for code, add_c, sub_c in entries:
+            if code not in bs:
                 continue
-            s = _round_krw(sum((bs[c].get('value', 0) or 0) for c in kids if c in bs))
-            if bs[sub_code].get('value') != s:
-                bs[sub_code]['value'] = s
+            s = _round_krw(sum((bs[c].get('value', 0) or 0) for c in add_c if c in bs)
+                           - sum((bs[c].get('value', 0) or 0) for c in sub_c if c in bs))
+            if bs[code].get('value') != s:
+                bs[code]['value'] = s
                 changed = True
         if not changed:
             break
