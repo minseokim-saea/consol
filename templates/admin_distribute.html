@@ -716,11 +716,15 @@ if (templateForm) templateForm.addEventListener('submit', async e => {
   btn.disabled = true;
   try {
     const r = await fetch('/distribute/template', { method: 'POST', body: fd });
-    const j = await r.json();
-    if (!r.ok) { showAlert('error', `<i class="bi bi-x-circle"></i> ${j.error || window.t('dist.tpl_upload_fail')}`); return; }
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.error) { showAlert('error', `<i class="bi bi-x-circle"></i> ${j.error || window.t('dist.tpl_upload_fail')}`); return; }
+    showAlert('success', `<i class="bi bi-check-circle"></i> 템플릿이 등록되었습니다. (${year}년)`);
     fileInput.value = '';
     // 등록 상태(등록됨/미등록 배지) 갱신을 위해 선택 연도 유지한 채 새로고침
     location.href = '/distribute/admin?year=' + encodeURIComponent(year);
+  } catch (err) {
+    // fetch 자체 실패(파일이 Excel 등에서 열려 있어 읽기 불가, 네트워크 오류 등)
+    showAlert('error', `<i class="bi bi-x-circle"></i> 템플릿 업로드에 실패했습니다. 파일이 Excel 등에서 열려 있으면 닫고 다시 시도하세요. (${err.message || err})`);
   } finally {
     btn.disabled = false;
   }
