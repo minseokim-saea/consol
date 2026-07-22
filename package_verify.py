@@ -1310,11 +1310,11 @@ def verify_gaap_retained_earnings(file_path):
     finally:
         zf.close()
 
-    # 두 방식 중 하나라도 0이면 미처분 롤포워드 정상 (회사별 OCI 이월정책 차이 흡수)
+    # 두 방식 중 하나라도 0이면 미처분 롤포워드 정상 (회사별 OCI 이월정책 차이 흡수).
     out['roll_ok'] = (abs(out['roll_diff']) < _GAAP_RE_TOL
                       or abs(out['roll_diff2']) < _GAAP_RE_TOL)
-    roll_err = out['found'] and not out['roll_ok']
-    oci_chg = abs(out['oci_change']) >= _GAAP_RE_TOL
+    roll_err = out['found'] and not out['roll_ok']       # ①·② 모두 불일치 → 오류
+    oci_chg = abs(out['oci_change']) >= _GAAP_RE_TOL      # 보험수리적손익 변동 → 검토
     out['is_flagged'] = roll_err or oci_chg
     out['severity'] = 'error' if roll_err else ('review' if oci_chg else None)
     return out

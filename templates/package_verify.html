@@ -558,39 +558,51 @@ function renderGaapReResult(data) {
       detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || '')}</div>`;
       headerExtra = '<span class="text-muted small">PY 시트가 없습니다</span>';
     } else {
-      const rollBad = c.roll_ok === false;   // ①·② 둘 다 불일치일 때만 오류
+      const rollBad = c.roll_ok === false;   // ①·② 둘 다 불일치일 때만 롤포워드 오류
       const ociChanged = Math.abs(c.oci_change || 0) >= 1;
       const d1ok = Math.abs(c.roll_diff || 0) < 1;
       const d2ok = Math.abs(c.roll_diff2 || 0) < 1;
+      const badge = (ok) => ok
+        ? '<span class="badge bg-success">일치</span>'
+        : (rollBad ? '<span class="badge bg-danger">불일치</span>'
+                   : '<span class="badge bg-light text-muted border">불일치</span>');
+      // 결론 배너 — 롤포워드 정상/오류를 크게 강조
+      const conclusion = rollBad
+        ? `<div class="alert alert-danger py-2 px-3 mb-2 small mt-2">
+             <i class="bi bi-x-circle-fill me-1"></i><b>미처분 롤포워드 오류</b>
+             — ①·② 두 방식 모두 일치하지 않습니다. 기초 이익잉여금 GAAP조정을 확인하세요.</div>`
+        : `<div class="alert alert-success py-2 px-3 mb-2 small mt-2">
+             <i class="bi bi-check-circle-fill me-1"></i><b>미처분 롤포워드 정상</b>
+             — ${d1ok ? '①' : '②'} 방식이 일치합니다.${ociChanged ? ' (보험수리적손익 변동이 있어 표시되었습니다.)' : ''}</div>`;
       detailTbl = `
-        <div class="table-responsive">
-          <table class="table rows-table table-hover mb-0">
-            <thead><tr>
-              <th>검증</th><th class="num">차이</th><th>판정</th>
-            </tr></thead>
-            <tbody>
-              <tr class="${rollBad ? 'table-danger' : ''}">
-                <td>미처분 롤포워드 ①<br><span class="text-muted" style="font-size:.72rem;">당기 미처분 − (전기 미처분 + 전기 당기순이익)</span></td>
-                <td class="num fw-bold ${d1ok ? '' : (rollBad ? 'text-danger' : 'text-muted')}">${fmtNum(c.roll_diff)}</td>
-                <td>${d1ok ? '<span class="badge bg-success">일치</span>' : (rollBad ? '<span class="badge bg-danger">불일치</span>' : '<span class="badge bg-secondary">—</span>')}</td>
-              </tr>
-              <tr class="${rollBad ? 'table-danger' : ''}">
-                <td>미처분+보험수리적 롤포워드 ②<br><span class="text-muted" style="font-size:.72rem;">보험수리적손익을 미처분으로 이월하는 회사용</span></td>
-                <td class="num fw-bold ${d2ok ? '' : (rollBad ? 'text-danger' : 'text-muted')}">${fmtNum(c.roll_diff2)}</td>
-                <td>${d2ok ? '<span class="badge bg-success">일치</span>' : (rollBad ? '<span class="badge bg-danger">불일치</span>' : '<span class="badge bg-secondary">—</span>')}</td>
-              </tr>
-              <tr class="${ociChanged ? 'table-warning' : ''}">
-                <td>보험수리적손익 변동<br><span class="text-muted" style="font-size:.72rem;">전기(${fmtNum(c.prior_oci)}) → 당기(${fmtNum(c.cur_oci)})</span></td>
-                <td class="num fw-bold ${ociChanged ? 'text-warning' : ''}">${fmtNum(c.oci_change)}</td>
-                <td>${ociChanged ? '<span class="badge bg-warning text-dark">변동 — 확인</span>' : '<span class="badge bg-success">변동 없음</span>'}</td>
-              </tr>
-            </tbody>
-          </table>
-          ${rollBad ? '' : '<div class="px-3 pt-2 text-muted" style="font-size:.78rem;">① 또는 ② 중 하나가 일치하므로 미처분 롤포워드는 정상입니다.</div>'}
+        <div class="px-3 pb-3">
+          ${conclusion}
+          <div class="table-responsive">
+            <table class="table rows-table table-hover mb-0">
+              <thead><tr><th>검증</th><th class="num">차이</th><th>판정</th></tr></thead>
+              <tbody>
+                <tr class="${rollBad ? 'table-danger' : ''}">
+                  <td>미처분 롤포워드 ①<br><span class="text-muted" style="font-size:.72rem;">당기 순수이익잉여금 − (전기 순수이익잉여금 + 전기 당기순이익)</span></td>
+                  <td class="num fw-bold">${fmtNum(c.roll_diff)}</td>
+                  <td>${badge(d1ok)}</td>
+                </tr>
+                <tr class="${ociChanged ? 'table-warning' : ''}">
+                  <td>보험수리적손익 변동<br><span class="text-muted" style="font-size:.72rem;">전기(${fmtNum(c.prior_oci)}) → 당기(${fmtNum(c.cur_oci)})</span></td>
+                  <td class="num fw-bold ${ociChanged ? 'text-warning' : ''}">${fmtNum(c.oci_change)}</td>
+                  <td>${ociChanged ? '<span class="badge bg-warning text-dark">변동</span>' : '<span class="badge bg-success">변동 없음</span>'}</td>
+                </tr>
+                <tr class="${rollBad ? 'table-danger' : ''}">
+                  <td>미처분+보험수리적 롤포워드 ②<br><span class="text-muted" style="font-size:.72rem;">보험수리적손익을 미처분으로 이월하는 회사용</span></td>
+                  <td class="num fw-bold">${fmtNum(c.roll_diff2)}</td>
+                  <td>${badge(d2ok)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>`;
       headerExtra = c.status === 'gaap_re_error'
-        ? `<span class="text-danger small">롤포워드 불일치 (①${fmtNum(c.roll_diff)} · ②${fmtNum(c.roll_diff2)})</span>`
-        : `<span class="text-muted small">보험수리적손익 변동 ${fmtNum(c.oci_change)}</span>`;
+        ? `<span class="text-danger small">롤포워드 오류 (①${fmtNum(c.roll_diff)} · ②${fmtNum(c.roll_diff2)})</span>`
+        : `<span class="text-success small"><i class="bi bi-check-circle me-1"></i>롤포워드 정상 · 보험수리적 변동 ${fmtNum(c.oci_change)}</span>`;
     }
     return `
       <div class="company-block status-${c.status}">
