@@ -1215,3 +1215,89 @@ def verify_cf41_other_transfer(file_path):
     """CF4-1 "3. 기타변동 내용" 입력 검증 (무형자산). 반환 형식은
     _verify_asset_other_transfer 참고."""
     return _verify_asset_other_transfer(file_path, 'CF4-1')
+
+
+# ─── GAAP 이익잉여금(미처분) 롤포워드 + 보험수리적손익 변동 검증 ──────────────
+# PY 시트 GAAP Diff 표: M열(13)=코드, N열(14)=전기(PY), O열(15)=당기(CY).
+#   대상 코드: 3500103 보험수리적손익 / 3500104 미처분이익잉여금 / 3500105 당기순이익
+# ① 롤포워드(하드): 당기 미처분 == 전기 미처분 + 전기 당기순이익
+#    (전기 순이익이 당기 기초 이익잉여금으로 이월되므로) → 차이 != 0 이면 오류.
+#    보험수리적손익을 경유하는 손익→자본 reclass가 있어도 이 등식은 성립한다.
+# ② 보험수리적손익 변동(검토): 전기 대비 당기 값이 달라지면 표시(의도한 조정인지 확인).
+#    OCI 는 당기 정당한 움직임이 있을 수 있어 하드 오류가 아니라 검토 대상.
+PY_GAAP_SHEET = 'PY'
+_GAAP_RE_TOL = 1.0   # 원 단위 허용오차 (환산 반올림/소수 dust 무시)
+
+
+def _num_or_zero(x):
+    return float(x) if isinstance(x, (int, float)) and not isinstance(x, bool) else 0.0
+
+
+def verify_gaap_retained_earnings(file_path):
+    """PY 시트 GAAP Diff로 미처분이익잉여금 롤포워드 + 보험수리적손익 변동 검증.
+
+    반환:
+      {'sheet_found','found',
+       'cur_re','prior_re','prior_ni','roll_diff',
+       'cur_oci','prior_oci','oci_change',
+       'is_flagged','severity','error'}
+      severity: 'error'(롤포워드 오류) | 'review'(보험수리적 변동) | None
+    """
+    out = {'sheet_found': False, 'found': False,
+           'cur_re': 0.0, 'prior_re': 0.0, 'prior_ni': 0.0, 'roll_diff': 0.0,
+           'cur_oci': 0.0, 'prior_oci': 0.0, 'oci_change': 0.0,
+           'is_flagged': False, 'severity': None, 'error': None}
+    try:
+        zf = zipfile.ZipFile(file_path)
+    except Exception as e:
+        out['error'] = f'파일 열기 실패: {e}'
+        return out
+    try:
+        sheet_path = _find_sheet_path_by_name(zf, PY_GAAP_SHEET)
+        if not sheet_path or sheet_path not in zf.namelist():
+            return out  # sheet_found=False 유지
+        shared = _load_shared_strings(zf)
+        out['sheet_found'] = True
+
+        prior = {}
+        cur = {}
+        with zf.open(sheet_path) as f:
+            for _ev, elem in ET.iterparse(f, events=('end',)):
+                if elem.tag != _TAG_ROW:
+                    continue
+                vals = {}
+                for c in elem.findall(_TAG_C):
+                    letters, _ = _split_cell_ref(c.get('r'))
+                    if letters is None:
+                        continue
+                    ci = _col_letters_to_index(letters)
+                    if ci in (13, 14, 15):   # M=코드, N=전기, O=당기
+                        vals[ci] = _cell_value(c, shared)
+                elem.clear()
+                code = vals.get(13)
+                if not isinstance(code, (int, float)) or isinstance(code, bool):
+                    continue
+                code_i = int(code)
+                if code_i in (3500103, 3500104, 3500105):
+                    prior[code_i] = _num_or_zero(vals.get(14))
+                    cur[code_i] = _num_or_zero(vals.get(15))
+
+        if 3500104 not in cur:
+            return out  # PY GAAP Diff 표 없음 → found=False
+
+        out['found'] = True
+        out['cur_re'] = cur.get(3500104, 0.0)
+        out['prior_re'] = prior.get(3500104, 0.0)
+        out['prior_ni'] = prior.get(3500105, 0.0)
+        out['cur_oci'] = cur.get(3500103, 0.0)
+        out['prior_oci'] = prior.get(3500103, 0.0)
+        out['roll_diff'] = out['cur_re'] - (out['prior_re'] + out['prior_ni'])
+        out['oci_change'] = out['cur_oci'] - out['prior_oci']
+    finally:
+        zf.close()
+
+    roll_err = abs(out['roll_diff']) >= _GAAP_RE_TOL
+    oci_chg = abs(out['oci_change']) >= _GAAP_RE_TOL
+    out['is_flagged'] = roll_err or oci_chg
+    out['severity'] = 'error' if roll_err else ('review' if oci_chg else None)
+    return out

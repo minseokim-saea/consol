@@ -37,6 +37,8 @@
   .company-block.status-new_borrow_positive { border-left-color:#dc3545; }
   .company-block.status-has_other_transfer { border-left-color:#ffc107; }
   .company-block.status-has_cf4_transfer { border-left-color:#ffc107; }
+  .company-block.status-gaap_re_error { border-left-color:#dc3545; }
+  .company-block.status-gaap_re_review { border-left-color:#ffc107; }
   .company-header {
     padding:10px 16px; display:flex; align-items:center; gap:10px;
     cursor:pointer;
@@ -267,6 +269,7 @@ body { background:#eef1f6; }
       <button class="pv-tab active" data-group="wcf" type="button" onclick="switchTab('wcf')">현금흐름표 검증 <span class="pv-tab-count">6</span></button>
       <button class="pv-tab" data-group="note" type="button" onclick="switchTab('note')">주석 검증 <span class="pv-tab-count">2</span></button>
       <button class="pv-tab" data-group="asset" type="button" onclick="switchTab('asset')">유무형자산검증 <span class="pv-tab-count">2</span></button>
+      <button class="pv-tab" data-group="capital" type="button" onclick="switchTab('capital')">자본 검증 <span class="pv-tab-count">1</span></button>
     </div>
 
     <!-- 전체 선택 (항목 위, 체크박스형) -->
@@ -358,6 +361,17 @@ body { background:#eef1f6; }
           </div>
         </div>
       </div>
+
+      <!-- 자본 검증 -->
+      <div class="pv-pane" data-group="capital" hidden>
+        <div class="pv-item" data-kind="gaap-retained-earnings" onclick="toggleItem('gaap-retained-earnings')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">GAAP 이익잉여금 검증</div>
+            <div class="pv-item-desc">PY 시트 GAAP Diff 기준. ① 당기 미처분이익잉여금 ≠ 전기 미처분 + 전기 당기순이익(이월)이면 <b>롤포워드 오류</b>, ② 보험수리적손익이 전기 대비 변동하면 <b>검토 대상</b>으로 표시.</div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- 푸터 -->
@@ -387,9 +401,11 @@ const TABS = {
     ['l2-verification','L2 단기차입금 verification'], ['retirement-benefit','퇴직급여 검증'] ] },
   asset: { label:'유무형자산검증', items:[
     ['cf4-other-transfer','유형자산 검증'], ['cf41-other-transfer','무형자산 검증'] ] },
+  capital: { label:'자본 검증', items:[
+    ['gaap-retained-earnings','GAAP 이익잉여금 검증'] ] },
 };
-const TAB_ORDER = ['wcf','note','asset'];
-const ALL_KINDS = TAB_ORDER.flatMap(g => TABS[g].items.map(([k]) => k));   // 10개
+const TAB_ORDER = ['wcf','note','asset','capital'];
+const ALL_KINDS = TAB_ORDER.flatMap(g => TABS[g].items.map(([k]) => k));
 const TITLE_BY_KIND = {};
 TAB_ORDER.forEach(g => TABS[g].items.forEach(([k, t]) => { TITLE_BY_KIND[k] = t; }));
 
@@ -507,12 +523,86 @@ function dispatchRender(kind, data) {
   else if (kind === 'retirement-benefit') renderRetirementBenefitResult(data);
   else if (kind === 'cf4-other-transfer') renderCf4OtherTransferResult(data);
   else if (kind === 'cf41-other-transfer') renderCf4OtherTransferResult(data);
+  else if (kind === 'gaap-retained-earnings') renderGaapReResult(data);
   else renderWcfDiffResult(data);
 }
 
 // 멀티 실행 시 결과 누적용: 렌더러가 만든 rows-{숫자} id/onclick 를 항목별로 네임스페이싱
 // (.rows-table 클래스는 숫자가 아니라 영향 없음)
 function nsFragment(html, idx) { return html.replace(/rows-(\d+)/g, `rows-${idx}-$1`); }
+
+function renderGaapReResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-warning"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">모든 회사의 미처분이익잉여금 롤포워드가 일치하고, 보험수리적손익 변동이 없습니다.</p>
+      </div></div>`;
+    return;
+  }
+  const blocks = items.map((c, i) => {
+    let detailTbl, headerExtra;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+      headerExtra = `<span class="text-danger small">${escHtml(c.message || '')}</span>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || '')}</div>`;
+      headerExtra = '<span class="text-muted small">PY 시트가 없습니다</span>';
+    } else {
+      const rollExpected = (c.prior_re || 0) + (c.prior_ni || 0);
+      const rollBad = Math.abs(c.roll_diff || 0) >= 1;
+      const ociChanged = Math.abs(c.oci_change || 0) >= 1;
+      detailTbl = `
+        <div class="table-responsive">
+          <table class="table rows-table table-hover mb-0">
+            <thead><tr>
+              <th>검증</th><th class="num">당기</th><th class="num">전기 기준</th><th class="num">차이/변동</th><th>판정</th>
+            </tr></thead>
+            <tbody>
+              <tr class="${rollBad ? 'table-danger' : ''}">
+                <td>미처분이익잉여금 롤포워드<br><span class="text-muted" style="font-size:.75rem;">당기 미처분 = 전기 미처분 + 전기 당기순이익</span></td>
+                <td class="num">${fmtNum(c.cur_re)}</td>
+                <td class="num">${fmtNum(rollExpected)}<br><span class="text-muted" style="font-size:.72rem;">(${fmtNum(c.prior_re)} + ${fmtNum(c.prior_ni)})</span></td>
+                <td class="num fw-bold ${rollBad ? 'text-danger' : ''}">${fmtNum(c.roll_diff)}</td>
+                <td>${rollBad ? '<span class="badge bg-danger">오류</span>' : '<span class="badge bg-success">일치</span>'}</td>
+              </tr>
+              <tr class="${ociChanged ? 'table-warning' : ''}">
+                <td>보험수리적손익 변동<br><span class="text-muted" style="font-size:.75rem;">전기 대비 당기 GAAP조정 변동</span></td>
+                <td class="num">${fmtNum(c.cur_oci)}</td>
+                <td class="num">${fmtNum(c.prior_oci)}</td>
+                <td class="num fw-bold ${ociChanged ? 'text-warning' : ''}">${fmtNum(c.oci_change)}</td>
+                <td>${ociChanged ? '<span class="badge bg-warning text-dark">변동 — 확인</span>' : '<span class="badge bg-success">변동 없음</span>'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
+      headerExtra = c.status === 'gaap_re_error'
+        ? `<span class="text-danger small">롤포워드 차이 ${fmtNum(c.roll_diff)}</span>`
+        : `<span class="text-muted small">보험수리적손익 변동 ${fmtNum(c.oci_change)}</span>`;
+    }
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+  area.innerHTML = summary + blocks;
+}
 
 function sectionWrap(title, inner, busy) {
   return `<div class="pv-result-sec">
@@ -595,6 +685,8 @@ function statusBadge(status) {
     'has_alert':          {label:'Y 응답',         cls:'badge-has_alert'},
     'misplaced':          {label:'시트 오입력',      cls:'badge-account_misplaced'},
     'unknown_standard':   {label:'기준 미상',        cls:'badge-no_sheet'},
+    'gaap_re_error':      {label:'롤포워드 오류',    cls:'badge-sign_negative'},
+    'gaap_re_review':     {label:'보험수리적 변동',   cls:'badge-has_alert'},
   };
   const m = map[status] || {label:status, cls:'badge-diff'};
   return `<span class="badge-status ${m.cls}">${m.label}</span>`;

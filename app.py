@@ -29,7 +29,8 @@ from package_verify import (verify_wcf_diff, verify_wcf_accounts,
                             verify_cf3_current_portion_new_borrowing,
                             verify_cf_other_transfer,
                             verify_cf4_other_transfer,
-                            verify_cf41_other_transfer)
+                            verify_cf41_other_transfer,
+                            verify_gaap_retained_earnings)
 from note_aggregate import (
     extract_l1_borrowings, build_l1_excel,
     extract_l4_loan_facility, build_l4_excel,
@@ -2369,6 +2370,78 @@ def admin_package_verify_cf41_other_transfer():
         'with_issues': len(results),
         'companies': results,
         'target_name': 'CF4-1 기타변동 내용 (무형자산)',
+    })
+
+
+@app.route('/admin/package-verify/gaap-retained-earnings')
+@require_permission('package.verify')
+def admin_package_verify_gaap_re():
+    """GAAP 미처분이익잉여금 롤포워드(하드) + 보험수리적손익 변동(검토) 검증.
+    PY 시트 GAAP Diff 표(M=코드, N=전기, O=당기) 기준."""
+    year = (request.args.get('year') or '').strip()
+    if not _valid_year(year):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+
+    uname = session.get('username')
+    seen = set()
+    files = []
+    for f in sorted(uploaded_files, key=lambda x: x.get('uploaded_at') or '', reverse=True):
+        if f.get('year') != year:
+            continue
+        company = f.get('company')
+        if not company or not _can_access_company(uname, company):
+            continue
+        norm = _norm_company_name(company)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        files.append(f)
+
+    import time as _time
+
+    def _verify_one(f):
+        path = f.get('path')
+        company = f.get('company')
+        if not path or not company:
+            return None
+        currency = (f.get('extracted') or {}).get('currency')
+        ver = verify_gaap_retained_earnings(path)
+        if ver.get('error'):
+            return {'company': company, 'currency': currency, 'file_id': f.get('id'),
+                    'status': 'error', 'message': ver['error']}
+        if not ver.get('sheet_found'):
+            return {'company': company, 'currency': currency, 'file_id': f.get('id'),
+                    'status': 'no_sheet', 'message': 'PY 시트 없음'}
+        if not ver.get('found') or not ver.get('is_flagged'):
+            return None   # GAAP Diff 표 없음 또는 정상
+        return {
+            'company': company, 'currency': currency, 'file_id': f.get('id'),
+            'status': 'gaap_re_error' if ver.get('severity') == 'error' else 'gaap_re_review',
+            'cur_re': ver.get('cur_re'), 'prior_re': ver.get('prior_re'),
+            'prior_ni': ver.get('prior_ni'), 'roll_diff': ver.get('roll_diff'),
+            'cur_oci': ver.get('cur_oci'), 'prior_oci': ver.get('prior_oci'),
+            'oci_change': ver.get('oci_change'),
+        }
+
+    valid_files = [f for f in files if f.get('path') and f.get('company')]
+    scanned = len(valid_files)
+    workers = min(8, max(1, scanned)) if scanned else 1
+    t_total = _time.time()
+    print(f'[패키지 검증/GAAP 이익잉여금] 시작: {scanned}개 패키지, 워커 {workers}개', flush=True)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        all_results = list(ex.map(_verify_one, valid_files))
+    results = [r for r in all_results if r is not None]
+    print(f'[패키지 검증/GAAP 이익잉여금] 완료: {_time.time()-t_total:.1f}초, 특이사항 {len(results)}개사', flush=True)
+
+    status_rank = {'error': 0, 'no_sheet': 1, 'gaap_re_error': 2, 'gaap_re_review': 3}
+    results.sort(key=lambda r: (status_rank.get(r.get('status'), 9), r.get('company') or ''))
+
+    return jsonify({
+        'year': year,
+        'scanned': scanned,
+        'with_issues': len(results),
+        'companies': results,
+        'target_name': 'GAAP 이익잉여금 (미처분 롤포워드 + 보험수리적손익)',
     })
 
 
