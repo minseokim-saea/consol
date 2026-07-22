@@ -1244,8 +1244,9 @@ def verify_gaap_retained_earnings(file_path):
        'roll_diff','roll_diff2','roll_ok',
        'cur_oci','prior_oci','oci_change',
        'is_flagged','severity','error'}
-      roll_diff  = 당기 미처분 − (전기 미처분 + 전기 순이익)              [OCI 미이월형]
-      roll_diff2 = (당기 미처분+보험) − (전기 미처분+보험 + 전기 순이익)   [OCI→미처분 이월형]
+      순수 이익잉여금 = 이익준비금+임의적립금+미처분 (비지배지분 제외)
+      roll_diff  = 당기 순수RE − (전기 순수RE + 전기 순이익)              [OCI 미이월형]
+      roll_diff2 = (당기 순수RE+보험) − (전기 순수RE+보험 + 전기 순이익)   [OCI→미처분 이월형]
       roll_ok    = roll_diff 또는 roll_diff2 중 하나가 0(허용오차 내)
       severity: 'error'(롤포워드 오류) | 'review'(보험수리적 변동) | None
     """
@@ -1285,7 +1286,8 @@ def verify_gaap_retained_earnings(file_path):
                 if not isinstance(code, (int, float)) or isinstance(code, bool):
                     continue
                 code_i = int(code)
-                if code_i in (3500103, 3500104, 3500105):
+                # 순수 이익잉여금(이익준비금·임의적립금·미처분) + 보험수리적손익 + 당기순이익
+                if code_i in (3500101, 3500102, 3500103, 3500104, 3500105):
                     prior[code_i] = _num_or_zero(vals.get(14))
                     cur[code_i] = _num_or_zero(vals.get(15))
 
@@ -1293,8 +1295,10 @@ def verify_gaap_retained_earnings(file_path):
             return out  # PY GAAP Diff 표 없음 → found=False
 
         out['found'] = True
-        out['cur_re'] = cur.get(3500104, 0.0)
-        out['prior_re'] = prior.get(3500104, 0.0)
+        # 순수 이익잉여금 = 이익준비금(3500101) + 임의적립금(3500102) + 미처분(3500104)
+        # (적립금 전입 등 순수 이익잉여금 내부 이동을 흡수. 비지배지분 3600101은 제외.)
+        out['cur_re'] = cur.get(3500101, 0.0) + cur.get(3500102, 0.0) + cur.get(3500104, 0.0)
+        out['prior_re'] = prior.get(3500101, 0.0) + prior.get(3500102, 0.0) + prior.get(3500104, 0.0)
         out['prior_ni'] = prior.get(3500105, 0.0)
         out['cur_oci'] = cur.get(3500103, 0.0)
         out['prior_oci'] = prior.get(3500103, 0.0)
