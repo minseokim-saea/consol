@@ -1220,9 +1220,11 @@ def verify_cf41_other_transfer(file_path):
 # ─── GAAP 이익잉여금(미처분) 롤포워드 + 보험수리적손익 변동 검증 ──────────────
 # PY 시트 GAAP Diff 표: M열(13)=코드, N열(14)=전기(PY), O열(15)=당기(CY).
 #   대상 코드: 3500103 보험수리적손익 / 3500104 미처분이익잉여금 / 3500105 당기순이익
-# ① 롤포워드(하드): 당기 미처분 == 전기 미처분 + 전기 당기순이익
-#    (전기 순이익이 당기 기초 이익잉여금으로 이월되므로) → 차이 != 0 이면 오류.
-#    보험수리적손익을 경유하는 손익→자본 reclass가 있어도 이 등식은 성립한다.
+# ① 롤포워드(하드): 미처분이익잉여금이 전기에서 정상 이월됐는지.
+#    회사마다 보험수리적손익(OCI) 처리가 달라 두 방식 중 하나만 맞으면 정상으로 본다:
+#      roll1 = 당기 미처분 − (전기 미처분 + 전기 당기순이익)          [OCI 미이월: PSC 형]
+#      roll2 = (당기 미처분+보험수리적) − (전기 미처분+보험수리적 + 전기 순이익) [OCI→미처분 이월: PWT 형]
+#    → roll1==0 또는 roll2==0 이면 정상. 둘 다 != 0 이면 롤포워드 오류.
 # ② 보험수리적손익 변동(검토): 전기 대비 당기 값이 달라지면 표시(의도한 조정인지 확인).
 #    OCI 는 당기 정당한 움직임이 있을 수 있어 하드 오류가 아니라 검토 대상.
 PY_GAAP_SHEET = 'PY'
@@ -1238,13 +1240,18 @@ def verify_gaap_retained_earnings(file_path):
 
     반환:
       {'sheet_found','found',
-       'cur_re','prior_re','prior_ni','roll_diff',
+       'cur_re','prior_re','prior_ni',
+       'roll_diff','roll_diff2','roll_ok',
        'cur_oci','prior_oci','oci_change',
        'is_flagged','severity','error'}
+      roll_diff  = 당기 미처분 − (전기 미처분 + 전기 순이익)              [OCI 미이월형]
+      roll_diff2 = (당기 미처분+보험) − (전기 미처분+보험 + 전기 순이익)   [OCI→미처분 이월형]
+      roll_ok    = roll_diff 또는 roll_diff2 중 하나가 0(허용오차 내)
       severity: 'error'(롤포워드 오류) | 'review'(보험수리적 변동) | None
     """
     out = {'sheet_found': False, 'found': False,
-           'cur_re': 0.0, 'prior_re': 0.0, 'prior_ni': 0.0, 'roll_diff': 0.0,
+           'cur_re': 0.0, 'prior_re': 0.0, 'prior_ni': 0.0,
+           'roll_diff': 0.0, 'roll_diff2': 0.0, 'roll_ok': True,
            'cur_oci': 0.0, 'prior_oci': 0.0, 'oci_change': 0.0,
            'is_flagged': False, 'severity': None, 'error': None}
     try:
@@ -1291,12 +1298,18 @@ def verify_gaap_retained_earnings(file_path):
         out['prior_ni'] = prior.get(3500105, 0.0)
         out['cur_oci'] = cur.get(3500103, 0.0)
         out['prior_oci'] = prior.get(3500103, 0.0)
+        # ① 미처분 단독 롤포워드 / ② 미처분+보험수리적 롤포워드
         out['roll_diff'] = out['cur_re'] - (out['prior_re'] + out['prior_ni'])
+        out['roll_diff2'] = ((out['cur_re'] + out['cur_oci'])
+                             - (out['prior_re'] + out['prior_oci'] + out['prior_ni']))
         out['oci_change'] = out['cur_oci'] - out['prior_oci']
     finally:
         zf.close()
 
-    roll_err = abs(out['roll_diff']) >= _GAAP_RE_TOL
+    # 두 방식 중 하나라도 0이면 미처분 롤포워드 정상 (회사별 OCI 이월정책 차이 흡수)
+    out['roll_ok'] = (abs(out['roll_diff']) < _GAAP_RE_TOL
+                      or abs(out['roll_diff2']) < _GAAP_RE_TOL)
+    roll_err = out['found'] and not out['roll_ok']
     oci_chg = abs(out['oci_change']) >= _GAAP_RE_TOL
     out['is_flagged'] = roll_err or oci_chg
     out['severity'] = 'error' if roll_err else ('review' if oci_chg else None)

@@ -2419,6 +2419,7 @@ def admin_package_verify_gaap_re():
             'status': 'gaap_re_error' if ver.get('severity') == 'error' else 'gaap_re_review',
             'cur_re': ver.get('cur_re'), 'prior_re': ver.get('prior_re'),
             'prior_ni': ver.get('prior_ni'), 'roll_diff': ver.get('roll_diff'),
+            'roll_diff2': ver.get('roll_diff2'), 'roll_ok': ver.get('roll_ok'),
             'cur_oci': ver.get('cur_oci'), 'prior_oci': ver.get('prior_oci'),
             'oci_change': ver.get('oci_change'),
         }
