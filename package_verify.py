@@ -49,6 +49,7 @@ _TAG_IS  = f'{{{_NS_MAIN}}}is'
 _TAG_T   = f'{{{_NS_MAIN}}}t'
 _TAG_SI  = f'{{{_NS_MAIN}}}si'
 _TAG_SHEET = f'{{{_NS_MAIN}}}sheet'
+_TAG_F   = f'{{{_NS_MAIN}}}f'
 
 _CELL_REF_RE = re.compile(r'^([A-Z]+)(\d+)$')
 
@@ -118,6 +119,26 @@ def _find_wcf_sheet_path(zf):
     return target if target.startswith('xl/') else 'xl/' + target
 
 
+def _cell_formula(c_elem):
+    """엑셀 셀(XML)의 수식 문자열. 수식이 없으면 None."""
+    f = c_elem.find(_TAG_F)
+    return f.text if (f is not None and f.text) else None
+
+
+_ROW_REF_RE = re.compile(r'\$?[A-Z]{1,3}\$?(\d+)')
+
+
+def _rows_in_formula(formula):
+    """수식이 참조하는 행 번호 집합. (같은 시트 내 셀 참조만 대략 추출)
+    예: 'ROUND(M438+M439-L438-L439,)' → {438, 439}
+    """
+    if not formula:
+        return set()
+    # 다른 시트 참조(PL_MF!B30 등)는 제외 — '!' 앞부분 제거
+    body = re.sub(r"(?:'[^']+'|[A-Za-z_][A-Za-z0-9_.]*)!\$?[A-Z]{1,3}\$?\d+", '', formula)
+    return {int(m) for m in _ROW_REF_RE.findall(body)}
+
+
 def _cell_value(c_elem, shared):
     """엑셀 셀(XML) → Python 값.
     숫자는 int/float, 문자열은 str. 비어있거나 못 읽으면 None.
@@ -182,7 +203,8 @@ def verify_wcf_diff(file_path,
         # O열은 텍스트(Reason)이므로 sharedStrings 필요. J~M도 라벨일 수 있어 같이.
         shared = _load_shared_strings(zf)
 
-        rows = []
+        # 1차: 범위 내 모든 행을 수집 (Diff 수식이 다른 행을 참조할 수 있어 전량 필요)
+        all_rows = {}    # row → {'j','k','l','m','n','o','n_formula'}
         with zf.open(sheet_path) as f:
             for event, elem in ET.iterparse(f, events=('end',)):
                 if elem.tag != _TAG_ROW:
@@ -200,7 +222,8 @@ def verify_wcf_diff(file_path,
                     break
 
                 # 이 row의 J~O 셀만 추출
-                vals = {}   # col_idx → value
+                vals = {}       # col_idx → value
+                n_formula = None
                 for c in elem.findall(_TAG_C):
                     ref = c.get('r')
                     letters, _ = _split_cell_ref(ref)
@@ -210,25 +233,48 @@ def verify_wcf_diff(file_path,
                     if col_idx < j_col or col_idx > o_col:
                         continue
                     vals[col_idx] = _cell_value(c, shared)
+                    if col_idx == n_col:
+                        n_formula = _cell_formula(c)
                 elem.clear()
 
-                n_val = vals.get(n_col)
-                if not isinstance(n_val, (int, float)):
-                    continue
-                if abs(float(n_val)) < threshold:
-                    continue
-
-                rows.append({
+                all_rows[r] = {
                     'row': r,
                     'j': vals.get(j_col),
                     'k': vals.get(j_col + 1),
                     'l': vals.get(j_col + 2),
                     'm': vals.get(j_col + 3),
-                    'n': float(n_val),
+                    'n': vals.get(n_col),
                     'o': str(vals.get(o_col) or ''),
-                })
+                    'n_formula': n_formula,
+                }
     finally:
         zf.close()
+
+    # 2차: Diff != 0 인 행 추출 + 그 Diff 수식이 참조하는 다른 행을 'related'로 첨부
+    #  (예: 퇴직급여는 판관비 4300104·제조원가 5200104 두 행을 합쳐 Diff를 계산하므로,
+    #   본 행만 보면 PL/MF·CF가 같은데 Diff만 0이 아닌 것처럼 보임 → 관련 행을 함께 표시)
+    rows = []
+    for r in sorted(all_rows):
+        info = all_rows[r]
+        n_val = info['n']
+        if not isinstance(n_val, (int, float)):
+            continue
+        if abs(float(n_val)) < threshold:
+            continue
+        related = []
+        for rr in sorted(_rows_in_formula(info.get('n_formula'))):
+            if rr == r or rr not in all_rows:
+                continue
+            o = all_rows[rr]
+            related.append({'row': rr, 'j': o['j'], 'k': o['k'],
+                            'l': o['l'], 'm': o['m']})
+        rows.append({
+            'row': r,
+            'j': info['j'], 'k': info['k'], 'l': info['l'], 'm': info['m'],
+            'n': float(n_val),
+            'o': info['o'],
+            'related': related,
+        })
 
     return {'sheet_found': True, 'rows': rows, 'error': None}
 

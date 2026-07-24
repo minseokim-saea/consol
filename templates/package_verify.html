@@ -746,15 +746,27 @@ function renderWcfDiffResult(data) {
                 const reasonCell = reason
                   ? escHtml(reason)
                   : '<span class="reason-missing">미기재</span>';
-                return `<tr>
+                const relCount = (r.related || []).length;
+                const mainTr = `<tr>
                   <td class="text-muted">${r.row}</td>
                   <td>${escHtml(r.j ?? '')}</td>
                   <td>${escHtml(r.k ?? '')}</td>
                   <td class="num">${fmtNum(r.l)}</td>
                   <td class="num">${fmtNum(r.m)}</td>
                   <td class="num text-danger fw-bold">${fmtNum(r.n)}</td>
-                  <td>${reasonCell}</td>
+                  <td>${reasonCell}${relCount ? ` <span class="text-muted" style="font-size:.72rem;">(차이는 아래 관련계정 포함 합산)</span>` : ''}</td>
                 </tr>`;
+                // Diff 수식이 합산한 관련 행(예: 제조원가 퇴직급여 5200104)을 들여쓴 회색 행으로 표시
+                const relTrs = (r.related || []).map(rel => `<tr class="text-muted" style="background:#fafbfd;">
+                  <td class="text-muted small">└ ${rel.row}</td>
+                  <td class="small">${escHtml(rel.j ?? '')}</td>
+                  <td class="small">${escHtml(rel.k ?? '')} <span style="font-size:.72rem;">(관련계정)</span></td>
+                  <td class="num small">${fmtNum(rel.l)}</td>
+                  <td class="num small">${fmtNum(rel.m)}</td>
+                  <td class="num small"></td>
+                  <td></td>
+                </tr>`).join('');
+                return mainTr + relTrs;
               }).join('')}
             </tbody>
           </table>
