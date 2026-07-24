@@ -148,9 +148,12 @@ body {
       <div class="kpi-sub">{{ '해당 결산기간 환율이 입력되어 있습니다.' if fx_entered else '환율이 입력되지 않았습니다.' }}</div>
     </div>
     <!-- 3. 패키지 제출 현황 -->
+    {% set submit_rate = (submitted_count * 100 / total_companies) | round | int if total_companies else 0 %}
     <div class="kpi-card {% if missing_count > 0 %}alert{% endif %}">
       <div class="kpi-label"><i class="bi bi-box-seam"></i> 패키지 제출</div>
-      <div class="kpi-value">{{ submitted_count }}<span class="u">/ {{ total_companies }}개사</span></div>
+      <div class="kpi-value">{{ submitted_count }}<span class="u">/ {{ total_companies }}개사</span>
+        <span class="u" style="color:{{ '#15803d' if submit_rate == 100 else '#c0392b' }};font-weight:700;">· 제출율 {{ submit_rate }}%</span>
+      </div>
       <div class="kpi-sub">미제출 <strong style="color:{{ '#c0392b' if missing_count else '#15803d' }}">{{ missing_count }}</strong>개사</div>
     </div>
     <!-- 4. 연결조정분개 업로드 -->
