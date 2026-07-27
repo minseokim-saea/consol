@@ -260,9 +260,14 @@
       </div>
 
       <div class="mt-3" id="progressArea" style="display:none">
-        <div class="d-flex justify-content-between small mb-1">
+        <div class="d-flex justify-content-between align-items-center small mb-1">
           <span id="progressLabel">생성 중...</span>
-          <span id="progressNum"></span>
+          <span class="d-flex align-items-center gap-2">
+            <span id="progressNum"></span>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="cancelBtn" style="display:none">
+              <i class="bi bi-x-circle me-1"></i>취소
+            </button>
+          </span>
         </div>
         <div class="progress progress-tiny">
           <div class="progress-bar progress-bar-striped progress-bar-animated"
@@ -733,6 +738,16 @@ if (templateForm) templateForm.addEventListener('submit', async e => {
 // ─── 배포용 생성 (회사별 순차 호출 — 진행바 실시간 갱신) ──
 let lastBatchId = null;
 let allResults = [];
+let cancelRequested = false;
+
+// 취소 버튼 — 현재 회사까지만 처리하고 중단 (이미 만든 파일은 유지)
+document.getElementById('cancelBtn')?.addEventListener('click', () => {
+  cancelRequested = true;
+  const cb = document.getElementById('cancelBtn');
+  cb.disabled = true;
+  cb.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>취소 중...';
+  document.getElementById('progressLabel').textContent = '취소 요청됨 — 현재 회사까지 마치고 중단합니다...';
+});
 
 document.getElementById('generateBtn')?.addEventListener('click', async () => {
   const year = document.getElementById('targetYear').value;
@@ -749,6 +764,9 @@ document.getElementById('generateBtn')?.addEventListener('click', async () => {
 
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
+  cancelRequested = false;
+  const cancelBtn = document.getElementById('cancelBtn');
+  if (cancelBtn) { cancelBtn.style.display = ''; cancelBtn.disabled = false; cancelBtn.innerHTML = '<i class="bi bi-x-circle me-1"></i>취소'; }
   document.getElementById('progressArea').style.display = '';
   document.getElementById('progressBar').style.width = '0%';
   document.getElementById('progressLabel').textContent = window.t('dist.preparing');
@@ -763,9 +781,11 @@ document.getElementById('generateBtn')?.addEventListener('click', async () => {
 
   const total = companies.length;
   let okN = 0, failN = 0;
+  let cancelledAt = -1;
   const startTs = Date.now();
 
   for (let i = 0; i < total; i++) {
+    if (cancelRequested) { cancelledAt = i; break; }   // 현재 회사 시작 전 중단
     const co = companies[i];
     // 시작 표시 (이 회사 처리 직전)
     document.getElementById('progressLabel').textContent = window.t('dist.processing', co);
@@ -801,13 +821,20 @@ document.getElementById('generateBtn')?.addEventListener('click', async () => {
     renderResults(allResults);
   }
 
-  // 완료
-  document.getElementById('progressBar').style.width = '100%';
+  // 완료 (또는 취소로 중단)
+  const done = cancelledAt >= 0 ? cancelledAt : total;
   const elapsed = Math.round((Date.now() - startTs) / 1000);
-  document.getElementById('progressLabel').textContent = window.t('dist.done_sec', elapsed);
-  document.getElementById('progressNum').textContent = `${total} / ${total}`;
-  showAlert(failN ? 'warn' : 'success',
-    `<i class="bi bi-check-circle"></i> ${window.t('dist.gen_summary', okN, failN, elapsed)}`);
+  document.getElementById('progressBar').style.width = `${Math.round((done / total) * 100)}%`;
+  document.getElementById('progressNum').textContent = `${done} / ${total}`;
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  if (cancelledAt >= 0) {
+    document.getElementById('progressLabel').textContent = `취소됨 — ${done}개사 생성 후 중단 (${total - done}개사 미생성)`;
+    showAlert('warn', `<i class="bi bi-x-circle"></i> 생성을 취소했습니다. 성공 ${okN}건 · 실패 ${failN}건 (${total - done}개사는 생성하지 않음). 이미 만든 파일은 다운로드할 수 있습니다.`);
+  } else {
+    document.getElementById('progressLabel').textContent = window.t('dist.done_sec', elapsed);
+    showAlert(failN ? 'warn' : 'success',
+      `<i class="bi bi-check-circle"></i> ${window.t('dist.gen_summary', okN, failN, elapsed)}`);
+  }
   btn.disabled = false;
   // 방금 만든 배치를 최근 목록에 반영 (현재 표시 중인 결과는 유지)
   loadRecentBatches(false);
