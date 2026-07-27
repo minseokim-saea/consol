@@ -1,0 +1,16 @@
+{
+  "companies": [
+    {
+      "name": "테스트",
+      "currency": "USD",
+      "active": true,
+      "since": "2026-3Q"
+    },
+    {
+      "name": "형식오류",
+      "currency": "",
+      "active": true,
+      "since": ""
+    }
+  ]
+}
