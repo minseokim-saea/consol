@@ -947,7 +947,20 @@ def fill_template(template_path: Path, output_path: Path,
         # Cover
         if 'Cover' in wb.sheetnames:
             cv = wb['Cover']
-            cv['D11'] = company
+            # Cover 회사정보(B26 이하)는 Master!A열에서 D11을 '정확 일치'로 MATCH해
+            # 국가·회계기준·통화를 가져온다. 시스템 회사명은 공백 정규화되어 있고
+            # Master 회사명은 줄바꿈(\n) 등이 섞여 있을 수 있어, 그대로 쓰면 #N/A가 난다.
+            # → Master A열에서 '공백 무시 일치'하는 원본 회사명을 찾아 그대로 D11에 기록.
+            d11_name = company
+            if 'Master' in wb.sheetnames:
+                _norm_t = ' '.join(str(company).split())
+                _mws = wb['Master']
+                for _r in range(1, (_mws.max_row or 0) + 1):
+                    _a = _mws.cell(_r, 1).value
+                    if _a and ' '.join(str(_a).split()) == _norm_t:
+                        d11_name = _a   # Master 원본(줄바꿈 포함) → MATCH 성공
+                        break
+            cv['D11'] = d11_name
             if target_year:
                 cv['C9'] = int(target_year) if str(target_year).isdigit() else target_year
             if target_quarter:
