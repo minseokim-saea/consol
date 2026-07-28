@@ -289,15 +289,23 @@ _EXPENSE_PREFIXES_PL = ('42', '43', '45', '48')
 
 
 def _classify_account(code):
-    """계정코드 → 'revenue' | 'expense' | None (분류 불가).
+    """계정코드 → 'revenue' | 'expense' | 'asset' | 'liability' | 'equity' | None.
 
-    code 는 int 또는 str. 7자리 PL/MF 코드를 가정.
+    code 는 int 또는 str. 7자리 코드를 가정.
+    WCF 조정 컬럼(J=비용/M=수익)에는 손익계정만 와야 하므로, 재무상태표 계정
+    (자산 1x / 부채 2x / 자본 3x)이 들어오면 오류로 잡을 수 있게 분류한다.
     """
     if code is None:
         return None
     s = str(code).strip()
     if not s or not s[0].isdigit():
         return None
+    if s.startswith('1'):
+        return 'asset'
+    if s.startswith('2'):
+        return 'liability'
+    if s.startswith('3'):
+        return 'equity'
     if s.startswith('5'):
         return 'expense'    # MF (제조원가)
     if s.startswith('4') and len(s) >= 2:
@@ -306,7 +314,7 @@ def _classify_account(code):
             return 'revenue'
         if prefix2 in _EXPENSE_PREFIXES_PL:
             return 'expense'
-    return None
+    return None    # 49x(지배/비지배지분순이익) 등 — 템플릿 표준 행, 오류 아님
 
 
 def verify_wcf_accounts(file_path,
@@ -376,11 +384,11 @@ def verify_wcf_accounts(file_path,
                     vals[col_idx] = _cell_value(c, shared)
                 elem.clear()
 
-                # J(비용) 쪽 검사: 수익코드가 들어가 있으면 오류
+                # J(비용) 쪽 검사: 비용 아닌 계정(수익/자산/부채/자본)이 들어가 있으면 오류
                 j_code = vals.get(J)
                 if j_code is not None:
                     cls = _classify_account(j_code)
-                    if cls == 'revenue':
+                    if cls in ('revenue', 'asset', 'liability', 'equity'):
                         amt = vals.get(L)
                         rows.append({
                             'row': r,
@@ -389,14 +397,14 @@ def verify_wcf_accounts(file_path,
                             'name': str(vals.get(K) or ''),
                             'amount': float(amt) if isinstance(amt, (int, float)) else None,
                             'expected': 'expense',
-                            'actual': 'revenue',
+                            'actual': cls,
                         })
 
-                # M(수익) 쪽 검사: 비용코드가 들어가 있으면 오류
+                # M(수익) 쪽 검사: 수익 아닌 계정(비용/자산/부채/자본)이 들어가 있으면 오류
                 m_code = vals.get(M)
                 if m_code is not None:
                     cls = _classify_account(m_code)
-                    if cls == 'expense':
+                    if cls in ('expense', 'asset', 'liability', 'equity'):
                         amt = vals.get(O)
                         rows.append({
                             'row': r,
@@ -405,7 +413,7 @@ def verify_wcf_accounts(file_path,
                             'name': str(vals.get(N) or ''),
                             'amount': float(amt) if isinstance(amt, (int, float)) else None,
                             'expected': 'revenue',
-                            'actual': 'expense',
+                            'actual': cls,
                         })
     finally:
         zf.close()

@@ -293,7 +293,7 @@ body { background:#eef1f6; }
           <span class="pv-check"></span>
           <div class="pv-item-text">
             <div class="pv-item-title">WCF 계정 검증</div>
-            <div class="pv-item-desc">비용 컬럼에 수익계정 입력 또는 수익 컬럼에 비용계정 입력된 행 표시.</div>
+            <div class="pv-item-desc">비용/수익 컬럼에 반대 성격 계정(수익↔비용) 또는 손익계정이 아닌 재무상태표 계정(자산·부채·자본)이 입력된 행 표시.</div>
           </div>
         </div>
         <div class="pv-item" data-kind="wcf-signs" onclick="toggleItem('wcf-signs')">
@@ -832,9 +832,8 @@ function renderWcfAccountsResult(data) {
             <tbody>
               ${c.rows.map(r => {
                 const sideCls = r.side === 'J' ? 'side-J' : 'side-M';
-                const judgeText = r.side === 'J'
-                  ? '비용 컬럼에 <strong>수익계정</strong>'
-                  : '수익 컬럼에 <strong>비용계정</strong>';
+                const typeLabel = {revenue:'수익계정', expense:'비용계정', asset:'자산계정', liability:'부채계정', equity:'자본계정'}[r.actual] || '반대성격 계정';
+                const judgeText = (r.side === 'J' ? '비용 컬럼에 ' : '수익 컬럼에 ') + `<strong>${typeLabel}</strong>`;
                 return `<tr>
                   <td class="text-muted">${r.row}</td>
                   <td><span class="side-tag ${sideCls}">${r.side}</span></td>
