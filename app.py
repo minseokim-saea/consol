@@ -9777,6 +9777,27 @@ def _make_cash_result(ctx, period):
                       rollups=(ctx.get('rollups') or None))
 
 
+def _bridge_leg(bs_code, bs_name, signed_amt):
+    """자동매듭 한 갈래 분개 생성. signed_amt는 4700004(PL 당기순이익) 대비
+    BS 자본계정(bs_code)으로 흡수할 부호 있는 금액.
+      · signed_amt > 0 → 차변 4700004 / 대변 bs_code  (자본 증가)
+      · signed_amt < 0 → 차변 bs_code / 대변 4700004  (자본 감소)
+    금액이 미미하면 None.
+    """
+    a = abs(float(signed_amt or 0))
+    if a < 0.5:
+        return None
+    if signed_amt > 0:
+        return {'no': 'AUTO-BRIDGE',
+                'debit_code': '4700004', 'debit_name': '당기순이익', 'debit_amt': a,
+                'credit_code': bs_code, 'credit_name': bs_name, 'credit_amt': a,
+                'memo': f'[자동 매듭] {bs_name} 흡수'}
+    return {'no': 'AUTO-BRIDGE',
+            'debit_code': bs_code, 'debit_name': bs_name, 'debit_amt': a,
+            'credit_code': '4700004', 'credit_name': '당기순이익', 'credit_amt': a,
+            'memo': f'[자동 매듭] {bs_name} 흡수'}
+
+
 def _compute_group_internal(group_id, period, depth=0, _seen=None):
     """그룹 1개를 연결실행. 포함 그룹이 있으면 재귀적으로 먼저 실행해서 rollup 컬럼으로 추가.
 
@@ -9926,6 +9947,27 @@ def _compute_group_internal(group_id, period, depth=0, _seen=None):
 
     # 매듭 분개는 두 종류 통합 기준으로 만들고, '연결조정' 묶음에 추가
     bridge_entries, bridge_info = consol_auto_bridge(adj_entries, inter_entries)
+
+    # 자동매듭을 지배/비지배로 분할:
+    #   지배지분순이익 조정분(4900001 최종−합산)만 3500105(당기순이익→이익잉여금)로,
+    #   나머지(=비지배지분순이익 조정분)는 3600101(비지배지분)으로 흡수.
+    #   비지배지분이 없는 그룹은 나머지=0이라 기존과 동일(전액 3500105).
+    imbalance = bridge_info.get('bridge_amount', 0) or 0
+    if bridge_info.get('applied') and abs(imbalance) > 0.5:
+        pre = (consol_compute_with_rollup(agg, adj_entries, inter_entries, companies, rollups)
+               if rollups else consol_compute(agg, adj_entries, inter_entries, companies))
+        _pre = {str(r.get('code')): r for r in pre.get('rows', [])}
+        _owner = _pre.get('4900001') or {}
+        re_portion = (_owner.get('final', 0) or 0) - (_owner.get('sum', 0) or 0)
+        nci_portion = imbalance - re_portion
+        split = [leg for leg in (
+            _bridge_leg('3500105', '당기순이익', re_portion),
+            _bridge_leg('3600101', '비지배지분', nci_portion),
+        ) if leg]
+        if split:
+            bridge_entries = split
+            bridge_info = {**bridge_info, 'split': True,
+                           're_portion': re_portion, 'nci_portion': nci_portion}
     effective_adj = adj_entries + bridge_entries
 
     # 5) 계산 — rollup이 있으면 컬럼 추가
