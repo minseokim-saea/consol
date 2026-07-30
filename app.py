@@ -7625,6 +7625,19 @@ def _get_wce_for(year, company):
                     if v:
                         local_lookup[f'{tid}:{col["code"]}:{row["key"]}'] = v
 
+    # KRW 법인(적용환율=1): 환산값(KRW)은 현지통화와 항상 같아야 하므로,
+    # 현지통화 값이 있는 셀의 환산값을 자동으로 현지통화와 동일하게 채우고
+    # 자동 셀(readonly)로 표시한다. (이미 자동인 기초금액·당기순이익 등은 그대로 둠.)
+    _cur = (local_info.get('currency') or '').upper()
+    if _cur == 'KRW' and local_lookup:
+        _auto_set = {f'{tid}:{code}:{rk}' for (tid, code, rk) in auto_cells}
+        for cell_key, lv in local_lookup.items():
+            if cell_key in _auto_set:
+                continue
+            tid, code, rk = cell_key.split(':', 2)
+            tables.setdefault(tid, {}).setdefault(code, {})[rk] = lv
+            auto_cells.append((tid, code, rk))
+
     # 미입력 검출 (로컬 != 0, 환산값 == 0)
     missing = _compute_wce_missing(local_info['local'], local_info['fx_avg'], tables)
 
