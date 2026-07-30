@@ -307,16 +307,14 @@ def _write_journal_sheet(ws, title: str, subtitle: str, entries: list | None,
     """
     headers = JOURNAL_HEADERS_WITH_CO if include_company else JOURNAL_HEADERS
     n_cols = len(headers)
-    last_col_letter = get_column_letter(n_cols)
     amt_cols = (5, 9) if include_company else (4, 7)   # 차변/대변금액 컬럼 위치
 
     ws['A1'] = title
     ws['A1'].font = Font(bold=True, size=14, name='맑은 고딕', color='1F3864')
-    ws.merge_cells(f'A1:{last_col_letter}1')
+    # 제목/부제 행 셀병합 제거: 병합 시 엑셀 정렬/필터/복사가 불편해 A1·A2 단일 셀에만 표시
 
     ws['A2'] = subtitle
     ws['A2'].font = Font(size=9, italic=True, name='맑은 고딕', color='666666')
-    ws.merge_cells(f'A2:{last_col_letter}2')
 
     for i, h in enumerate(headers, 1):
         c = ws.cell(4, i, h)
@@ -692,7 +690,7 @@ def write_consolidation_excel(result, group_name: str, period: str, output_path:
     ws['A1'] = f'연결재무제표 — {group_name} / {period}'
     ws['A1'].font = Font(bold=True, size=14, name='맑은 고딕', color='1F3864')
     last_col_letter = get_column_letter(len(headers))
-    ws.merge_cells(f'A1:{last_col_letter}1')
+    # 제목 행 셀병합 제거: 병합 시 엑셀 정렬/필터/복사가 불편해 A1 단일 셀에만 표시
 
     for i, h in enumerate(headers, 1):
         c = ws.cell(3, i, h)
