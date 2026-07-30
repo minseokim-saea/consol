@@ -9527,9 +9527,10 @@ def consolidation_journal_delete(group_id, period):
     if not _can_manage_group_journal(session.get('username'), group_id):
         return jsonify({'error': '담당 그룹이 아닙니다. 배정된 연결그룹의 분개만 삭제할 수 있습니다. '
                                  '(담당 그룹 지정은 관리자에게 문의하세요)'}), 403
-    if _is_locked(period) and not _is_admin(session.get('username')):
+    if _is_locked(period):
         return jsonify({
-            'error': f'{period} 결산기간은 마감되어 분개를 삭제할 수 없습니다. (관리자 문의)'
+            'error': f'{period} 결산기간은 마감되어 분개를 삭제할 수 없습니다. '
+                     f'(정말 수정하려면 결산기간 관리에서 {period} 마감을 해제한 뒤 진행)'
         }), 403
     jtype = (request.args.get('type') or '').strip().lower() or None
     if jtype not in (None, 'adjustment', 'intercompany'):
@@ -9625,9 +9626,11 @@ def consolidation_journal_upload(group_id, period):
     if not _can_manage_group_journal(session.get('username'), group_id):
         return jsonify({'error': '담당 그룹이 아닙니다. 배정된 연결그룹의 분개만 업로드할 수 있습니다. '
                                  '(담당 그룹 지정은 관리자에게 문의하세요)'}), 403
-    if _is_locked(period) and not _is_admin(session.get('username')):
+    if _is_locked(period):
         return jsonify({
-            'error': f'{period} 결산기간은 마감되어 분개를 업로드할 수 없습니다. (관리자 문의)'
+            'error': f'{period} 결산기간은 마감되어 분개를 업로드할 수 없습니다. '
+                     f'다른 분기 자료를 올리려던 것은 아닌지 상단 결산기간을 확인하세요. '
+                     f'(정말 수정하려면 결산기간 관리에서 {period} 마감을 해제한 뒤 진행)'
         }), 403
 
     f = request.files.get('file')

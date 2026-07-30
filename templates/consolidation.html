@@ -303,14 +303,14 @@ function groupCardHtml(g) {
           </button>
           ${CAN_JOURNAL ? `
           <button class="btn btn-outline-primary" onclick="triggerJournalUpload('${g.id}', ${g.can_manage_journal})"
-                  ${(isPeriodLocked() && !IS_ADMIN)
-                      ? 'disabled title="이 결산기간은 마감되어 업로드할 수 없습니다. (관리자 문의)"'
+                  ${isPeriodLocked()
+                      ? 'disabled title="이 결산기간은 마감되어 업로드할 수 없습니다. 다른 분기 자료라면 상단 결산기간을 바꾸세요. (수정하려면 결산기간 관리에서 마감 해제)"'
                       : (g.can_manage_journal ? 'title="분개 엑셀 업로드"' : 'title="담당 그룹이 아니면 업로드할 수 없습니다"')}>
             <i class="bi bi-file-earmark-arrow-up"></i> 분개 업로드
           </button>
           <button class="btn btn-outline-danger" onclick="deleteJournal('${g.id}')"
-                  ${(isPeriodLocked() && !IS_ADMIN)
-                      ? 'disabled title="이 결산기간은 마감되어 삭제할 수 없습니다. (관리자 문의)"'
+                  ${isPeriodLocked()
+                      ? 'disabled title="이 결산기간은 마감되어 삭제할 수 없습니다. (수정하려면 결산기간 관리에서 마감 해제)"'
                       : (g.can_manage_journal ? 'title="등록된 연결조정분개 삭제"' : 'title="담당 그룹이 아니면 삭제할 수 없습니다"')}>
             <i class="bi bi-trash"></i> 분개 삭제
           </button>` : ''}
