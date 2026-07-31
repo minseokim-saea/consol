@@ -30,7 +30,8 @@ from package_verify import (verify_wcf_diff, verify_wcf_accounts,
                             verify_cf_other_transfer,
                             verify_cf4_other_transfer,
                             verify_cf41_other_transfer,
-                            verify_gaap_retained_earnings)
+                            verify_gaap_retained_earnings,
+                            verify_wce_label_match)
 from note_aggregate import (
     extract_l1_borrowings, build_l1_excel,
     extract_l4_loan_facility, build_l4_excel,
@@ -2443,6 +2444,64 @@ def admin_package_verify_gaap_re():
         'with_issues': len(results),
         'companies': results,
         'target_name': 'GAAP 이익잉여금 (미처분 롤포워드 + 보험수리적손익)',
+    })
+
+
+@app.route('/admin/package-verify/wce-label-match')
+@require_permission('package.verify')
+def admin_package_verify_wce_label_match():
+    """WCE 자본변동표 라벨 매칭 검증.
+    패키지 자본변동표의 움직임 행 라벨이 WCE 스키마 row key(별칭 매핑 후)와 달라
+    _lookup_local이 0으로 버리는(=WCE에 안 들어가는) 비0 셀이 있는 회사 표시.
+    그 값은 대차 차이로 해외사업환산손익(3400104)에 잘못 흡수된다.
+    분기 무관(자본변동표는 매분기 작성). 시트 재파싱 없이 추출된 wce_local_full 검사."""
+    year = (request.args.get('year') or '').strip()
+    if not _valid_year(year):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+
+    uname = session.get('username')
+    seen = set()
+    files = []
+    for f in sorted(uploaded_files, key=lambda x: x.get('uploaded_at') or '', reverse=True):
+        if f.get('year') != year:
+            continue
+        company = f.get('company')
+        if not company or not _can_access_company(uname, company):
+            continue
+        norm = _norm_company_name(company)
+        if norm in seen:
+            continue
+        seen.add(norm)
+        files.append(f)
+
+    def _verify_one(f):
+        company = f.get('company')
+        if not company:
+            return None
+        extracted = f.get('extracted') or {}
+        currency = extracted.get('currency')
+        ver = verify_wce_label_match(extracted)
+        if ver.get('error'):
+            return {'company': company, 'currency': currency, 'file_id': f.get('id'),
+                    'status': 'error', 'message': ver['error']}
+        if not ver.get('has_local'):
+            return {'company': company, 'currency': currency, 'file_id': f.get('id'),
+                    'status': 'no_sheet', 'message': 'WCE(자본변동표) 데이터 없음'}
+        if not ver.get('is_flagged'):
+            return None
+        return {'company': company, 'currency': currency, 'file_id': f.get('id'),
+                'status': 'wce_label_unmatched', 'orphans': ver.get('orphans')}
+
+    # 추출된 데이터만 검사하므로(파일 I/O 없음) 병렬 불필요.
+    results = [r for r in (_verify_one(f) for f in files) if r is not None]
+    status_rank = {'error': 0, 'no_sheet': 1, 'wce_label_unmatched': 2}
+    results.sort(key=lambda r: (status_rank.get(r.get('status'), 9), r.get('company') or ''))
+    return jsonify({
+        'year': year,
+        'scanned': len(files),
+        'with_issues': len(results),
+        'companies': results,
+        'target_name': 'WCE 자본변동표 라벨 매칭',
     })
 
 

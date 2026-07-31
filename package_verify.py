@@ -1372,3 +1372,50 @@ def verify_gaap_retained_earnings(file_path):
     out['is_flagged'] = roll_err or oci_chg
     out['severity'] = 'error' if roll_err else ('review' if oci_chg else None)
     return out
+
+
+# ─── WCE 자본변동표 라벨 매칭 검증 ─────────────────────────────────────
+# 패키지의 자본변동표(추출된 wce_local_full)에는 각 자본 열마다 '기초금액',
+# 여러 움직임 행(유상증자·자기주식취득·해외사업환산손익 등), '기말금액'이 들어있다.
+# WCE 스키마의 row key(별칭 매핑 후)와 라벨이 다르면 _lookup_local이 그 값을
+# 0으로 버려 WCE에 반영되지 않고, 결국 대차 차이가 해외사업환산손익(3400104)으로
+# 잘못 흡수된다(예: '자기주식취득' vs 패키지 '자기주식의 취득').
+# 스키마가 못 잡는(=버려지는) 비0 움직임 라벨을 찾아낸다.
+# 주의: 이 함수는 시트를 재파싱하지 않고 이미 추출된 wce_local_full을 검사한다.
+def verify_wce_label_match(extracted):
+    """추출된 wce_local_full에서 WCE 스키마 row key와 매칭 안 되는 비0 움직임 라벨 탐지.
+
+    반환:
+      {'has_local': bool, 'is_flagged': bool,
+       'orphans': [{'table_id','table','code','label','amount'}], 'error': str|None}
+    """
+    from wce_schema import WCE_TABLES, to_local_label
+    out = {'has_local': False, 'is_flagged': False, 'orphans': [], 'error': None}
+    try:
+        wlf = (extracted or {}).get('wce_local_full') or {}
+        if not wlf:
+            return out
+        out['has_local'] = True
+        tbl_by_id = {str(t['id']): t for t in WCE_TABLES}
+        for tid, codes in wlf.items():
+            t = tbl_by_id.get(str(tid))
+            if not t:
+                continue
+            mapped = {to_local_label(r['key']) for r in t['rows']}
+            title = t.get('title_ko') or ''
+            for code, rows in (codes or {}).items():
+                for label, val in (rows or {}).items():
+                    lbl = str(label)
+                    # 스키마가 잡는 라벨, 그리고 기초/기말 등 구조(움직임 아님) 행은 제외
+                    if lbl in mapped or '기초' in lbl or '기말' in lbl:
+                        continue
+                    if val:
+                        out['orphans'].append({
+                            'table_id': str(tid), 'table': title,
+                            'code': str(code), 'label': lbl, 'amount': val,
+                        })
+        out['orphans'].sort(key=lambda o: -abs(o.get('amount') or 0))
+        out['is_flagged'] = bool(out['orphans'])
+    except Exception as e:
+        out['error'] = f'WCE 라벨 검사 실패: {e}'
+    return out

@@ -33,6 +33,7 @@
   .company-block.status-diff       { border-left-color:#ffc107; }
   .company-block.status-account_misplaced { border-left-color:#dc3545; }
   .company-block.status-sign_negative { border-left-color:#dc3545; }
+  .company-block.status-wce_label_unmatched { border-left-color:#dc3545; }
   .company-block.status-sign_positive { border-left-color:#dc3545; }
   .company-block.status-new_borrow_positive { border-left-color:#dc3545; }
   .company-block.status-has_other_transfer { border-left-color:#ffc107; }
@@ -269,7 +270,7 @@ body { background:#eef1f6; }
       <button class="pv-tab active" data-group="wcf" type="button" onclick="switchTab('wcf')">현금흐름표 검증 <span class="pv-tab-count">6</span></button>
       <button class="pv-tab" data-group="note" type="button" onclick="switchTab('note')">주석 검증 <span class="pv-tab-count">2</span></button>
       <button class="pv-tab" data-group="asset" type="button" onclick="switchTab('asset')">유무형자산검증 <span class="pv-tab-count">2</span></button>
-      <button class="pv-tab" data-group="capital" type="button" onclick="switchTab('capital')">자본 검증 <span class="pv-tab-count">1</span></button>
+      <button class="pv-tab" data-group="capital" type="button" onclick="switchTab('capital')">자본 검증 <span class="pv-tab-count">2</span></button>
     </div>
 
     <!-- 전체 선택 (항목 위, 체크박스형) -->
@@ -371,6 +372,13 @@ body { background:#eef1f6; }
             <div class="pv-item-desc">PY 시트 GAAP Diff 기준. ① 당기 미처분이익잉여금 ≠ 전기 미처분 + 전기 당기순이익(이월)이면 <b>롤포워드 오류</b>, ② 보험수리적손익이 전기 대비 변동하면 <b>검토 대상</b>으로 표시.</div>
           </div>
         </div>
+        <div class="pv-item" data-kind="wce-label-match" onclick="toggleItem('wce-label-match')">
+          <span class="pv-check"></span>
+          <div class="pv-item-text">
+            <div class="pv-item-title">WCE 자본변동표 라벨 검증</div>
+            <div class="pv-item-desc">자본변동표의 움직임 행 라벨이 WCE 스키마와 달라 <b>0으로 버려지는(WCE에 안 들어가는)</b> 비0 셀이 있는 회사 표시. 그 값은 대차 차이로 해외사업환산손익에 잘못 흡수됨.</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -402,7 +410,8 @@ const TABS = {
   asset: { label:'유무형자산검증', items:[
     ['cf4-other-transfer','유형자산 검증'], ['cf41-other-transfer','무형자산 검증'] ] },
   capital: { label:'자본 검증', items:[
-    ['gaap-retained-earnings','GAAP 이익잉여금 검증'] ] },
+    ['gaap-retained-earnings','GAAP 이익잉여금 검증'],
+    ['wce-label-match','WCE 자본변동표 라벨 검증'] ] },
 };
 const TAB_ORDER = ['wcf','note','asset','capital'];
 const ALL_KINDS = TAB_ORDER.flatMap(g => TABS[g].items.map(([k]) => k));
@@ -524,6 +533,7 @@ function dispatchRender(kind, data) {
   else if (kind === 'cf4-other-transfer') renderCf4OtherTransferResult(data);
   else if (kind === 'cf41-other-transfer') renderCf4OtherTransferResult(data);
   else if (kind === 'gaap-retained-earnings') renderGaapReResult(data);
+  else if (kind === 'wce-label-match') renderWceLabelResult(data);
   else renderWcfDiffResult(data);
 }
 
@@ -603,6 +613,71 @@ function renderGaapReResult(data) {
       headerExtra = c.status === 'gaap_re_error'
         ? `<span class="text-danger small">롤포워드 오류 (①${fmtNum(c.roll_diff)} · ②${fmtNum(c.roll_diff2)})</span>`
         : `<span class="text-success small"><i class="bi bi-check-circle me-1"></i>롤포워드 정상 · 보험수리적 변동 ${fmtNum(c.oci_change)}</span>`;
+    }
+    return `
+      <div class="company-block status-${c.status}">
+        <div class="company-header" onclick="document.getElementById('rows-${i}').classList.toggle('d-none')">
+          <i class="bi bi-chevron-down"></i>
+          <span class="company-name">${escHtml(c.company)}</span>
+          ${c.currency ? `<span class="badge-cur">${escHtml(c.currency)}</span>` : ''}
+          ${statusBadge(c.status)}
+          <span class="ms-auto">${headerExtra}</span>
+        </div>
+        <div id="rows-${i}">${detailTbl}</div>
+      </div>`;
+  }).join('');
+  area.innerHTML = summary + blocks;
+}
+
+function renderWceLabelResult(data) {
+  const area = document.getElementById('resultArea');
+  const items = data.companies || [];
+  const summary = `
+    <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
+      <span><i class="bi bi-archive me-1"></i><strong>스캔 ${data.scanned}</strong>개사</span>
+      <span><i class="bi bi-exclamation-triangle me-1 text-danger"></i>특이사항 <strong>${data.with_issues}</strong>개사</span>
+      <span class="text-muted small ms-auto">결산기간: ${escHtml(data.year)}</span>
+    </div>`;
+  if (items.length === 0) {
+    area.innerHTML = summary + `
+      <div class="card"><div class="empty-state">
+        <i class="bi bi-check-circle-fill"></i>
+        <h5 class="mt-2 mb-1">특이사항 없음</h5>
+        <p class="mb-0">모든 회사의 자본변동표 움직임 라벨이 WCE 스키마와 정상 매칭됩니다 (버려지는 값 없음).</p>
+      </div></div>`;
+    return;
+  }
+  const blocks = items.map((c, i) => {
+    let detailTbl, headerExtra;
+    if (c.status === 'error') {
+      detailTbl = `<div class="px-3 pb-3 text-danger small">${escHtml(c.message || '')}</div>`;
+      headerExtra = `<span class="text-danger small">${escHtml(c.message || '')}</span>`;
+    } else if (c.status === 'no_sheet') {
+      detailTbl = `<div class="px-3 pb-3 text-muted small">${escHtml(c.message || '')}</div>`;
+      headerExtra = '<span class="text-muted small">자본변동표 데이터가 없습니다</span>';
+    } else {
+      const orphans = c.orphans || [];
+      const rows = orphans.map(o => `
+        <tr>
+          <td>${escHtml(o.table || '')}</td>
+          <td class="code-mono">${escHtml(o.code || '')}</td>
+          <td>${escHtml(o.label || '')}</td>
+          <td class="num fw-bold text-danger">${fmtNum(o.amount)}</td>
+        </tr>`).join('');
+      detailTbl = `
+        <div class="px-3 pb-3">
+          <div class="alert alert-danger py-2 px-3 mb-2 small mt-2">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            아래 라벨은 WCE 스키마와 이름이 달라 <b>값이 0으로 버려집니다</b> (WCE 미반영 → 대차 차이가 해외사업환산손익으로 흡수). 라벨 별칭 등록이 필요합니다.
+          </div>
+          <div class="table-responsive">
+            <table class="table rows-table table-hover mb-0">
+              <thead><tr><th>테이블</th><th>코드</th><th>패키지 라벨</th><th class="num">금액(현지)</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+      headerExtra = `<span class="text-danger small">버려지는 셀 ${orphans.length}개</span>`;
     }
     return `
       <div class="company-block status-${c.status}">
@@ -702,6 +777,7 @@ function statusBadge(status) {
     'unknown_standard':   {label:'기준 미상',        cls:'badge-no_sheet'},
     'gaap_re_error':      {label:'롤포워드 오류',    cls:'badge-sign_negative'},
     'gaap_re_review':     {label:'보험수리적 변동',   cls:'badge-has_alert'},
+    'wce_label_unmatched':{label:'라벨 불일치',      cls:'badge-sign_negative'},
   };
   const m = map[status] || {label:status, cls:'badge-diff'};
   return `<span class="badge-status ${m.cls}">${m.label}</span>`;
