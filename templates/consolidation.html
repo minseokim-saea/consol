@@ -202,6 +202,9 @@ body { background:var(--surface); color:var(--text-body);
         </div>
       </div>
       <div class="modal-footer">
+        <button id="copyAllBtn" class="btn btn-primary" type="button" onclick="copyResultTableAll(this)">
+          <i class="bi bi-clipboard"></i> 전체 복사
+        </button>
         <a id="dlBtn" class="btn btn-success" href="#" download>
           <i class="bi bi-download"></i> 엑셀 다운로드
         </a>
@@ -723,6 +726,7 @@ async function runCompute(gid) {
   document.getElementById('resultHead').innerHTML = '';
   document.getElementById('resultBody').innerHTML = '';
   document.getElementById('dlBtn').style.display = 'none';
+  document.getElementById('copyAllBtn').style.display = 'none';
   modal.show();
 
   const r = await fetch(`/consolidation/compute/${gid}/${encodeURIComponent(period)}`, { method: 'POST' });
@@ -837,6 +841,7 @@ function renderResult(j) {
   const dl = document.getElementById('dlBtn');
   dl.href = j.download_url;
   dl.style.display = 'inline-block';
+  document.getElementById('copyAllBtn').style.display = 'inline-block';
 }
 
 // ─── 연결정산표: 셀 클릭 = 숫자 전체선택, 복사 = 서식없는 순수 값 ─────────
@@ -882,6 +887,65 @@ function renderResult(j) {
     e.clipboardData.setData('text/plain', lines.join('\n'));
   });
 })();
+
+// ─── 전체 복사: 표 전체를 순수 값 TSV로 클립보드에 (엑셀에 바로 붙여넣기) ──────
+function _tableToTSV(table) {
+  const lines = [];
+  table.querySelectorAll('tr').forEach((tr) => {
+    const vals = [];
+    tr.querySelectorAll('th, td').forEach((cell) => {
+      // 숫자 셀은 data-val(원본 숫자: 콤마/괄호 없음), 그 외는 표시 텍스트
+      const v = cell.hasAttribute('data-val')
+        ? cell.getAttribute('data-val')
+        : cell.innerText.trim().replace(/\t/g, ' ');
+      vals.push(v);
+    });
+    lines.push(vals.join('\t'));
+  });
+  return lines.join('\n');
+}
+
+// https/localhost면 Clipboard API, http(회사서버 등)면 execCommand 폴백
+function _copyText(text) {
+  return new Promise((resolve, reject) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(resolve, () => _copyFallback(text, resolve, reject));
+    } else {
+      _copyFallback(text, resolve, reject);
+    }
+  });
+}
+function _copyFallback(text, resolve, reject) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.setAttribute('readonly', '');
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  ok ? resolve() : reject(new Error('copy failed'));
+}
+
+function copyResultTableAll(btn) {
+  const table = document.getElementById('resultTable');
+  if (!table || !table.querySelector('tbody tr')) return;
+  const tsv = _tableToTSV(table);
+  const orig = btn.innerHTML;
+  _copyText(tsv).then(() => {
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> 복사됨! 엑셀에 붙여넣기(Ctrl+V)';
+    btn.classList.remove('btn-primary'); btn.classList.add('btn-success');
+    setTimeout(() => {
+      btn.innerHTML = orig;
+      btn.classList.remove('btn-success'); btn.classList.add('btn-primary');
+    }, 2200);
+  }).catch(() => {
+    btn.innerHTML = '<i class="bi bi-exclamation-triangle"></i> 복사 실패';
+    setTimeout(() => { btn.innerHTML = orig; }, 2200);
+  });
+}
 
 // ─── 초기화 ────────────────────────────────────────────────────
 document.getElementById('periodSelect').addEventListener('change', async () => {
