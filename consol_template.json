@@ -2410,6 +2410,24 @@
       "section": "BS"
     },
     {
+      "row": 1851,
+      "code": "3000001",
+      "name": "지배지분 계",
+      "kind": "formula",
+      "add_refs": [
+        186
+      ],
+      "sub_refs": [
+        185
+      ],
+      "formula": "=R186-R185",
+      "n_adj_mode": "none",
+      "o_adj_mode": "none",
+      "p_int_mode": "none",
+      "q_int_mode": "none",
+      "section": "BS"
+    },
+    {
       "row": 185,
       "code": "3600101",
       "name": "비지배지분",

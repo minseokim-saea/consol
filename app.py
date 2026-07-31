@@ -9819,7 +9819,29 @@ def _compute_group_internal(group_id, period, depth=0, _seen=None):
         raise ValueError(f'존재하지 않는 그룹: {group_id}')
 
     # 1) 직접 회사 매칭 — 해당 기간 멤버였던 회사만 (company_periods의 since/until)
-    files = _files_for_group(period, consol_effective_companies(g, period))
+    eff_names = consol_effective_companies(g, period)
+    files = _files_for_group(period, eff_names)
+
+    # 1-1) 패키지 미제출 직접 회사도 0값 컬럼으로 표시 (연결정산표에서 누락 방지).
+    #      빈 sheets를 가진 합성 extracted를 넣으면 aggregate가 전 계정 0으로 처리한다.
+    have_norm = {_norm_co_local(f.get('company', '')) for f in files}
+    missing_names = [c for c in eff_names if _norm_co_local(c) not in have_norm]
+    if missing_names:
+        cur_by_norm = {}
+        for m in (_load_company_master().get('companies') or []):
+            cur_by_norm[_norm_co_local(m.get('company', ''))] = (m.get('currency') or '').upper()
+        for name in missing_names:
+            disp = f'{name} (미제출)'   # 진짜 0인 회사와 구분되도록 헤더에 표시
+            files.append({
+                'company': disp,
+                'year': period,
+                'missing_package': True,
+                'extracted': {
+                    'company': disp,
+                    'currency': cur_by_norm.get(_norm_co_local(name), '') or '',
+                    'sheets': {},
+                },
+            })
 
     # 2) 포함 그룹 재귀 실행 → rollup 컬럼 생성
     rollups = []
@@ -9921,8 +9943,10 @@ def _compute_group_internal(group_id, period, depth=0, _seen=None):
             'sub_result': sub,        # 디버깅/감사용
         })
 
+    # files 에는 미제출 회사(0값 합성)도 포함되므로, 멤버가 하나라도 있으면 0으로라도 계산한다.
+    # 진짜 아무 멤버도 없고(포함그룹도 없음) 실행할 게 없을 때만 오류.
     if not files and not rollups:
-        raise ValueError(f'{period} 기간에 업로드된 그룹 회사 파일도, 포함 그룹의 결과도 없습니다.')
+        raise ValueError(f'{period} 기간에 연결 대상 회사도, 포함 그룹의 결과도 없습니다.')
 
     # 3) 직접 회사 합산
     def _sort_key(f):
