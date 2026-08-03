@@ -170,6 +170,9 @@ body { background:var(--surface); color:var(--text-body);
         <button class="btn btn-warning" onclick="runValidation()">
           <i class="bi bi-shield-check"></i> 검증
         </button>
+        <button id="copyAllBtn" class="btn btn-primary" type="button" onclick="copyCashTable(this)">
+          <i class="bi bi-clipboard"></i> 전체 복사
+        </button>
         <button class="btn btn-success" onclick="downloadExcel()">
           <i class="bi bi-download"></i> 엑셀 다운로드
         </button>
@@ -552,6 +555,73 @@ function renderResult(payload) {
 
 function onHideZeroToggle() {
   if (LAST_PAYLOAD) renderResult(LAST_PAYLOAD);
+}
+
+// ─── 전체 복사: 표를 순수 값 TSV로 (엑셀에 서식 없이 바로 붙여넣기) ──────────
+// 화면 표시값은 '(1,234)' 처럼 콤마·괄호가 붙어 있어 엑셀이 숫자로 못 읽는다.
+// 여기서는 -1234 형태의 순수 숫자로 바꿔 넣고, 수기조정·단수조정 칸은 input 값을 읽는다.
+function _cashCellText(cell) {
+  const inp = cell.querySelector('input');
+  if (inp) return (inp.value || '').trim();          // 수기조정 / 단수조정 입력칸
+  let t = (cell.innerText || '').replace(/[\t\n]/g, ' ').trim();
+  if (!t || t === '—') return '';
+  // '(1,234)' → -1234, '1,234' → 1234 (숫자 형태일 때만 변환)
+  const m = t.match(/^\((\s*[\d,]+(?:\.\d+)?)\)$/);
+  if (m) return '-' + m[1].replace(/,/g, '').trim();
+  if (/^-?[\d,]+(\.\d+)?$/.test(t)) return t.replace(/,/g, '');
+  return t;
+}
+
+function copyCashTable(btn) {
+  const table = document.getElementById('resultTable');
+  if (!table || !table.querySelector('tbody tr')) return;
+  const lines = [];
+  table.querySelectorAll('tr').forEach(tr => {
+    const vals = [];
+    Array.from(tr.children).forEach(cell => {
+      vals.push(_cashCellText(cell));
+      const cs = parseInt(cell.getAttribute('colspan') || '1', 10);
+      for (let k = 1; k < cs; k++) vals.push('');   // 병합 칸만큼 빈 칸 채워 열 정렬 유지
+    });
+    lines.push(vals.join('\t'));
+  });
+  const tsv = lines.join('\n');
+  const orig = btn.innerHTML;
+  _copyTextToClipboard(tsv).then(() => {
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> 복사됨! 엑셀에 붙여넣기(Ctrl+V)';
+    btn.classList.replace('btn-primary', 'btn-success');
+    setTimeout(() => {
+      btn.innerHTML = orig;
+      btn.classList.replace('btn-success', 'btn-primary');
+    }, 2200);
+  }).catch(() => {
+    btn.innerHTML = '<i class="bi bi-exclamation-triangle"></i> 복사 실패';
+    setTimeout(() => { btn.innerHTML = orig; }, 2200);
+  });
+}
+
+// https/localhost면 Clipboard API, http(회사서버 등)면 execCommand 폴백
+function _copyTextToClipboard(text) {
+  return new Promise((resolve, reject) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(resolve, () => _copyFallback(text, resolve, reject));
+    } else {
+      _copyFallback(text, resolve, reject);
+    }
+  });
+}
+function _copyFallback(text, resolve, reject) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.setAttribute('readonly', '');
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  ok ? resolve() : reject(new Error('copy failed'));
 }
 
 function downloadExcel() {
