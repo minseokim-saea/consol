@@ -238,6 +238,12 @@
     <span class="side-label" data-i18n="side.timeseries">시계열 분석</span>
   </a>
   {% endif %}
+  {% if perms and perms.affiliate_perf %}
+  <a href="/affiliate-performance" class="side-link {% if active_menu == 'affiliate_perf' %}active{% endif %}" title="계열사별 실적">
+    <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.affiliate">계열사별 실적</span>
+  </a>
+  {% endif %}
   {% if perms and perms.note_aggregate %}
   <a href="/admin/note-aggregate" class="side-link {% if active_menu == 'note_aggregate' %}active{% endif %}" title="주석 합산">
     <i class="bi bi-journal-text" aria-hidden="true"></i>

@@ -315,6 +315,7 @@ def _inject_sidebar_perms():
             'fx_manage':       _has_permission(uname, 'fx.manage'),
             'consol_compute':  _has_permission(uname, 'consol.compute'),
             'consol_journal':  _has_permission(uname, 'consol.journal'),
+            'affiliate_perf':  _has_permission(uname, 'affiliate.performance'),
             'files_upload':    _has_permission(uname, 'files.upload'),
             'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
@@ -417,19 +418,24 @@ def _ensure_permission_catalog():
     · 그룹 perms 에 키가 '아예 없을 때만' 기본값을 넣는다(관리자가 나중에
       끈 것을 매 재시작마다 되살리지 않도록 idempotent).
     """
-    # (key, label, after_key, default_on_groups)
+    # (key, label, after_key, default_on_groups, category)
     NEW_PERMS = [
         ('files.force_upload', '토큰 검증 우회 업로드(강제)', 'files.upload',
-         {'system_admin', 'finance_lead'}),
+         {'system_admin', 'finance_lead'}, None),
+        # 계열사별 실적: 자회사담당자만 제외하고 전 그룹 조회 허용
+        ('affiliate.performance', '계열사별 실적 조회', 'consol.compute',
+         {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
     groups = data.get('groups') or {}
     def_keys = [d.get('key') for d in defs]
     changed = False
-    for key, label, after_key, default_on in NEW_PERMS:
+    for key, label, after_key, default_on, category in NEW_PERMS:
         if key not in def_keys:
             newdef = {'key': key, 'label': label}
+            if category:
+                newdef['category'] = category
             if after_key in def_keys:
                 defs.insert(def_keys.index(after_key) + 1, newdef)
             else:
@@ -7997,6 +8003,7 @@ def _sidebar_perms(uname):
         'fx_manage':        _has_permission(uname, 'fx.manage'),
         'consol_compute':   _has_permission(uname, 'consol.compute'),
         'consol_journal':   _has_permission(uname, 'consol.journal'),
+        'affiliate_perf':   _has_permission(uname, 'affiliate.performance'),
         'files_upload':     _has_permission(uname, 'files.upload'),
         'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
@@ -11138,6 +11145,353 @@ def consolidation_compute(group_id, period):
         })
     except Exception as e:
         return _json_error(e)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 계열사별 실적 (주요 계열사 매출액/영업이익/당기순이익 요약표)
+# ─────────────────────────────────────────────────────────────────────────────
+# 금액은 모두 패키지의 KRW 환산액(PL_MF value) 기준.
+#   · 계        = 최상위 연결그룹(글로벌세아) 연결정산표 최종값
+#   · 기타      = 계 − (1~14 계열사 합)
+#   · SWISSTEX  = 3개사 패키지 합산 + 무형자산상각비(영업이익·당기순이익에만 가산)
+#   · TEGRA     = (TEGRA+SAC+DTX) − SWISSTEX
+#                 (1) 매출액: 상역 내부거래분개 중 차변회사 SAC/DTX·차변 매출계정 차감
+#                 (2) 영업이익·당기순이익: SWISSTEX에서 가산한 무형자산상각비를 다시 가산
+AFFIL_SALES_CODE  = '4100000'   # 매출액
+AFFIL_OP_CODE     = '4700002'   # 영업이익
+AFFIL_NI_CODE     = '4700004'   # 당기순이익
+AFFIL_AMORT_CODE  = '4300302'   # 무형자산상각비 (판관비)
+AFFIL_EQM_GAIN_CODE = '4401201'  # 지분법평가이익
+AFFIL_EQM_LOSS_CODE = '4501201'  # 지분법평가손실
+AFFIL_METRICS = [('sales', '매출액', AFFIL_SALES_CODE),
+                 ('op',    '영업이익', AFFIL_OP_CODE),
+                 ('ni',    '당기순이익', AFFIL_NI_CODE)]
+
+AFFIL_SWISSTEX_COMPANIES = ['UNIQUE, S.A. DE C.V.',
+                            'SWISSTEX DIRECT, LLC',
+                            'SWISSTEX EL SALVADOR, S.A. DE C.V.']
+AFFIL_TEGRA_COMPANIES = ['Tegra, LLC',
+                         'Southern Apparel Contractors, S.A.',
+                         'Decotex International, LTDA. DE C.V.']
+# TEGRA 매출 차감에 쓰는 내부거래 차변회사 (SAC, DTX)
+# 분개 파일은 회사를 약칭으로 적으므로 약칭·정식명을 모두 매칭한다.
+AFFIL_TEGRA_INTER_DEBIT_COMPANIES = ['SAC', 'DTX',
+                                     'Southern Apparel Contractors, S.A.',
+                                     'Decotex International, LTDA. DE C.V.']
+AFFIL_INTER_GROUP_NAME = '상역'      # 내부거래분개를 가져올 연결그룹
+AFFIL_TOTAL_GROUP_NAME = '글로벌세아'  # '계' 컬럼 = 이 그룹 연결정산표 최종
+
+# 표시 순서 — 참조 보고서(계열사별실적.xlsx) 컬럼 순서 그대로
+AFFIL_COLUMNS = [
+    # 세아상역 당기순이익: 지분법평가이익 차감 + 지분법평가손실 가산
+    {'key': 'saeah',     'label': '세아상역',   'kind': 'pkg',   'companies': ['세아상역(개별)'],
+     'adjust': {'ni': {'sub': [AFFIL_EQM_GAIN_CODE], 'add': [AFFIL_EQM_LOSS_CODE]}}},
+    {'key': 'ssangyong', 'label': '쌍용건설',   'kind': 'group', 'group': '쌍용'},
+    {'key': 'trpaper',   'label': '태림페이퍼', 'kind': 'pkg',
+     'companies': ['태림페이퍼', '동원페이퍼']},
+    {'key': 'trpack',    'label': '태림포장',   'kind': 'pkg',
+     'companies': ['태림포장', '동림로지스틱', '태림판지']},
+    {'key': 'jjp',       'label': 'JJP',       'kind': 'pkg',   'companies': ['전주페이퍼']},
+    {'key': 'jop',       'label': 'JOP',       'kind': 'pkg',
+     'companies': ['전주원파워(개별)', '전주파워', '전주에너지']},
+    {'key': 'indf',      'label': '인디에프',   'kind': 'pkg',   'companies': ['인디에프(연결)']},
+    {'key': 'sna',       'label': 'S&A',       'kind': 'pkg',   'companies': ['주식회사 에스앤에이']},
+    {'key': 'balmax',    'label': '발맥스',     'kind': 'pkg',   'companies': ['발맥스기술']},
+    {'key': 'tegra',     'label': 'TEGRA',     'kind': 'tegra'},
+    {'key': 'swisstex',  'label': 'SWISSTEX',  'kind': 'swisstex'},
+    {'key': 'wintex',    'label': 'WINTEX',    'kind': 'pkg',   'companies': ['PT. WIN TEXTILE']},
+    {'key': 'spinning',  'label': 'SPINNING',  'kind': 'pkg',
+     'companies': ['SAE-A SPINNING, S.R.L.(연결)']},
+    # 글로벌세아 당기순이익: 지분법평가이익 차감 + 지분법평가손실 가산 (세아상역과 동일)
+    {'key': 'globalsae', 'label': '글로벌세아', 'kind': 'pkg',   'companies': ['글로벌세아'],
+     'adjust': {'ni': {'sub': [AFFIL_EQM_GAIN_CODE], 'add': [AFFIL_EQM_LOSS_CODE]}}},
+    {'key': 'etc',       'label': '기타',       'kind': 'etc'},
+    {'key': 'total',     'label': '계',         'kind': 'group', 'group': AFFIL_TOTAL_GROUP_NAME},
+]
+
+
+def _affil_pkg_pl(period, company_name, code):
+    """(기간, 회사)의 패키지 PL_MF에서 코드 KRW 환산값. 없으면 0."""
+    f = _find_uploaded_for(period, company_name)
+    if not f:
+        return 0.0
+    pl = ((f.get('extracted') or {}).get('sheets') or {}).get('PL_MF') or {}
+    v = (pl.get(str(code)) or {}).get('value')
+    try:
+        return float(v or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _affil_pkg_sum(period, company_names, code):
+    """여러 회사 패키지의 같은 코드 합계 + 실제로 찾은 회사 목록."""
+    total = 0.0
+    found = []
+    for name in company_names:
+        if _find_uploaded_for(period, name):
+            found.append(name)
+        total += _affil_pkg_pl(period, name, code)
+    return total, found
+
+
+def _affil_group_finals(period, group_name):
+    """연결그룹 이름으로 연결정산표를 실행해 {코드: 최종값} 반환. 실패 시 (None, 사유)."""
+    target = _norm_co_local(group_name)
+    gid = None
+    for g in consol_list_groups():
+        if _norm_co_local(g.get('name')) == target:
+            gid = g.get('id')
+            break
+    if not gid:
+        return None, f'연결그룹 "{group_name}"을 찾을 수 없습니다.'
+    try:
+        ctx = _compute_group_internal(gid, period)
+    except Exception as e:
+        return None, f'{group_name} 연결실행 실패: {e}'
+    finals = {}
+    for row in (ctx.get('result') or {}).get('rows') or []:
+        code = str(row.get('code') or '').strip()
+        if code:
+            finals[code] = float(row.get('final') or 0)
+    return finals, None
+
+
+def _affil_tegra_sales_deduction(period):
+    """상역 연결그룹 내부거래분개 중 차변회사가 SAC/DTX이고 차변계정이
+    매출계정(41xxxxx)인 행의 차변금액 합계. TEGRA 매출액에서 차감한다.
+    분개에 회사 컬럼이 없으면 0 (사유를 함께 반환)."""
+    target = _norm_co_local(AFFIL_INTER_GROUP_NAME)
+    gid = None
+    for g in consol_list_groups():
+        if _norm_co_local(g.get('name')) == target:
+            gid = g.get('id')
+            break
+    if not gid:
+        return 0.0, 0, f'연결그룹 "{AFFIL_INTER_GROUP_NAME}"을 찾을 수 없어 매출 차감 없음'
+    rec = consol_get_journal(gid, period) or {}
+    entries = rec.get('intercompany_entries') or []
+    wanted = {_norm_co_local(c) for c in AFFIL_TEGRA_INTER_DEBIT_COMPANIES}
+    total = 0.0
+    hits = 0
+    has_company_col = False
+    for e in entries:
+        dco = e.get('debit_company')
+        if dco:
+            has_company_col = True
+        if _norm_co_local(dco) not in wanted:
+            continue
+        dcode = str(e.get('debit_code') or '').strip()
+        dname = str(e.get('debit_name') or '')
+        is_sales = dcode.startswith('41') or ('매출' in dname and '원가' not in dname)
+        if not is_sales:
+            continue
+        total += float(e.get('debit_amt') or 0)
+        hits += 1
+    note = None
+    if not has_company_col and entries:
+        note = '내부거래분개에 차변회사 컬럼이 없어 매출 차감을 적용하지 못했습니다.'
+    return total, hits, note
+
+
+def _compute_affiliate_performance(period):
+    """계열사별 실적 산출. 반환: {'columns':[...], 'metrics':[...], 'values':{key:{metric:val}}, 'notes':[...]}"""
+    notes = []
+    values = {}
+    missing = {}
+
+    # 1) 패키지 기반 컬럼
+    for col in AFFIL_COLUMNS:
+        if col['kind'] != 'pkg':
+            continue
+        vals = {}
+        found_any = []
+        for mkey, _label, code in AFFIL_METRICS:
+            s, found = _affil_pkg_sum(period, col['companies'], code)
+            # 컬럼별 특수 조정 (예: 세아상역 당기순이익 지분법 가감)
+            adj = (col.get('adjust') or {}).get(mkey) or {}
+            for acode in adj.get('add') or []:
+                a, _f = _affil_pkg_sum(period, col['companies'], acode)
+                s += a
+            for scode in adj.get('sub') or []:
+                a, _f = _affil_pkg_sum(period, col['companies'], scode)
+                s -= a
+            vals[mkey] = s
+            found_any = found
+        values[col['key']] = vals
+        miss = [c for c in col['companies'] if c not in found_any]
+        if miss:
+            missing[col['key']] = miss
+
+    # 2) SWISSTEX — 3개사 합 + 무형자산상각비(영업이익·당기순이익에 가산)
+    sw = {}
+    sw_amort, sw_found = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, AFFIL_AMORT_CODE)
+    for mkey, _label, code in AFFIL_METRICS:
+        base, _f = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, code)
+        sw[mkey] = base + (sw_amort if mkey in ('op', 'ni') else 0.0)
+    values['swisstex'] = sw
+    sw_miss = [c for c in AFFIL_SWISSTEX_COMPANIES if c not in sw_found]
+    if sw_miss:
+        missing['swisstex'] = sw_miss
+
+    # 3) TEGRA — (TEGRA+SAC+DTX) − SWISSTEX, 매출 내부거래 차감, 상각비 재가산
+    ded, ded_hits, ded_note = _affil_tegra_sales_deduction(period)
+    if ded_note:
+        notes.append(ded_note)
+    tg = {}
+    tg_found = []
+    for mkey, _label, code in AFFIL_METRICS:
+        base, tg_found = _affil_pkg_sum(period, AFFIL_TEGRA_COMPANIES, code)
+        v = base - sw.get(mkey, 0.0)
+        if mkey == 'sales':
+            v -= ded
+        else:
+            v += sw_amort
+        tg[mkey] = v
+    values['tegra'] = tg
+    tg_miss = [c for c in AFFIL_TEGRA_COMPANIES if c not in tg_found]
+    if tg_miss:
+        missing['tegra'] = tg_miss
+
+    # 4) 연결정산표 기반 컬럼 (쌍용건설, 계)
+    for col in AFFIL_COLUMNS:
+        if col['kind'] != 'group':
+            continue
+        finals, err = _affil_group_finals(period, col['group'])
+        if err:
+            notes.append(err)
+            values[col['key']] = {m[0]: 0.0 for m in AFFIL_METRICS}
+            continue
+        values[col['key']] = {mkey: finals.get(code, 0.0) for mkey, _l, code in AFFIL_METRICS}
+
+    # 5) 기타 = 계 − (1~14)
+    total_vals = values.get('total') or {}
+    etc = {}
+    for mkey, _label, _code in AFFIL_METRICS:
+        others = sum((values.get(c['key']) or {}).get(mkey, 0.0)
+                     for c in AFFIL_COLUMNS if c['kind'] not in ('etc',) and c['key'] != 'total')
+        etc[mkey] = (total_vals.get(mkey, 0.0) or 0.0) - others
+    values['etc'] = etc
+
+    columns = [{'key': c['key'], 'label': c['label'], 'kind': c['kind'],
+                'missing': missing.get(c['key']) or []} for c in AFFIL_COLUMNS]
+    return {
+        'columns': columns,
+        'metrics': [{'key': m[0], 'label': m[1], 'code': m[2]} for m in AFFIL_METRICS],
+        'values': values,
+        'notes': notes,
+        'tegra_sales_deduction': ded,
+        'tegra_sales_deduction_rows': ded_hits,
+        'swisstex_amort': sw_amort,
+    }
+
+
+def _affil_period_label(period):
+    """'2026-2Q' → ('2026. 2Q', '2026년 2분기')"""
+    m = re.match(r'^(\d{4})-(\d)Q$', str(period or ''))
+    if not m:
+        return str(period or ''), str(period or '')
+    y, q = m.group(1), m.group(2)
+    return f'{y}. {q}Q', f'{y}년 {q}분기'
+
+
+@app.route('/affiliate-performance')
+@login_required
+@require_permission('affiliate.performance')
+def affiliate_performance_page():
+    """계열사별 실적 페이지."""
+    year = request.args.get('year') or YEARS_DATA.get('default')
+    if not _valid_year(year):
+        year = YEARS_DATA.get('default')
+    return render_template('affiliate_performance.html',
+                           year=year,
+                           years=YEARS_DATA['years'],
+                           username=session.get('username'),
+                           is_admin=_is_admin(session.get('username')))
+
+
+@app.route('/affiliate-performance/data')
+@login_required
+@require_permission('affiliate.performance')
+def affiliate_performance_data():
+    """계열사별 실적 계산 결과 JSON."""
+    period = (request.args.get('year') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    try:
+        data = _compute_affiliate_performance(period)
+    except Exception as e:
+        return jsonify({'error': f'계산 실패: {e}'}), 500
+    pl, tl = _affil_period_label(period)
+    data.update({'year': period, 'period_label': pl, 'title_period': tl})
+    return jsonify(data)
+
+
+@app.route('/affiliate-performance/excel')
+@login_required
+@require_permission('affiliate.performance')
+def affiliate_performance_excel():
+    """계열사별 실적 엑셀 다운로드 — 참조 보고서와 동일 레이아웃(단위: 억원)."""
+    period = (request.args.get('year') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    data = _compute_affiliate_performance(period)
+    plabel, tlabel = _affil_period_label(period)
+
+    from openpyxl import Workbook as _WB
+    from openpyxl.styles import Font as _F, Alignment as _A, Border as _B, Side as _S, PatternFill as _P
+    wb = _WB()
+    ws = wb.active
+    ws.title = '계열사별실적'
+    thin = _S(style='thin', color='B0B0B0')
+    bd = _B(left=thin, right=thin, top=thin, bottom=thin)
+    ctr = _A(horizontal='center', vertical='center')
+
+    ws['A2'] = f'2. {tlabel} 주요 계열사별 실적'
+    ws['A2'].font = _F(bold=True, size=13, name='맑은 고딕')
+
+    ws['A3'] = '[단위 : 억원]'
+    ws['A3'].font = _F(size=9, name='맑은 고딕')
+    ws.merge_cells('A3:B3')
+    cols = data['columns']
+    for i, c in enumerate(cols):
+        cell = ws.cell(3, 3 + i, c['label'])
+        cell.font = _F(bold=True, size=10, name='맑은 고딕')
+        cell.alignment = ctr
+        cell.border = bd
+        cell.fill = _P('solid', start_color='DDEBF7')
+
+    ws['A4'] = plabel
+    ws['A4'].font = _F(bold=True, size=10, name='맑은 고딕')
+    ws['A4'].alignment = ctr
+    ws.merge_cells('A4:A6')
+    ws['A4'].border = bd
+
+    for r, m in enumerate(data['metrics']):
+        row = 4 + r
+        lc = ws.cell(row, 2, m['label'])
+        lc.font = _F(size=10, name='맑은 고딕')
+        lc.alignment = _A(horizontal='center', vertical='center')
+        lc.border = bd
+        ws.cell(row, 1).border = bd
+        for i, c in enumerate(cols):
+            v = (data['values'].get(c['key']) or {}).get(m['key'], 0.0) or 0.0
+            cell = ws.cell(row, 3 + i, round(v / 100000000.0))   # 억원
+            cell.number_format = '#,##0;(#,##0)'
+            cell.font = _F(size=10, name='맑은 고딕')
+            cell.border = bd
+
+    ws.column_dimensions['A'].width = 11
+    ws.column_dimensions['B'].width = 12
+    for i in range(len(cols)):
+        ws.column_dimensions[chr(ord('C') + i) if i < 24 else 'Z'].width = 11
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    safe = re.sub(r'[\\/:*?"<>|]', '_', period)
+    return send_file(buf, as_attachment=True,
+                     download_name=f'계열사별실적_{safe}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 # ─────────────────────────────────────────────────────────────────────────────

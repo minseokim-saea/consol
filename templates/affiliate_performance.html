@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>계열사별 실적 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6; --xl-grid:#c9c9c9; --xl-head:#DDEBF7; --xl-total:#FFF2CC;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+    --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+    --border:#334155; --xl-grid:#44506a; --xl-head:#22354f; --xl-total:#4a3a1a;
+  }
+  body { color-scheme: dark; }
+  .card { background:var(--card-bg); color:var(--text-body); }
+  .form-select { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border:1px solid var(--border); border-radius:10px; }
+
+/* ── 엑셀 느낌의 격자 표 ───────────────────────────────── */
+.xl-wrap { overflow-x:auto; background:var(--card-bg); border-radius:8px; padding:14px 16px 18px; }
+.xl-title { font-size:1.05rem; font-weight:700; margin:0 0 .5rem; }
+.xl-table { border-collapse:collapse; font-size:.86rem; white-space:nowrap; }
+.xl-table th, .xl-table td { border:1px solid var(--xl-grid); padding:5px 10px; }
+.xl-table thead th { background:var(--xl-head); text-align:center; font-weight:700; }
+.xl-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.xl-table td.neg { color:#dc3545; }
+.xl-unit { text-align:left !important; background:transparent !important; font-weight:400 !important;
+           font-size:.78rem; color:var(--text-muted); }
+.xl-period, .xl-metric { background:var(--xl-head); text-align:center; font-weight:600; }
+.xl-table th.col-total, .xl-table td.col-total { background:var(--xl-total); font-weight:700; }
+.xl-table td.col-etc { background:rgba(0,0,0,.03); }
+@media (prefers-color-scheme: dark) { .xl-table td.col-etc { background:rgba(255,255,255,.05); } }
+.miss-mark { color:#dc3545; font-size:.72rem; margin-left:3px; }
+.xl-foot { margin-top:10px; font-size:.75rem; color:var(--text-muted); line-height:1.7; white-space:normal; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'affiliate_perf' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <!-- 결산기간 선택 -->
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:200px" onchange="loadData()">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <span class="text-muted">각사 패키지의 <b>KRW 환산액</b> 기준. 쌍용건설·계는 연결정산표 최종값.</span>
+      <div class="ms-auto d-flex gap-2">
+        <button id="copyBtn" class="btn btn-primary btn-sm" onclick="copyTable(this)">
+          <i class="bi bi-clipboard"></i> 전체 복사
+        </button>
+        <a id="xlsBtn" class="btn btn-success btn-sm" href="#">
+          <i class="bi bi-download"></i> 엑셀 다운로드
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div id="noticeArea"></div>
+
+  <div class="card section-card">
+    <div class="card-body">
+      <div class="xl-wrap" id="tableArea">
+        <div class="text-center py-5 text-muted">
+          <span class="spinner-border"></span> 계산 중…
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const EOK = 100000000;   // 억원
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+function period() { return document.getElementById('periodSelect').value; }
+
+// 억원 단위 반올림 표시 (음수는 괄호)
+function fmtEok(v) {
+  const n = Math.round((Number(v) || 0) / EOK);
+  if (n === 0) return '-';
+  return n < 0 ? '(' + Math.abs(n).toLocaleString('ko-KR') + ')' : n.toLocaleString('ko-KR');
+}
+function rawEok(v) {
+  const n = Math.round((Number(v) || 0) / EOK);
+  return String(n);
+}
+
+async function loadData() {
+  const p = period();
+  document.getElementById('xlsBtn').href = `/affiliate-performance/excel?year=${encodeURIComponent(p)}`;
+  const area = document.getElementById('tableArea');
+  const notice = document.getElementById('noticeArea');
+  area.innerHTML = '<div class="text-center py-5 text-muted"><span class="spinner-border"></span> 계산 중…</div>';
+  notice.innerHTML = '';
+  try {
+    const res = await fetch(`/affiliate-performance/data?year=${encodeURIComponent(p)}`);
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || '조회 실패');
+    render(d);
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger mb-0">${escHtml(e.message)}</div>`;
+  }
+}
+
+function render(d) {
+  const cols = d.columns || [];
+  const mets = d.metrics || [];
+
+  // 헤더
+  const headCells = cols.map(c => {
+    const cls = c.key === 'total' ? 'col-total' : '';
+    const miss = (c.missing && c.missing.length)
+      ? `<span class="miss-mark" title="패키지 미제출: ${escHtml(c.missing.join(', '))}">▲</span>` : '';
+    return `<th class="${cls}">${escHtml(c.label)}${miss}</th>`;
+  }).join('');
+
+  // 본문 (지표 3행, 첫 행에 기간 셀 rowspan)
+  const bodyRows = mets.map((m, i) => {
+    const periodCell = i === 0
+      ? `<td class="xl-period" rowspan="${mets.length}">${escHtml(d.period_label)}</td>` : '';
+    const tds = cols.map(c => {
+      const v = (d.values[c.key] || {})[m.key] || 0;
+      const n = Math.round(v / EOK);
+      const cls = ['num', n < 0 ? 'neg' : '',
+                   c.key === 'total' ? 'col-total' : (c.key === 'etc' ? 'col-etc' : '')].join(' ');
+      return `<td class="${cls}" data-val="${rawEok(v)}">${fmtEok(v)}</td>`;
+    }).join('');
+    return `<tr>${periodCell}<td class="xl-metric">${escHtml(m.label)}</td>${tds}</tr>`;
+  }).join('');
+
+  document.getElementById('tableArea').innerHTML = `
+    <div class="xl-title">2. ${escHtml(d.title_period)} 주요 계열사별 실적</div>
+    <table class="xl-table" id="perfTable">
+      <thead>
+        <tr><th class="xl-unit" colspan="2">[단위 : 억원]</th>${headCells}</tr>
+      </thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
+    <div class="xl-foot">
+      · 세아상역·글로벌세아 당기순이익 = 패키지 당기순이익 − 지분법평가이익 + 지분법평가손실<br>
+      · 태림페이퍼 = 태림페이퍼+동원페이퍼 / 태림포장 = 태림포장+동림로지스틱+태림판지 / JOP = 전주원파워+전주파워+전주에너지<br>
+      · SWISSTEX = 3개사 합산, 영업이익·당기순이익에 무형자산상각비 가산<br>
+      · TEGRA = (TEGRA+SAC+DTX) − SWISSTEX, 매출액은 상역 내부거래(차변 SAC·DTX 매출) 차감, 영업이익·당기순이익은 상각비 재가산<br>
+      · 계 = 글로벌세아 연결정산표 최종값 / 기타 = 계 − (세아상역~글로벌세아 합)
+    </div>`;
+
+  // 안내 (미제출 회사 / 계산 참고사항)
+  const notes = [];
+  (d.notes || []).forEach(n => notes.push(escHtml(n)));
+  const missCols = cols.filter(c => c.missing && c.missing.length);
+  if (missCols.length) {
+    notes.push('패키지 미제출로 0 처리된 회사 — ' +
+      missCols.map(c => `<b>${escHtml(c.label)}</b>: ${escHtml(c.missing.join(', '))}`).join(' / '));
+  }
+  document.getElementById('noticeArea').innerHTML = notes.length
+    ? `<div class="alert alert-warning py-2 px-3 small mb-3">
+         <i class="bi bi-exclamation-triangle-fill me-1"></i>${notes.join('<br>')}
+       </div>` : '';
+}
+
+// ── 전체 복사: 표를 순수 값 TSV로 (엑셀 바로 붙여넣기) ──────────────
+function tableToTSV(table) {
+  const lines = [];
+  const nCols = table.querySelector('thead tr').children.length;
+  table.querySelectorAll('tr').forEach(tr => {
+    const vals = [];
+    Array.from(tr.children).forEach(cell => {
+      const v = cell.hasAttribute('data-val')
+        ? cell.getAttribute('data-val')
+        : cell.innerText.trim().replace(/[\t\n]/g, ' ').replace(/▲/g, '').trim();
+      vals.push(v);
+      // colspan/rowspan 만큼 빈 칸 채워 열 정렬 유지
+      const cs = parseInt(cell.getAttribute('colspan') || '1', 10);
+      for (let k = 1; k < cs; k++) vals.push('');
+    });
+    lines.push(vals.join('\t'));
+  });
+  // 기간 셀(rowspan)이 있는 2·3번째 데이터 행은 앞칸을 비워 맞춤
+  return lines.map((ln, i) => (i >= 2 && lines[1].split('\t').length > ln.split('\t').length)
+    ? '\t' + ln : ln).join('\n');
+}
+function copyText(text) {
+  return new Promise((resolve, reject) => {
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(resolve, () => fallback(text, resolve, reject));
+    } else fallback(text, resolve, reject);
+  });
+}
+function fallback(text, resolve, reject) {
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+  ta.setAttribute('readonly', '');
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  document.body.removeChild(ta);
+  ok ? resolve() : reject(new Error('copy failed'));
+}
+function copyTable(btn) {
+  const t = document.getElementById('perfTable');
+  if (!t) return;
+  const orig = btn.innerHTML;
+  copyText(tableToTSV(t)).then(() => {
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> 복사됨!';
+    btn.classList.replace('btn-primary', 'btn-success');
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.replace('btn-success', 'btn-primary'); }, 2000);
+  }).catch(() => {
+    btn.innerHTML = '<i class="bi bi-exclamation-triangle"></i> 복사 실패';
+    setTimeout(() => { btn.innerHTML = orig; }, 2000);
+  });
+}
+
+loadData();
+</script>
+</body>
+</html>
