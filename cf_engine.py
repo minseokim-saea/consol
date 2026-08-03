@@ -33,11 +33,40 @@ def _to_num(v):
         return 0.0
 
 
+# 매핑 JSON에서 섹션이 잘못 잡혀 있어 코드로 교정하는 CF 라인.
+# 매핑 파일(cf_mapping_v2_draft.json)은 gitignore 대상이라 배포로 갱신되지 않으므로,
+# 로드 시점에 자가 교정해야 운영 서버에도 반영된다. (save_mapping_v2 가 load_mapping
+# 결과의 cf_lines 를 그대로 보존하므로, 이후 매핑 저장 시 파일에도 반영됨)
+#   {cf_code: (section, section_full, section_sign)}
+_CF_LINE_SECTION_FIX = {
+    # '기타 현금의 유출이 없는 비용' → Ⅰ-2 가산 (Ⅰ-4 자산부채변동으로 잘못 분류돼 있었음)
+    'CF7100001': ('Ⅰ-2',
+                  'Ⅰ.  영업활동으로 인한 현금흐름 > 2. 현금의 유출이 없는 비용등의 가산', '+'),
+    # '기타 현금의 유입이 없는 수익' → Ⅰ-3 차감
+    'CF7100002': ('Ⅰ-3',
+                  'Ⅰ.  영업활동으로 인한 현금흐름 > 3. 현금의 유입이 없는 수익등의 차감', '-'),
+}
+
+
+def _apply_cf_line_section_fixes(mapping):
+    """_CF_LINE_SECTION_FIX 에 따라 cf_lines 의 섹션/부호를 교정 (idempotent)."""
+    for line in (mapping.get('cf_lines') or []):
+        fix = _CF_LINE_SECTION_FIX.get(str(line.get('cf_code') or ''))
+        if not fix:
+            continue
+        sec, sec_full, sign = fix
+        line['section'] = sec
+        line['section_full'] = sec_full
+        line['section_sign'] = sign
+        line['type'] = ''          # 자산·부채 변동(WC)이 아니므로 type 없음
+    return mapping
+
+
 def load_mapping():
     """매핑 JSON 로드 — v2 우선, 없으면 v1(legacy)."""
     path = MAPPING_PATH if MAPPING_PATH.exists() else MAPPING_PATH_LEGACY
     with open(path, encoding='utf-8') as f:
-        return json.load(f)
+        return _apply_cf_line_section_fixes(json.load(f))
 
 
 def is_v2_mapping(mapping):

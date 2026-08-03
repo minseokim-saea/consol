@@ -52,6 +52,7 @@ body { background:var(--surface); color:var(--text-body);
 .cf-table tr.total td    { background:var(--total-bg); color:var(--total-fg); font-weight:700; }
 .cf-table tr.ni td       { background:#FFE2CC; font-weight:600; }
 .cf-table tr.unmatched td{ background:#F8D7DA; color:#842029; }
+.cf-table tr.etc-noncash td { background:#D6F0DC; color:#14532D; font-weight:600; }
 .cf-table th:nth-child(1),
 .cf-table td:nth-child(1) { position:sticky; left:0; z-index:3; background:var(--card-bg); }
 .cf-table th:nth-child(2),
@@ -64,6 +65,8 @@ body { background:var(--surface); color:var(--text-body);
 .cf-table tr.total td:nth-child(2)   { background:var(--total-bg); }
 .cf-table tr.ni td:nth-child(1),
 .cf-table tr.ni td:nth-child(2)      { background:#FFE2CC; }
+.cf-table tr.etc-noncash td:nth-child(1),
+.cf-table tr.etc-noncash td:nth-child(2) { background:#D6F0DC; }
 .manual-input {
   border:none; background:transparent; width:90px; text-align:right;
   font:inherit; color:inherit; padding:2px 4px;
@@ -434,7 +437,8 @@ function renderResult(payload) {
     }
     secs.forEach(sec => {
       const ts = sec.totals_signed || {};
-      const title = `${sec.roman || ''}  ${sec.sub || ''}`;
+      // 로마숫자 합계행이 바로 위에 따로 있으므로, 하위 섹션은 번호(2./3./4. …)만 표시
+      const title = sec.sub || sec.roman || '';
       const cs = sec.companies_signed || {};
       const secFundCell = hasFundAdj
         ? `<td class="num col-O">${fmt(ts.fund_adj)}</td>`
@@ -672,6 +676,9 @@ function rowAllZero(row, companies) {
   return true;
 }
 
+// 기타 현금의 유출/유입이 없는 비용·수익 (Ⅰ-2 가산 / Ⅰ-3 차감으로 분류) — 행 강조용
+const ETC_NONCASH_CODES = new Set(['CF7100001', 'CF7100002']);
+
 function rowHtml(row, companies, klass, label, editable) {
   const code = row.cf_code || '';
   const manualVal   = MANUAL_EDITS[code]   !== undefined ? MANUAL_EDITS[code]   : (row.manual   || 0);
@@ -732,8 +739,10 @@ function rowHtml(row, companies, klass, label, editable) {
   const fundAdjCell = HAS_FUND_ADJ
     ? `<td class="num col-O" title="글로벌세아 자금조정 — CF1/CF2/CF3 연결범위회사 대여금/차입금">${fmt(row.fund_adj)}</td>`
     : '';
+  // 기타 현금유출/유입 없는 비용·수익 — 눈에 띄게 별도 색상
+  const extraCls = ETC_NONCASH_CODES.has(code) ? ' etc-noncash' : '';
   return `
-    <tr class="${klass}">
+    <tr class="${klass}${extraCls}">
       <td>${code}</td>
       <td>${label}</td>
       ${companies.map(c => `<td class="num">${fmt((row.companies||{})[c])}</td>`).join('')}
