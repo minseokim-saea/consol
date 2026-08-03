@@ -11446,7 +11446,7 @@ def affiliate_performance_excel():
     bd = _B(left=thin, right=thin, top=thin, bottom=thin)
     ctr = _A(horizontal='center', vertical='center')
 
-    ws['A2'] = f'2. {tlabel} 주요 계열사별 실적'
+    ws['A2'] = f'{tlabel} 주요 계열사별 실적'
     ws['A2'].font = _F(bold=True, size=13, name='맑은 고딕')
 
     ws['A3'] = '[단위 : 억원]'
@@ -11753,7 +11753,10 @@ def cash_worksheet_compute(group_id, period):
 # 손익 항목 연환산 계수: 분기 손익은 연초누적(YTD)으로 저장되므로
 # 연환산 = YTD ÷ 경과분기수 × 4  (1Q→×4, 2Q→×2, 3Q→×1.33, 4Q→×1)
 # 시계열 분석 — 선택 가능한 시작 결산기간 하한 (2025년 4분기부터)
-TS_START_MIN = '2025-4Q'
+# 시계열 분석 최소 시작 분기.
+# 2026-2Q부터가 본 시스템으로 수행한 본결산이라, 그 이전 자료는 정확도가 낮아
+# 혼선을 주므로 조회 대상에서 제외한다.
+TS_START_MIN = '2026-2Q'
 
 
 def _ts_period_to_idx(p):
@@ -11772,7 +11775,7 @@ def _ts_idx_to_period(idx):
 
 
 def _ts_quarter_options():
-    """선택 가능한 분기 목록(오름차순). 2025-4Q부터 최신 결산기간까지."""
+    """선택 가능한 분기 목록(오름차순). TS_START_MIN부터 최신 결산기간까지."""
     start = _ts_period_to_idx(TS_START_MIN)
     maxp = start
     for y in YEARS_DATA.get('years') or []:
@@ -11946,7 +11949,7 @@ def _ts_resolve_range(start, end):
     """시작/종료 결산기간 문자열 → (s_idx, e_idx) 또는 (None, 오류메시지).
 
     - start 미지정 시 TS_START_MIN, end 미지정 시 start 로 보정.
-    - start 가 2025-4Q 이전이면 2025-4Q 로 끌어올림.
+    - start 가 TS_START_MIN 이전이면 TS_START_MIN 으로 끌어올림.
     """
     min_idx = _ts_period_to_idx(TS_START_MIN)
     s_idx = _ts_period_to_idx(start) if start else min_idx

@@ -156,7 +156,7 @@ function render(d) {
   }).join('');
 
   document.getElementById('tableArea').innerHTML = `
-    <div class="xl-title">2. ${escHtml(d.title_period)} 주요 계열사별 실적</div>
+    <div class="xl-title">${escHtml(d.title_period)} 주요 계열사별 실적</div>
     <table class="xl-table" id="perfTable">
       <thead>
         <tr><th class="xl-unit" colspan="2">[단위 : 억원]</th>${headCells}</tr>
