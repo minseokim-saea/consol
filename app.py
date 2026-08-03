@@ -11521,6 +11521,10 @@ CF_COMPARE_XLSX_PATHS = [
     Path(r'C:/연결시스템(26.1분기)/현표비교계정.xlsx'),
     Path('현표비교계정.xlsx'),
 ]
+# 비교 계정 목록의 배포본. *.xlsx 는 gitignore 대상이라 위 엑셀은 운영 서버로
+# 배포되지 않는다(→ 서버에서 연결정산표 비교값이 통째로 비었음). 엑셀이 있으면
+# 엑셀을 읽고 이 JSON을 자동 동기화하며, 엑셀이 없는 서버에서는 JSON을 사용한다.
+CF_COMPARE_CODES_JSON = Path('cf_compare_codes.json')
 
 
 def _inject_consol_compare(cf_result, ctx):
@@ -11557,8 +11561,12 @@ def _inject_consol_compare(cf_result, ctx):
 
 
 def _cf_load_compare_codes():
-    """현표비교계정.xlsx에서 비교 대상 코드 → 계정명 dict 반환.
-    파일이 없으면 빈 dict.
+    """비교 대상 코드 → 계정명 dict 반환.
+
+    ① 현표비교계정.xlsx 가 있으면 엑셀을 읽고, 내용이 바뀌었으면
+       cf_compare_codes.json 에 자동 반영(커밋하면 서버에도 배포됨).
+    ② 엑셀이 없으면(운영 서버) cf_compare_codes.json 을 사용.
+    둘 다 없으면 빈 dict.
     """
     out = {}
     for p in CF_COMPARE_XLSX_PATHS:
@@ -11581,6 +11589,29 @@ def _cf_load_compare_codes():
             break  # 첫 번째 존재하는 파일만
         except Exception:
             continue
+
+    if out:
+        # 엑셀 내용이 바뀌었으면 배포본 JSON 갱신 (개발 PC에서만 발생)
+        try:
+            cur = {}
+            if CF_COMPARE_CODES_JSON.exists():
+                with open(CF_COMPARE_CODES_JSON, encoding='utf-8') as f:
+                    cur = json.load(f) or {}
+            if cur != out:
+                _atomic_write_json(CF_COMPARE_CODES_JSON, out)
+        except Exception:
+            pass
+        return out
+
+    # 엑셀이 없는 환경(운영 서버) — 배포된 JSON 사용
+    try:
+        if CF_COMPARE_CODES_JSON.exists():
+            with open(CF_COMPARE_CODES_JSON, encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                return {str(k): str(v or '') for k, v in data.items()}
+    except (json.JSONDecodeError, OSError):
+        pass
     return out
 
 
