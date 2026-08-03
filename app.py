@@ -13423,10 +13423,28 @@ def _coa_audit_scan(year_filter=None):
 @require_permission('coa.audit')
 def admin_coa_audit_page():
     """COA Audit 페이지 (관리자 전용)."""
+    # 직접 추가 폼의 섹션 선택지 — 현재 매핑에서 실제 사용 중인 문자열을 그대로 사용해야
+    # (section_full 의 공백까지 동일) 새 라인이 기존 섹션에 정확히 합류한다.
+    cf_sections = []
+    try:
+        _m = cf_load_mapping()
+        _seen = {}
+        for _l in (_m.get('cf_lines') or []):
+            _sec = str(_l.get('section') or '').strip()
+            if _sec and _sec not in _seen:
+                _seen[_sec] = {
+                    'section': _sec,
+                    'section_full': _l.get('section_full') or '',
+                    'section_sign': _l.get('section_sign') or '+',
+                }
+        cf_sections = [_seen[k] for k in sorted(_seen)]
+    except Exception:
+        cf_sections = []
     return render_template(
         'admin_coa_audit.html',
         years=YEARS_DATA['years'],
         default_year=YEARS_DATA.get('default') or '',
+        cf_sections=cf_sections,
         username=session.get('username'),
         is_admin=True,
     )
