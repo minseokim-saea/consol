@@ -463,7 +463,10 @@ function renderResult(payload) {
           <td class="col-spacer"></td><td class="col-CV"></td><td class="col-CD"></td>
         </tr>`);
       sec.rows.forEach(row => {
-        if (HIDE_ZERO && rowAllZero(row, companies)) {
+        // 강조 라인(배당·자본거래, 기타 유출/유입없는 항목)은 금액이 0이어도 항상 표시 —
+        // 값이 안 들어온 것 자체를 확인해야 하는 행이라 숨기면 안 된다.
+        const alwaysShow = isHighlightedCfCode(row.cf_code);
+        if (HIDE_ZERO && !alwaysShow && rowAllZero(row, companies)) {
           ZERO_HIDDEN_COUNT++;
           return;
         }
@@ -759,7 +762,14 @@ const CAPITAL_WATCH_CODES = new Set([
   'CF3121003', 'CF3121004', 'CF4121003',                // 관계기업투자주식 처분·취득 / 배당금 수령(투자)
   'CF5220003', 'CF5220004', 'CF5220005', 'CF5220006',   // 유상증자·자기주식 처분·신종자본증권 발행
   'CF6220003', 'CF6220004', 'CF6220005', 'CF6220006',   // 유상감자·자기주식 취득·신종자본증권 상환·배당금 지급
+  'CF6220010',
 ]);
+
+// 강조 대상 라인 여부 — 이 행들은 금액이 0이어도 숨기지 않는다.
+function isHighlightedCfCode(code) {
+  const c = String(code || '');
+  return ETC_NONCASH_CODES.has(c) || CAPITAL_WATCH_CODES.has(c);
+}
 
 function rowHtml(row, companies, klass, label, editable) {
   const code = row.cf_code || '';
