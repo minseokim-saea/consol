@@ -11147,6 +11147,18 @@ def consolidation_compute(group_id, period):
         return _json_error(e)
 
 
+# 계열사별 실적의 시작 분기 — 2026-2Q부터가 본 시스템으로 수행한 본결산이라,
+# 그 이전 자료는 정확도가 낮아 혼선을 주므로 조회 대상에서 제외한다.
+# ('YYYY-NQ'는 고정폭이라 문자열 비교로 대소 판정 가능)
+SYSTEM_CLOSE_START_PERIOD = '2026-2Q'
+
+
+def _periods_since_system_close():
+    """계열사별 실적 조회 가능 결산기간 (YEARS_DATA 정렬 유지 = 최신순)."""
+    return [y for y in (YEARS_DATA.get('years') or [])
+            if str(y) >= SYSTEM_CLOSE_START_PERIOD]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 계열사별 실적 (주요 계열사 매출액/영업이익/당기순이익 요약표)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -11399,12 +11411,13 @@ def _affil_period_label(period):
 @require_permission('affiliate.performance')
 def affiliate_performance_page():
     """계열사별 실적 페이지."""
+    periods = _periods_since_system_close()
     year = request.args.get('year') or YEARS_DATA.get('default')
-    if not _valid_year(year):
-        year = YEARS_DATA.get('default')
+    if year not in periods:
+        year = periods[0] if periods else YEARS_DATA.get('default')
     return render_template('affiliate_performance.html',
                            year=year,
-                           years=YEARS_DATA['years'],
+                           years=periods,
                            username=session.get('username'),
                            is_admin=_is_admin(session.get('username')))
 
@@ -11417,6 +11430,9 @@ def affiliate_performance_data():
     period = (request.args.get('year') or '').strip()
     if not _valid_year(period):
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if period < SYSTEM_CLOSE_START_PERIOD:
+        return jsonify({'error': f'{SYSTEM_CLOSE_START_PERIOD}부터 조회할 수 있습니다. '
+                                 '이전 기간은 본 시스템 본결산 이전 자료라 제공하지 않습니다.'}), 400
     try:
         data = _compute_affiliate_performance(period)
     except Exception as e:
@@ -11434,6 +11450,8 @@ def affiliate_performance_excel():
     period = (request.args.get('year') or '').strip()
     if not _valid_year(period):
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if period < SYSTEM_CLOSE_START_PERIOD:
+        return jsonify({'error': f'{SYSTEM_CLOSE_START_PERIOD}부터 조회할 수 있습니다.'}), 400
     data = _compute_affiliate_performance(period)
     plabel, tlabel = _affil_period_label(period)
 
@@ -11753,10 +11771,8 @@ def cash_worksheet_compute(group_id, period):
 # 손익 항목 연환산 계수: 분기 손익은 연초누적(YTD)으로 저장되므로
 # 연환산 = YTD ÷ 경과분기수 × 4  (1Q→×4, 2Q→×2, 3Q→×1.33, 4Q→×1)
 # 시계열 분석 — 선택 가능한 시작 결산기간 하한 (2025년 4분기부터)
-# 시계열 분석 최소 시작 분기.
-# 2026-2Q부터가 본 시스템으로 수행한 본결산이라, 그 이전 자료는 정확도가 낮아
-# 혼선을 주므로 조회 대상에서 제외한다.
-TS_START_MIN = '2026-2Q'
+# 시계열 분석 최소 시작 분기
+TS_START_MIN = '2025-4Q'
 
 
 def _ts_period_to_idx(p):
@@ -11775,7 +11791,7 @@ def _ts_idx_to_period(idx):
 
 
 def _ts_quarter_options():
-    """선택 가능한 분기 목록(오름차순). TS_START_MIN부터 최신 결산기간까지."""
+    """선택 가능한 분기 목록(오름차순). 2025-4Q부터 최신 결산기간까지."""
     start = _ts_period_to_idx(TS_START_MIN)
     maxp = start
     for y in YEARS_DATA.get('years') or []:
@@ -11949,7 +11965,7 @@ def _ts_resolve_range(start, end):
     """시작/종료 결산기간 문자열 → (s_idx, e_idx) 또는 (None, 오류메시지).
 
     - start 미지정 시 TS_START_MIN, end 미지정 시 start 로 보정.
-    - start 가 TS_START_MIN 이전이면 TS_START_MIN 으로 끌어올림.
+    - start 가 2025-4Q 이전이면 2025-4Q 로 끌어올림.
     """
     min_idx = _ts_period_to_idx(TS_START_MIN)
     s_idx = _ts_period_to_idx(start) if start else min_idx
