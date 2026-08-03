@@ -53,6 +53,7 @@ body { background:var(--surface); color:var(--text-body);
 .cf-table tr.ni td       { background:#FFE2CC; font-weight:600; }
 .cf-table tr.unmatched td{ background:#F8D7DA; color:#842029; }
 .cf-table tr.etc-noncash td { background:#D6F0DC; color:#14532D; font-weight:600; }
+.cf-table tr.capital-watch td { background:#9DC5FF; color:#0B3B8C; font-weight:700; }
 .cf-table th:nth-child(1),
 .cf-table td:nth-child(1) { position:sticky; left:0; z-index:3; background:var(--card-bg); }
 .cf-table th:nth-child(2),
@@ -67,6 +68,8 @@ body { background:var(--surface); color:var(--text-body);
 .cf-table tr.ni td:nth-child(2)      { background:#FFE2CC; }
 .cf-table tr.etc-noncash td:nth-child(1),
 .cf-table tr.etc-noncash td:nth-child(2) { background:#D6F0DC; }
+.cf-table tr.capital-watch td:nth-child(1),
+.cf-table tr.capital-watch td:nth-child(2) { background:#9DC5FF; }
 .manual-input {
   border:none; background:transparent; width:90px; text-align:right;
   font:inherit; color:inherit; padding:2px 4px;
@@ -749,6 +752,15 @@ function rowAllZero(row, companies) {
 // 기타 현금의 유출/유입이 없는 비용·수익 (Ⅰ-2 가산 / Ⅰ-3 차감으로 분류) — 행 강조용
 const ETC_NONCASH_CODES = new Set(['CF7100001', 'CF7100002']);
 
+// 배당·자본거래 관련 주요 확인 대상 라인 — 별도 색으로 강조
+// (배당금 수령/지급, 유상증자·감자, 자기주식, 신종자본증권, 관계기업투자주식)
+const CAPITAL_WATCH_CODES = new Set([
+  'CF1300000',                                          // 배당금의 수령(영업)
+  'CF3121003', 'CF3121004', 'CF4121003',                // 관계기업투자주식 처분·취득 / 배당금 수령(투자)
+  'CF5220003', 'CF5220004', 'CF5220005', 'CF5220006',   // 유상증자·자기주식 처분·신종자본증권 발행
+  'CF6220003', 'CF6220004', 'CF6220005', 'CF6220006',   // 유상감자·자기주식 취득·신종자본증권 상환·배당금 지급
+]);
+
 function rowHtml(row, companies, klass, label, editable) {
   const code = row.cf_code || '';
   const manualVal   = MANUAL_EDITS[code]   !== undefined ? MANUAL_EDITS[code]   : (row.manual   || 0);
@@ -809,8 +821,9 @@ function rowHtml(row, companies, klass, label, editable) {
   const fundAdjCell = HAS_FUND_ADJ
     ? `<td class="num col-O" title="글로벌세아 자금조정 — CF1/CF2/CF3 연결범위회사 대여금/차입금">${fmt(row.fund_adj)}</td>`
     : '';
-  // 기타 현금유출/유입 없는 비용·수익 — 눈에 띄게 별도 색상
-  const extraCls = ETC_NONCASH_CODES.has(code) ? ' etc-noncash' : '';
+  // 기타 현금유출/유입 없는 비용·수익, 배당·자본거래 라인 — 눈에 띄게 별도 색상
+  const extraCls = ETC_NONCASH_CODES.has(code) ? ' etc-noncash'
+                 : CAPITAL_WATCH_CODES.has(code) ? ' capital-watch' : '';
   return `
     <tr class="${klass}${extraCls}">
       <td>${code}</td>
