@@ -12348,6 +12348,7 @@ def cash_worksheet_validate(group_id, period):
     net   = float((cf_result.get('net_cash')     or {}).get('final', 0) or 0)
     fxv   = float((cf_result.get('fx_effect')    or {}).get('final', 0) or 0)
     scp   = float((cf_result.get('scope_change') or {}).get('final', 0) or 0)
+    fxp   = float((cf_result.get('fx_plug')      or {}).get('final', 0) or 0)
     beg   = float((cf_result.get('cash_begin')   or {}).get('final', 0) or 0)
     end   = float((cf_result.get('cash_end')     or {}).get('final', 0) or 0)
 
@@ -12363,7 +12364,7 @@ def cash_worksheet_validate(group_id, period):
     # 허용 오차 — KRW 반올림 1원
     TOL = 0.5
 
-    check1_lhs = net + fxv + scp + beg
+    check1_lhs = net + fxv + fxp + scp + beg
     check1_diff = round(check1_lhs - end)
     check1_ok   = abs(check1_lhs - end) <= TOL
 
@@ -12383,11 +12384,13 @@ def cash_worksheet_validate(group_id, period):
         'checks': [
             {
                 'name': '현금증감 등식',
-                'formula': 'Ⅳ.현금증감 + Ⅴ.환율변동 + 연결범위변동 + Ⅵ.기초현금 = Ⅶ.기말현금',
+                'formula': ('Ⅳ.현금증감 + Ⅴ.환율변동 + 환산차이(자동흡수) '
+                            '+ 연결범위변동 + Ⅵ.기초현금 = Ⅶ.기말현금'),
                 'ok': check1_ok,
                 'components': {
                     'net_cash':     net,
                     'fx_effect':    fxv,
+                    'fx_plug':      fxp,
                     'scope_change': scp,
                     'cash_begin':   beg,
                     'cash_end':     end,

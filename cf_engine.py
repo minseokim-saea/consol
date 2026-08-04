@@ -22,6 +22,8 @@ MAPPING_PATH_LEGACY = Path(__file__).parent / 'cf_mapping_draft.json'
 # 연결범위변동 행은 cf_code가 없는 plug 행이므로 manuals/roundings dict에서
 # 매칭하기 위한 특수 키. UI도 이 키로 입력값을 전송.
 SCOPE_CHANGE_KEY = '__SCOPE_CHANGE__'
+# 환산 단수차이 자동흡수 행(plug)의 특수 키. 입력이 아니므로 L/Q 편집 대상은 아니다.
+FX_PLUG_KEY = '__FX_PLUG__'
 
 
 def _to_num(v):
@@ -955,22 +957,27 @@ def _compute_v2(agg, adj_entries, inter_entries, companies, manual, mapping,
                                         + scope_change_row['manual']
                                         + scope_change_row['rounding'])
 
-    # 항등식 잔차는 Ⅴ.환율변동효과(해외사업환산손익)가 흡수한다.
-    #   기초 + 현금증감 + 환율변동 + 연결범위변동 = 기말
-    #   회사별 KRW 환산·합산 과정의 단수차이가 여기로 모인다. (BS에서 대차 잔단을
-    #   3400104 해외사업환산손익으로 흡수하는 것과 같은 원리)
-    fx_plug = (
+    # 항등식 잔차(해외사업환산손익 성격)는 별도 라인으로 분리해 표시한다.
+    #   기초 + 현금증감 + 환율변동 + 환산차이 + 연결범위변동 = 기말
+    #   Ⅴ.환율변동효과에는 각 사의 '입력분'이 들어있어 섞으면 크기를 가늠할 수 없으므로,
+    #   자동 흡수분만 따로 보여준다. (BS에서 대차 잔단을 3400104로 흡수하는 것과 같은 원리)
+    fx_plug_amount = (
         cash_end_row['sum']
         - (cash_begin_row['sum'] + net_cash['sum']
            + fx_effect_row['sum'] + scope_change_row['sum'])
     )
-    if fx_plug:
-        fx_effect_row['sum']   += fx_plug
-        fx_effect_row['final'] += fx_plug
-        fx_effect_row['fx_plug'] = fx_plug
-        fx_effect_row['plug_note'] = (
-            f'기말 − (기초 + 현금증감 + 연결범위변동) 차액 {fx_plug:,.0f} 흡수 '
-            f'(K 합산 기준). 회사별 환산 단수차이.')
+    fx_plug_row = {
+        'cf_code': FX_PLUG_KEY,
+        'name': '환산차이(자동흡수)',
+        'companies': {c: 0.0 for c in companies},
+        'sum': fx_plug_amount,
+        'manual': 0.0, 'adj': 0.0, 'inter': 0.0, 'fund_adj': 0.0, 'rounding': 0.0,
+        'dr_adj': 0, 'cr_adj': 0, 'dr_int': 0, 'cr_int': 0,
+        'final': fx_plug_amount,
+        'is_plug': True,
+        'plug_note': ('기말 − (기초 + 현금증감 + 환율변동효과 + 연결범위변동) 차액. '
+                      '회사별 KRW 환산·합산 과정의 단수차이가 모이는 자리 (K 합산 기준).'),
+    }
 
     # Ⅴ/Ⅵ/Ⅶ 라벨 행에도 fund_adj=0 부여 (UI/엑셀 컬럼 정렬용)
     for _r in (fx_effect_row, cash_begin_row, cash_end_row):
@@ -986,6 +993,7 @@ def _compute_v2(agg, adj_entries, inter_entries, companies, manual, mapping,
         'fin_cf': fin_cf,
         'net_cash': net_cash,
         'fx_effect':    fx_effect_row,
+        'fx_plug':      fx_plug_row,
         'scope_change': scope_change_row,
         'cash_begin':   cash_begin_row,
         'cash_end':     cash_end_row,
@@ -1157,13 +1165,17 @@ NUM_FMT = '#,##0;(#,##0);"-"'
 
 
 def _row_all_zero(row) -> bool:
-    """detail 행이 K/L/M/N/O/Q/P 모두 0인지. 회사별 값도 모두 0이어야 True."""
+    """detail 행이 K/L/M/N/O/Q/P 모두 0인지. 회사별 값도 모두 0이어야 True.
+    단, P.최종이 0이어도 연결정산표 비교값과 차이가 있으면 숨기지 않는다
+    (현금정산표에 안 잡힌 금액을 놓치게 되므로)."""
     keys = ('sum', 'manual', 'adj', 'inter', 'fund_adj', 'rounding', 'final')
     if any(abs(float(row.get(k) or 0)) >= 0.5 for k in keys):
         return False
     for v in (row.get('companies') or {}).values():
         if abs(float(v or 0)) >= 0.5:
             return False
+    if row.get('has_compare') and abs(float(row.get('consol_diff') or 0)) >= 0.5:
+        return False
     return True
 
 
@@ -1324,6 +1336,7 @@ def write_cash_worksheet_excel(result, group_name, period, out_path, hide_zero=F
         )
 
     _epilogue_row('Ⅴ. 환율변동효과',  result.get('fx_effect'))
+    _epilogue_row('환산차이(자동흡수)', result.get('fx_plug'))
     _epilogue_row('연결범위변동',     result.get('scope_change'))
     _epilogue_row('Ⅵ. 기초의현금',    result.get('cash_begin'))
     _epilogue_row('Ⅶ. 기말의현금',    result.get('cash_end'),
@@ -1354,7 +1367,9 @@ def write_cash_worksheet_excel(result, group_name, period, out_path, hide_zero=F
         ('연결정산표',  '현표비교계정.xlsx의 코드만 — 연결정산표 detail 행의 final 값'),
         ('차이',        'P. 최종 − 연결정산표 (현금정산표 vs 연결정산표 검증용)'),
         ('Ⅴ. 환율변동효과', '비-KRW 회사 환산 차액 (extractor가 Ⅶ−Ⅵ−Ⅳ로 자동 보정)'),
-        ('연결범위변동', '기말 − (기초 + 현금증감 + 환율변동) plug. 신규 편입/제외 영향'),
+        ('환산차이(자동흡수)', '기말 − (기초 + 현금증감 + 환율변동 + 연결범위변동) 차액. '
+                              '회사별 KRW 환산 단수차이 흡수 (입력 아님)'),
+        ('연결범위변동', 'CF 시트 "연결범위의 변동" 라벨 매칭. 신규 편입/제외 영향 (입력)'),
         ('Ⅵ. 기초의현금', 'CF 시트 라벨 매칭 (각사 전기 spot rate 환산 합산)'),
         ('Ⅶ. 기말의현금', 'CF 시트 라벨 매칭 (각사 당기 spot rate 환산 합산)'),
     ]

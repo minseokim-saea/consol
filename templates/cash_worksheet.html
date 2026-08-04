@@ -484,6 +484,8 @@ function renderResult(payload) {
   //   - Ⅵ 기초, Ⅶ 기말: Q만 편집 가능
   const epilogueRows = [
     { row: res.fx_effect,    label: 'Ⅴ. 환율변동효과', editL: true,  editQ: true  },
+    // 자동흡수 plug — 입력이 아니므로 L/Q 편집 불가
+    { row: res.fx_plug,      label: '환산차이(자동흡수)', editL: false, editQ: false },
     { row: res.scope_change, label: '연결범위변동',     editL: true,  editQ: true  },
     { row: res.cash_begin,   label: 'Ⅵ. 기초의현금',   editL: false, editQ: true  },
     { row: res.cash_end,     label: 'Ⅶ. 기말의현금',   editL: false, editQ: true  },
@@ -695,6 +697,7 @@ function renderValidation(j) {
           <tbody class="small">
             <tr><td>Ⅳ. 현금의 증감</td><td class="text-end">${fmt(co.net_cash)}</td></tr>
             <tr><td>＋ Ⅴ. 환율변동효과</td><td class="text-end">${fmt(co.fx_effect)}</td></tr>
+            <tr><td>＋ 환산차이(자동흡수)</td><td class="text-end">${fmt(co.fx_plug)}</td></tr>
             <tr><td>＋ 연결범위변동</td><td class="text-end">${fmt(co.scope_change)}</td></tr>
             <tr><td>＋ Ⅵ. 기초현금</td><td class="text-end">${fmt(co.cash_begin)}</td></tr>
             <tr class="fw-bold" style="border-top:2px solid #6c757d"><td>좌변 합계</td><td class="text-end">${fmt(co.lhs_sum)}</td></tr>
@@ -749,6 +752,9 @@ function rowAllZero(row, companies) {
   for (const c of companies) {
     if (Math.round(Number(co[c] || 0)) !== 0) return false;
   }
+  // P.최종이 0이어도 연결정산표 비교값이 있어 차이가 나면 숨기지 않는다
+  // (현금정산표에 안 잡힌 금액을 놓치게 되므로 반드시 보여야 하는 행)
+  if (row.has_compare && Math.round(Number(row.consol_diff || 0)) !== 0) return false;
   return true;
 }
 
