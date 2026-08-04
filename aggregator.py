@@ -38,6 +38,26 @@ def _display_code(key):
         return key.split('::', 1)[0]  # CF1: '{code}::{label}' → code
     return key
 
+
+def _split_kor(key, kor):
+    """증감내역 행의 '한글명'을 (계정명, 구분) 으로 분리.
+
+    CF1~CF4-1 증감내역 시트는 키가 '{code}::{label}', 한글명이 '{계정명} / {label}'
+    형태라 한 칸에 두 정보가 섞여 필터링이 어렵다. 키의 label 로 잘라내므로
+    계정명 자체에 '/' 가 들어 있어도 안전하다.
+    반환: (계정명, 구분) — 증감내역 행이 아니면 (원본, '')
+    """
+    kor = kor or ''
+    if not (isinstance(key, str) and '::' in key and not key.startswith('LBL::')):
+        return kor, ''
+    label = key.split('::', 1)[1]
+    suffix = f' / {label}'
+    if label and kor.endswith(suffix):
+        return kor[:-len(suffix)], label
+    if kor == label:          # 계정명이 없어 라벨만 들어간 경우
+        return '', label
+    return kor, label
+
 HDR_FILL = PatternFill('solid', start_color='1F3864')
 HDR_FONT = Font(bold=True, color='FFFFFF', name='Arial', size=11)
 DATA_FONT = Font(name='Arial', size=10)
@@ -199,8 +219,13 @@ def _write_sheet(wb, sheet_name, companies, sheet_data):
         return
     ws = wb.create_sheet(f"{sheet_name} ({SHEET_DISPLAY[sheet_name].split('(')[0].strip()})")
 
+    # 증감내역 시트(CF1~CF4-1)는 '한글명'에 '{계정명} / {구분}' 이 섞여 있어
+    # 필터링이 어렵다 → '구분' 열을 따로 둔다. (해당 행이 하나도 없으면 열 미생성)
+    has_label = any(_split_kor(k, v.get('kor'))[1] for k, v in sheet_data.items())
+
     # 헤더
-    headers = ['계정코드', '한글명', '영문명'] + list(companies) + ['합   계']
+    headers = ['계정코드', '한글명'] + (['구분'] if has_label else []) \
+              + ['영문명'] + list(companies) + ['합   계']
     for i, h in enumerate(headers, 1):
         cell = ws.cell(1, i, h)
         cell.font = HDR_FONT
@@ -208,15 +233,19 @@ def _write_sheet(wb, sheet_name, companies, sheet_data):
         cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
     total_col = len(headers)
+    first_co_col = 5 if has_label else 4    # 회사별 금액 시작 열
 
     # 데이터
     row_idx = 2
     for code, info in sheet_data.items():
+        kor_name, kor_label = _split_kor(code, info.get('kor'))
         ws.cell(row_idx, 1, _display_code(code)).font = DATA_FONT
-        ws.cell(row_idx, 2, info['kor']).font = DATA_FONT
-        ws.cell(row_idx, 3, info['eng']).font = DATA_FONT
+        ws.cell(row_idx, 2, kor_name).font = DATA_FONT
+        if has_label:
+            ws.cell(row_idx, 3, kor_label).font = DATA_FONT
+        ws.cell(row_idx, first_co_col - 1, info['eng']).font = DATA_FONT
 
-        for i, company in enumerate(companies, 4):
+        for i, company in enumerate(companies, first_co_col):
             v = info['by_company'].get(company, 0)
             cell = ws.cell(row_idx, i, v if v != 0 else None)
             cell.font = DATA_FONT
@@ -232,11 +261,17 @@ def _write_sheet(wb, sheet_name, companies, sheet_data):
     # 서식
     ws.column_dimensions['A'].width = 12
     ws.column_dimensions['B'].width = 28
-    ws.column_dimensions['C'].width = 32
-    for c in range(4, total_col + 1):
+    if has_label:
+        ws.column_dimensions['C'].width = 18   # 구분
+        ws.column_dimensions['D'].width = 32   # 영문명
+    else:
+        ws.column_dimensions['C'].width = 32   # 영문명
+    for c in range(first_co_col, total_col + 1):
         ws.column_dimensions[get_column_letter(c)].width = 18
     ws.row_dimensions[1].height = 32
-    ws.freeze_panes = 'D2'
+    ws.freeze_panes = f'{get_column_letter(first_co_col)}2'
+    # 필터를 바로 쓸 수 있도록 헤더에 자동필터 적용
+    ws.auto_filter.ref = f'A1:{get_column_letter(total_col)}{max(row_idx - 1, 1)}'
 
 
 def write_excel(agg_result, extracted_list, output_path):
