@@ -979,6 +979,22 @@ def _compute_v2(agg, adj_entries, inter_entries, companies, manual, mapping,
                       '회사별 KRW 환산·합산 과정의 단수차이가 모이는 자리 (K 합산 기준).'),
     }
 
+    # P(최종) 기준 잔차 — 수기조정·연결조정·내부거래가 서로 상계되지 않고 남은 금액.
+    # K(합산) 잔차와 성격이 달라 L(수기조정) 칸에 따로 담아 P열 항등식을 맞춘다.
+    # (금액이 0이 아니면 조정 입력을 점검해야 한다는 신호 — 화면에 흡수액을 표시)
+    p_residual = (
+        cash_end_row['final']
+        - (cash_begin_row['final'] + net_cash['final'] + fx_effect_row['final']
+           + fx_plug_row['final'] + scope_change_row['final'])
+    )
+    if p_residual:
+        fx_plug_row['manual'] += p_residual
+        fx_plug_row['final']  += p_residual
+        fx_plug_row['p_residual'] = p_residual
+        fx_plug_row['plug_note'] += (
+            f' / 조정(수기·연결조정·내부거래) 미상계 잔액 {p_residual:,.0f} 을 '
+            f'수기조정 칸으로 흡수 — 조정 입력 점검 필요.')
+
     # Ⅴ/Ⅵ/Ⅶ 라벨 행에도 fund_adj=0 부여 (UI/엑셀 컬럼 정렬용)
     for _r in (fx_effect_row, cash_begin_row, cash_end_row):
         if _r is not None:

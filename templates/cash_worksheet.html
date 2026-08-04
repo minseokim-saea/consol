@@ -338,7 +338,15 @@ function renderResult(payload) {
   //   ※ 개별 컬럼/개별 행은 0이 아니어도 무방 — 서로 상계되면 됨.
   //   ※ Ⅳ 자체는 더 이상 0 강제 안 함 (Ⅴ나 scope_change로 흡수 가능).
   const _sumAdj = (r) => ((r||{}).manual||0)+((r||{}).adj||0)+((r||{}).inter||0)+((r||{}).fund_adj||0)+((r||{}).rounding||0);
-  const adjSum = Math.round(_sumAdj(res.net_cash) + _sumAdj(res.fx_effect) + _sumAdj(res.scope_change));
+  //   ※ 환산차이(자동흡수) 행은 P열 잔차를 L 칸으로 흡수하므로 함께 더해야 정합 판정이 맞다.
+  const adjSum = Math.round(_sumAdj(res.net_cash) + _sumAdj(res.fx_effect)
+                            + _sumAdj(res.fx_plug) + _sumAdj(res.scope_change));
+  const absorbed = Math.round(Number((res.fx_plug || {}).p_residual || 0));
+  const absorbedBadge = absorbed
+    ? `<span class="badge bg-warning text-dark ms-1"
+             title="조정(수기·연결조정·내부거래)이 서로 상계되지 않아 환산차이 행의 수기조정 칸으로 흡수한 금액입니다. 조정 입력을 점검하세요.">
+         <i class="bi bi-magnet"></i> 자동흡수: ${fmt(absorbed)}
+       </span>` : '';
   const manualBalanceBadge = (adjSum === 0)
     ? `<span class="badge bg-success" title="(L+M+N+Q) × (Ⅳ현금증감 + Ⅴ환율변동 + 연결범위변동) 합 = 0 (조정 정합)">
          <i class="bi bi-check2-circle"></i> 조정 정합 (Ⅳ+Ⅴ+scope = 0)
@@ -354,7 +362,7 @@ function renderResult(payload) {
       <span class="badge bg-dark">내부거래 차분: (${payload.period}) − (${payload.prior_period||'전기없음'}) =
             전기 ${payload.prior_intercompany_count}건</span>
       ${niMatchBadge}
-      ${manualBalanceBadge}
+      ${manualBalanceBadge}${absorbedBadge}
       <span class="badge bg-primary">영업CF 최종: ${fmt(sum.final)}</span>
       <span class="badge bg-info text-dark">투자CF 최종: ${fmt((res.inv_cf||{}).final)}</span>
       <span class="badge bg-success">재무CF 최종: ${fmt((res.fin_cf||{}).final)}</span>
@@ -1005,7 +1013,8 @@ async function saveManualsAndRecompute() {
   const ncS  = _sa(res.net_cash);
   const fxS  = _sa(res.fx_effect);
   const scS  = _sa(res.scope_change);
-  const adjTotal = Math.round(ncS + fxS + scS);
+  const fpS  = _sa(res.fx_plug);   // 환산차이 행이 흡수한 잔액 포함
+  const adjTotal = Math.round(ncS + fxS + fpS + scS);
   if (adjTotal !== 0) {
     const r = (row) => row || {};
     const _byCol = (row) => ({
