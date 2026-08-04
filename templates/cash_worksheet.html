@@ -70,6 +70,10 @@ body { background:var(--surface); color:var(--text-body);
 .cf-table tr.etc-noncash td:nth-child(2) { background:#D6F0DC; }
 .cf-table tr.capital-watch td:nth-child(1),
 .cf-table tr.capital-watch td:nth-child(2) { background:#9DC5FF; }
+/* 셀 선택 표시 (클릭·방향키 이동) — 배경을 덮지 않도록 outline 사용 */
+.cf-table td.cell-sel, .cf-table th.cell-sel {
+  outline:2px solid var(--brand-700); outline-offset:-2px;
+}
 .manual-input {
   border:none; background:transparent; width:90px; text-align:right;
   font:inherit; color:inherit; padding:2px 4px;
@@ -639,6 +643,91 @@ function _copyFallback(text, resolve, reject) {
   document.body.removeChild(ta);
   ok ? resolve() : reject(new Error('copy failed'));
 }
+
+// ─── 셀 선택 · 방향키 이동 · 서식없는 복사 ────────────────────────────────
+// 셀을 클릭하면 그 셀 값이 통째로 선택돼 Ctrl+C 로 바로 복사되고, 방향키로 옆 셀로
+// 이동할 수 있다. 복사 시 text/html 을 넣지 않아 엑셀에 서식 없이 값만 붙는다.
+(function setupCellNav() {
+  const table = document.getElementById('resultTable');
+  if (!table) return;
+  let selCell = null;
+
+  function selectCell(cell) {
+    if (!cell) return;
+    if (selCell) selCell.classList.remove('cell-sel');
+    selCell = cell;
+    cell.classList.add('cell-sel');
+    const inp = cell.querySelector('input');
+    if (inp) { inp.focus(); inp.select(); return; }   // 입력칸이면 그 값을 선택
+    const sel = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  table.addEventListener('click', (e) => {
+    if (e.target.closest('button, a')) return;
+    const sel = window.getSelection();
+    // 드래그로 여러 셀을 고르는 중이면 그 선택을 유지
+    if (sel && !sel.isCollapsed && String(sel).length && !e.target.closest('input')) return;
+    const cell = e.target.closest('td, th');
+    if (!cell || !table.contains(cell)) return;
+    if (e.target.closest('input')) {          // 입력칸 클릭은 편집 우선, 표시만 갱신
+      if (selCell) selCell.classList.remove('cell-sel');
+      selCell = cell; cell.classList.add('cell-sel');
+      return;
+    }
+    selectCell(cell);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!selCell || !document.body.contains(selCell)) return;
+    const KEYS = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    if (!KEYS.includes(e.key)) return;
+    const ae = document.activeElement;
+    // 입력칸 안에서는 좌우 방향키를 커서 이동에 양보 (상하는 셀 이동)
+    const inInput = ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA');
+    if (inInput && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) return;
+
+    const tr = selCell.parentElement;
+    const cells = Array.from(tr.children);
+    const idx = cells.indexOf(selCell);
+    let target = null;
+    if (e.key === 'ArrowLeft')  target = selCell.previousElementSibling;
+    if (e.key === 'ArrowRight') target = selCell.nextElementSibling;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const rows = Array.from(table.querySelectorAll('tr'));
+      const nr = rows[rows.indexOf(tr) + (e.key === 'ArrowUp' ? -1 : 1)];
+      if (nr) target = nr.children[Math.min(idx, nr.children.length - 1)];
+    }
+    if (!target) return;
+    e.preventDefault();
+    if (inInput) ae.blur();
+    selectCell(target);
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  });
+
+  // 복사 시 서식 없이 순수 값만 (숫자는 콤마·괄호 없는 형태)
+  document.addEventListener('copy', (e) => {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    if (!table.contains(sel.anchorNode)) return;
+    const lines = [];
+    let any = false;
+    table.querySelectorAll('tr').forEach(tr => {
+      const vals = [];
+      let rowSel = false;
+      Array.from(tr.children).forEach(cell => {
+        if (sel.containsNode(cell, true)) { rowSel = true; vals.push(_cashCellText(cell)); }
+      });
+      if (rowSel) { lines.push(vals.join('\t')); any = true; }
+    });
+    if (!any) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', lines.join('\n'));
+  });
+})();
 
 function downloadExcel() {
   if (!CURRENT_GROUP_ID || !CURRENT_PERIOD) {
