@@ -937,28 +937,40 @@ def _compute_v2(agg, adj_entries, inter_entries, companies, manual, mapping,
         manuals=None,
         roundings=rounding,
     )
-    # 연결범위변동 = 기말 − (기초 + 현금증감 + 환율변동) — plug (K 합산 기반)
-    #   plug는 K 컬럼만 계산. 사용자가 L/Q 컬럼에 직접 편집해 P 컬럼 등식 잔차를 0으로 맞추는 구조.
-    #   특수 키: SCOPE_CHANGE_KEY 로 manuals/roundings dict에서 추출.
-    scope_key = SCOPE_CHANGE_KEY
-    scope_manual   = float(manual.get(scope_key, 0)   or 0)
-    scope_rounding = float(rounding.get(scope_key, 0) or 0)
-    scope_change_sum = (
-        cash_end_row['sum']
-        - (cash_begin_row['sum'] + net_cash['sum'] + fx_effect_row['sum'])
+    # 연결범위변동 — 패키지 CF 시트의 'LBL::연결범위의 변동' 라벨에서 읽는 입력 항목.
+    #   (plug 아님. 신규 편입·제외 영향은 각 사가 패키지에 기재하고, 필요하면 L/Q 로 보정)
+    scope_change_row = _label_row_from_cf(
+        cf_sheet, companies, ['연결범위'],
+        label_hint='연결범위변동',
+        manuals=manual, roundings=rounding,
     )
-    scope_change_row = {
-        'cf_code': scope_key,  # 매뉴얼 매칭용 특수 키
-        'name': '연결범위변동',
-        'companies': {c: 0.0 for c in companies},
-        'sum': scope_change_sum,
-        'manual': scope_manual, 'adj': 0.0, 'inter': 0.0, 'fund_adj': 0.0,
-        'rounding': scope_rounding,
-        'dr_adj': 0, 'cr_adj': 0, 'dr_int': 0, 'cr_int': 0,
-        'final': scope_change_sum + scope_manual + scope_rounding,
-        'is_plug': True,
-        'plug_note': '기말 − (기초 + 현금증감 + 환율변동) 차액 (K 합산 기반 plug). L/Q 편집 가능.',
-    }
+    scope_change_row['name'] = '연결범위변동'
+    scope_change_row.setdefault('fund_adj', 0.0)
+    if not scope_change_row.get('matched'):
+        # 패키지에 라벨이 없으면 수기입력 전용 행으로 유지 (특수 키로 L/Q 매칭)
+        scope_change_row['cf_code']  = SCOPE_CHANGE_KEY
+        scope_change_row['manual']   = float(manual.get(SCOPE_CHANGE_KEY, 0) or 0)
+        scope_change_row['rounding'] = float(rounding.get(SCOPE_CHANGE_KEY, 0) or 0)
+        scope_change_row['final']    = (scope_change_row['sum']
+                                        + scope_change_row['manual']
+                                        + scope_change_row['rounding'])
+
+    # 항등식 잔차는 Ⅴ.환율변동효과(해외사업환산손익)가 흡수한다.
+    #   기초 + 현금증감 + 환율변동 + 연결범위변동 = 기말
+    #   회사별 KRW 환산·합산 과정의 단수차이가 여기로 모인다. (BS에서 대차 잔단을
+    #   3400104 해외사업환산손익으로 흡수하는 것과 같은 원리)
+    fx_plug = (
+        cash_end_row['sum']
+        - (cash_begin_row['sum'] + net_cash['sum']
+           + fx_effect_row['sum'] + scope_change_row['sum'])
+    )
+    if fx_plug:
+        fx_effect_row['sum']   += fx_plug
+        fx_effect_row['final'] += fx_plug
+        fx_effect_row['fx_plug'] = fx_plug
+        fx_effect_row['plug_note'] = (
+            f'기말 − (기초 + 현금증감 + 연결범위변동) 차액 {fx_plug:,.0f} 흡수 '
+            f'(K 합산 기준). 회사별 환산 단수차이.')
 
     # Ⅴ/Ⅵ/Ⅶ 라벨 행에도 fund_adj=0 부여 (UI/엑셀 컬럼 정렬용)
     for _r in (fx_effect_row, cash_begin_row, cash_end_row):
