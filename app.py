@@ -428,11 +428,12 @@ def _ensure_permission_catalog():
         ('affiliate.performance', '계열사별 실적 조회', 'consol.compute',
          {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, '연결정산'),
         # 보고용 재무제표: 자회사담당자만 제외하고 전 그룹 조회 허용
+        # 보고용 재무제표 — 검증 중이라 우선 시스템관리자만.
+        # 공개할 때는 권한그룹 관리에서 해당 그룹을 켜면 된다(코드 수정 불필요).
         ('report.fs', '보고용 재무제표 조회', 'affiliate.performance',
-         {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, '연결정산'),
-        # 보고용 재무제표 편집(계정 추가·수기조정) — 담당자만
+         {'system_admin'}, '연결정산'),
         ('report.edit', '보고용 재무제표 계정추가·수기조정', 'report.fs',
-         {'system_admin', 'finance_lead'}, '연결정산'),
+         {'system_admin'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
