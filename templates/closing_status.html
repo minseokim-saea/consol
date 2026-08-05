@@ -43,8 +43,14 @@ body {
   background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23c7d4ef' stroke-width='3'><path d='M6 9l6 6 6-6'/></svg>");
   background-repeat:no-repeat; background-position:right 10px center;
 }
-.tb-select:disabled { opacity:.85; cursor:default; }
+.tb-select:disabled { opacity:.55; cursor:not-allowed; background-image:none; padding-right:12px; }
 .tb-select option { color:#0f1b2d; }
+/* 변경 권한이 없을 때 — 선택 상자가 아니라 값만 보여주는 읽기 전용 표시 */
+.tb-readonly {
+  display:inline-block; padding:8px 12px; border-radius:9px; font-size:13px; font-weight:700;
+  color:#dbe5fb; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.14);
+  cursor:default;
+}
 
 /* KPI 카드 행 */
 .kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-top:14px; }
@@ -115,11 +121,19 @@ body {
     </div>
     <div class="tb-right">
       <span class="tb-label"><i class="bi bi-calendar3"></i> 현재 결산기간</span>
-      <select id="periodSelect" class="tb-select" {% if not perms.years_manage %}disabled title="관리자만 변경할 수 있습니다"{% else %}title="결산기간을 변경하면 전체에 반영됩니다"{% endif %}>
+      {% if perms.years_manage %}
+      <select id="periodSelect" class="tb-select" title="결산기간을 변경하면 전체에 반영됩니다">
         {% for y in years %}
         <option value="{{ y }}" {% if y == current_period %}selected{% endif %}>{{ y }}{% if y in locked_years %} · 마감{% endif %}</option>
         {% endfor %}
       </select>
+      {% else %}
+      {# 변경 권한이 없으면 선택 상자가 아니라 '읽기 전용 값'으로 보여준다.
+         disabled select 는 화살표가 그대로 보여 고를 수 있는 것처럼 오해를 준다. #}
+      <span class="tb-readonly" title="결산기간 변경은 관리자만 가능합니다">
+        {{ current_period or '미설정' }}{% if current_period in locked_years %} · 마감{% endif %}
+      </span>
+      {% endif %}
     </div>
   </div>
 
