@@ -1,5 +1,5 @@
 {
- "version": "2026-08-05 16:49",
+ "version": "2026-08-05 17:55",
  "source": "공시용.xlsx",
  "note": "보고 계정 ← 연결정산표(BS/PL) · 현금정산표(CF) 계정코드 매핑",
  "titles": {
@@ -177,7 +177,7 @@
      "row": 9,
      "level": 0,
      "name": "자산",
-     "kind": "subtotal",
+     "kind": "header",
      "codes": []
     },
     {
@@ -1039,7 +1039,7 @@
      "row": 108,
      "level": 0,
      "name": "부채",
-     "kind": "subtotal",
+     "kind": "header",
      "codes": []
     },
     {
@@ -1459,7 +1459,7 @@
      "row": 155,
      "level": 0,
      "name": "자본",
-     "kind": "subtotal",
+     "kind": "header",
      "codes": []
     },
     {
@@ -1687,20 +1687,6 @@
      "level": 0,
      "name": "부채 및 자본합계",
      "kind": "subtotal",
-     "codes": []
-    },
-    {
-     "row": 187,
-     "level": 2,
-     "name": "차입금",
-     "kind": "detail",
-     "codes": []
-    },
-    {
-     "row": 188,
-     "level": 2,
-     "name": "부채비율",
-     "kind": "detail",
      "codes": []
     }
    ]

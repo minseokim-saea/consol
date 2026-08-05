@@ -52,3 +52,6 @@ python/
 # 앱 기동 시 콘솔 출력 임시 로그
 _startup_log.txt
 .claude/
+
+# 보고용 재무제표 — 화면에서 추가한 계정/수기조정 (서버별 보존)
+report_overrides.json

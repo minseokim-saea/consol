@@ -47,6 +47,18 @@ body { background:var(--surface); color:var(--text-body);
 .fs-table tr.sub > td { background:var(--brand-050); }
 .fs-table tr.total > td { border-top:1px solid var(--rule); border-bottom:2px double var(--rule); font-weight:800; }
 .fs-table td.cell-sel { outline:2px solid var(--brand-700); outline-offset:-2px; }
+/* 편집 모드 */
+.fs-table td.base { color:var(--text-muted); }
+.fs-table td.manual { padding:1px 6px; }
+.man-input { width:100%; max-width:140px; text-align:right; font-size:.82rem;
+             padding:2px 6px; border:1px solid var(--border); border-radius:4px;
+             background:#FFFBEA; color:#1a202c; }
+@media (prefers-color-scheme: dark) { .man-input { background:#3a3320; color:#f0e6c8; } }
+.fs-table tr.added > td:first-child { color:var(--brand-700); }
+.added-tag { font-size:.68rem; font-weight:700; padding:1px 6px; border-radius:999px;
+             background:var(--brand-050); color:var(--brand-900); margin-left:6px; }
+.btn-del { border:none; background:none; color:#b4232e; font-weight:700; cursor:pointer;
+           padding:0 4px; line-height:1; }
 .pill { font-size:.78rem; padding:3px 10px; border-radius:999px; background:var(--brand-050);
         color:var(--brand-900); font-weight:700; }
 .tabs .btn { min-width:120px; }
@@ -78,7 +90,19 @@ body { background:var(--surface); color:var(--text-body);
         <button class="btn btn-outline-primary" data-stmt="CF" onclick="setStmt('CF')">현금흐름표</button>
       </div>
 
-      <div class="ms-auto d-flex gap-2">
+      <div class="ms-auto d-flex gap-2 align-items-center">
+        <div id="editBox" class="d-none d-flex gap-2 align-items-center">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="editToggle" onchange="setEdit(this.checked)">
+            <label class="form-check-label small fw-bold" for="editToggle">편집</label>
+          </div>
+          <button id="addBtn" class="btn btn-outline-primary btn-sm d-none" onclick="openAdd()">
+            <i class="bi bi-plus-circle"></i> 계정 추가
+          </button>
+          <button id="saveBtn" class="btn btn-warning btn-sm d-none" onclick="saveManuals()">
+            <i class="bi bi-floppy"></i> 수기조정 저장
+          </button>
+        </div>
         <button class="btn btn-primary btn-sm" onclick="copyTable(this)">
           <i class="bi bi-clipboard"></i> 전체 복사
         </button>
@@ -90,6 +114,51 @@ body { background:var(--surface); color:var(--text-body);
   </div>
 
   <div id="notice"></div>
+
+  <!-- 계정 추가 모달 -->
+  <div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--brand-900); color:#fff;">
+          <h5 class="modal-title">보고 계정 추가</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">
+            기타 계정에 묶여 있던 항목을 별도 줄로 뽑을 때 사용합니다.
+            선택한 계정은 원래 있던 줄에서 자동으로 빠지므로 이중계상되지 않습니다.
+          </p>
+          <div class="row g-2 mb-3">
+            <div class="col-md-6">
+              <label class="form-label small fw-bold mb-1">계정명</label>
+              <input type="text" id="newName" class="form-control form-control-sm" placeholder="예: 국고보조금">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small fw-bold mb-1">삽입 위치 (이 줄 바로 아래)</label>
+              <select id="newAfter" class="form-select form-select-sm"></select>
+            </div>
+          </div>
+          <label class="form-label small fw-bold mb-1">가져올 계정 선택</label>
+          <input type="text" id="acctSearch" class="form-control form-control-sm mb-2"
+                 placeholder="계정명 또는 코드로 검색" oninput="renderAccts()">
+          <div style="max-height:44vh; overflow:auto; border:1px solid var(--border); border-radius:6px;">
+            <table class="table table-sm table-hover mb-0" id="acctTable">
+              <thead style="position:sticky; top:0; background:var(--brand-900); color:#fff;">
+                <tr><th style="width:36px"></th><th>코드</th><th>계정명</th>
+                    <th class="text-end">당기금액</th><th>현재 위치</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <span id="addMsg" class="me-auto small"></span>
+          <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          <button class="btn btn-primary" onclick="submitAdd()">추가</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div class="card section-card">
     <div class="card-body">
@@ -104,6 +173,16 @@ body { background:var(--surface); color:var(--text-body);
 <script>
 let STMT = 'BS';
 let GROUPS = [];
+let EDIT = false;      // 편집 모드
+let DATA = null;       // 마지막 응답
+let ACCTS = [];        // 계정 추가 모달용 목록
+
+function setEdit(on){
+  EDIT = !!on;
+  document.getElementById('addBtn').classList.toggle('d-none', !EDIT);
+  document.getElementById('saveBtn').classList.toggle('d-none', !EDIT);
+  if (DATA) render(DATA);
+}
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function period(){return document.getElementById('periodSelect').value;}
@@ -151,35 +230,154 @@ async function load(){
 }
 
 function render(d){
+  DATA = d;
+  document.getElementById('editBox').classList.toggle('d-none', !d.can_edit);
   const rows = d.rows || [];
   const body = rows.map(r => {
-    const cls = ['lv' + r.level, r.kind === 'subtotal' ? 'sub' : ''];
+    const cls = ['lv' + r.level, (r.kind === 'subtotal' || r.kind === 'header') ? 'sub' : ''];
     if (/(총계|합계|당기순이익|기말의현금)/.test(r.name) && r.kind === 'subtotal') cls.push('total');
+    if (r.added_id) cls.push('added');
+    const nameCell = r.added_id
+      ? `${esc(r.name)} <span class="added-tag">추가</span>
+         <button class="btn-del" title="추가한 계정 삭제" onclick="delLine('${r.added_id}')">×</button>`
+      : esc(r.name);
+    const isHdr = r.kind === 'header';
+    const editCells = EDIT ? `
+      <td class="num base">${isHdr ? '' : fmt(r.base)}</td>
+      <td class="num manual">${r.kind === 'detail'
+        ? `<input type="number" class="man-input" data-row="${r.row}" value="${r.manual || ''}"
+                  placeholder="0" title="${esc(r.memo||'')}">`
+        : ''}</td>` : '';
     return `<tr class="${cls.join(' ')}">
-      <td>${esc(r.name)}</td>
-      <td class="num" data-val="${Math.round(r.cur||0)}">${fmt(r.cur)}</td>
-      <td class="num" data-val="${Math.round(r.pri||0)}">${fmt(r.pri)}</td>
+      <td>${nameCell}</td>
+      ${editCells}
+      <td class="num" data-val="${isHdr ? '' : Math.round(r.cur||0)}">${isHdr ? '' : fmt(r.cur)}</td>
+      <td class="num" data-val="${isHdr ? '' : Math.round(r.pri||0)}">${isHdr ? '' : fmt(r.pri)}</td>
     </tr>`;
   }).join('');
 
+  const editHead = EDIT ? '<th>산출값</th><th>수기조정</th>' : '';
   document.getElementById('area').innerHTML = `
     <div class="fs-title">${esc(d.title)}</div>
     <div class="fs-sub">당기 : ${esc(d.cur_label)}</div>
     <div class="fs-sub">전기 : ${esc(d.pri_label)}</div>
     <div class="fs-entity"><span>${esc(d.entity)}</span><span class="fs-unit">(단위 : 원)</span></div>
     <table class="fs-table" id="fsTable">
-      <thead><tr><th style="width:46%">과&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;목</th>
-        <th>당기</th><th>전기</th></tr></thead>
+      <thead><tr><th style="width:${EDIT ? 34 : 46}%">과&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;목</th>
+        ${editHead}<th>당기</th><th>전기</th></tr></thead>
       <tbody>${body}</tbody>
     </table>`;
 
-  if (!d.prior_period){
-    document.getElementById('notice').innerHTML =
-      `<div class="alert alert-warning py-2 px-3 small mb-3">
-         <i class="bi bi-exclamation-triangle-fill me-1"></i>
-         전기(전년 4분기) 자료를 불러오지 못해 전기 열이 0으로 표시됩니다.
-       </div>`;
+  // ── 검산 표시 ────────────────────────────────────────────
+  const V = n => { const r = rows.find(x => x.name === n); return r ? r.cur : 0; };
+  const notes = [];
+  if (d.stmt === 'BS'){
+    const diff = Math.round(V('자산총계') - V('부채총계') - V('자본총계'));
+    notes.push(diff === 0
+      ? {ok:true,  t:'대차 일치 (자산 = 부채 + 자본)'}
+      : {ok:false, t:`대차 불일치 : 자산 − (부채+자본) = ${fmt(diff)}`});
+  } else if (d.stmt === 'CF'){
+    const lhs = V('Ⅳ. 현금의 증가(감소) (Ⅰ+Ⅱ+Ⅲ)') + V('Ⅴ. 환율변동효과')
+              + V('연결범위변동') + V('Ⅵ. 기초의현금');
+    const diff = Math.round(lhs - V('Ⅶ. 기말의현금'));
+    notes.push(diff === 0
+      ? {ok:true,  t:'현금흐름 항등식 일치 (Ⅳ+Ⅴ+연결범위변동+Ⅵ = Ⅶ)'}
+      : {ok:false, t:`현금흐름 항등식 불일치 : 차이 ${fmt(diff)}`});
   }
+  if (Math.round(d.manual_total || 0) !== 0){
+    notes.push({ok:null, t:`수기조정 반영액 ${fmt(d.manual_total)} — 조정 전 금액은 편집 모드의 [산출값] 열에서 확인하세요.`});
+  }
+  if (!d.prior_period){
+    notes.push({ok:false, t:'전기(전년 4분기) 자료를 불러오지 못해 전기 열이 0으로 표시됩니다.'});
+  }
+  document.getElementById('notice').innerHTML = notes.map(n => {
+    const cls = n.ok === true ? 'alert-success' : n.ok === false ? 'alert-danger' : 'alert-warning';
+    const ico = n.ok === true ? 'check-circle-fill' : n.ok === false ? 'exclamation-triangle-fill' : 'pencil-fill';
+    return `<div class="alert ${cls} py-2 px-3 small mb-2">
+              <i class="bi bi-${ico} me-1"></i>${esc(n.t)}</div>`;
+  }).join('');
+}
+
+// ── 수기조정 저장 ────────────────────────────────────────────
+async function saveManuals(){
+  const edits = {};
+  document.querySelectorAll('.man-input').forEach(i => {
+    const v = i.value.trim();
+    edits[i.dataset.row] = { amount: v === '' ? 0 : Number(v), memo: '' };
+  });
+  try{
+    const r = await fetch('/report-fs/manual', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({group_id: groupId(), year: period(), stmt: STMT, edits})
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || '저장 실패');
+    load();
+  }catch(e){ alert('저장 실패: ' + e.message); }
+}
+
+// ── 계정 추가 ────────────────────────────────────────────────
+async function openAdd(){
+  const sel = document.getElementById('newAfter');
+  sel.innerHTML = (DATA.rows || []).map(r =>
+    `<option value="${r.row}">${'　'.repeat(r.level)}${esc(r.name)}</option>`).join('');
+  document.getElementById('newName').value = '';
+  document.getElementById('acctSearch').value = '';
+  document.getElementById('addMsg').textContent = '계정 목록 불러오는 중…';
+  new bootstrap.Modal(document.getElementById('addModal')).show();
+  try{
+    const r = await fetch(`/report-fs/accounts?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}&stmt=${STMT}`);
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || '조회 실패');
+    ACCTS = j.accounts || [];
+    document.getElementById('addMsg').textContent = '';
+    renderAccts();
+  }catch(e){ document.getElementById('addMsg').innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
+}
+
+function renderAccts(){
+  const q = (document.getElementById('acctSearch').value || '').trim().toLowerCase();
+  const list = ACCTS.filter(a => !q || a.code.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q));
+  document.querySelector('#acctTable tbody').innerHTML = list.slice(0, 400).map(a => `
+    <tr>
+      <td><input type="checkbox" class="acct-chk" value="${a.code}"></td>
+      <td class="small">${esc(a.code)}</td>
+      <td class="small">${esc(a.name)}</td>
+      <td class="small text-end">${fmt(a.amount)}</td>
+      <td class="small text-muted">${esc(a.where || '—')}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="text-muted small p-3">검색 결과 없음</td></tr>';
+}
+
+async function submitAdd(){
+  const name = document.getElementById('newName').value.trim();
+  const after = document.getElementById('newAfter').value;
+  const codes = Array.from(document.querySelectorAll('.acct-chk:checked')).map(c => c.value);
+  const msg = document.getElementById('addMsg');
+  if (!name){ msg.innerHTML = '<span class="text-danger">계정명을 입력하세요.</span>'; return; }
+  if (!codes.length){ msg.innerHTML = '<span class="text-danger">가져올 계정을 1개 이상 선택하세요.</span>'; return; }
+  try{
+    const r = await fetch('/report-fs/line', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({stmt: STMT, after_row: after, name, level: 2, codes})
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || '추가 실패');
+    bootstrap.Modal.getInstance(document.getElementById('addModal')).hide();
+    load();
+  }catch(e){ msg.innerHTML = `<span class="text-danger">${esc(e.message)}</span>`; }
+}
+
+async function delLine(id){
+  if (!confirm('추가한 보고 계정을 삭제할까요?\n해당 계정들은 원래 있던 줄로 돌아갑니다.')) return;
+  try{
+    const r = await fetch('/report-fs/line', {
+      method:'DELETE', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({stmt: STMT, id})
+    });
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || '삭제 실패');
+    load();
+  }catch(e){ alert('삭제 실패: ' + e.message); }
 }
 
 // ── 셀 선택 · 방향키 · 서식없는 복사 (연결정산표와 동일) ─────────

@@ -317,6 +317,7 @@ def _inject_sidebar_perms():
             'consol_journal':  _has_permission(uname, 'consol.journal'),
             'affiliate_perf':  _has_permission(uname, 'affiliate.performance'),
             'report_fs':       _has_permission(uname, 'report.fs'),
+            'report_edit':     _has_permission(uname, 'report.edit'),
             'files_upload':    _has_permission(uname, 'files.upload'),
             'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
@@ -429,6 +430,9 @@ def _ensure_permission_catalog():
         # 보고용 재무제표: 자회사담당자만 제외하고 전 그룹 조회 허용
         ('report.fs', '보고용 재무제표 조회', 'affiliate.performance',
          {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, '연결정산'),
+        # 보고용 재무제표 편집(계정 추가·수기조정) — 담당자만
+        ('report.edit', '보고용 재무제표 계정추가·수기조정', 'report.fs',
+         {'system_admin', 'finance_lead'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
@@ -8009,6 +8013,7 @@ def _sidebar_perms(uname):
         'consol_journal':   _has_permission(uname, 'consol.journal'),
         'affiliate_perf':   _has_permission(uname, 'affiliate.performance'),
         'report_fs':        _has_permission(uname, 'report.fs'),
+        'report_edit':      _has_permission(uname, 'report.edit'),
         'files_upload':     _has_permission(uname, 'files.upload'),
         'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
@@ -11546,6 +11551,63 @@ def _load_report_mapping():
     return data
 
 
+# 화면에서 추가한 보고 계정 · 수기조정 저장소.
+# report_mapping.json 은 git 으로 배포되므로 서버에서 고친 내용은 여기에 따로 둔다.
+REPORT_OVERRIDES_PATH = Path('report_overrides.json')
+_report_ovr_lock = threading.Lock()
+
+
+def _load_report_overrides():
+    if not REPORT_OVERRIDES_PATH.exists():
+        return {'lines': {}, 'manuals': {}}
+    try:
+        with open(REPORT_OVERRIDES_PATH, encoding='utf-8') as f:
+            d = json.load(f) or {}
+    except (json.JSONDecodeError, OSError):
+        return {'lines': {}, 'manuals': {}}
+    d.setdefault('lines', {})
+    d.setdefault('manuals', {})
+    return d
+
+
+def _save_report_overrides(data):
+    with _report_ovr_lock:
+        _atomic_write_json(REPORT_OVERRIDES_PATH, data)
+
+
+def _report_manual_key(group_id, period, stmt):
+    return f'{group_id}|{period}|{stmt}'
+
+
+def _report_merged_lines(mapping, overrides, stmt):
+    """기본 매핑 + 화면에서 추가한 계정을 합친 라인 목록.
+
+    추가 계정이 가져간 코드는 원래 있던 라인에서 빼서 이중계상을 막는다
+    (예: '기타…' 에 묶여 있던 계정을 별도 줄로 뽑아내는 경우).
+    """
+    base = [dict(l) for l in (mapping.get('statements', {}).get(stmt) or {}).get('lines') or []]
+    added = (overrides.get('lines') or {}).get(stmt) or []
+    if not added:
+        return base
+    claimed = set()
+    for a in added:
+        claimed |= set(a.get('codes') or [])
+    if claimed:
+        for l in base:
+            if l.get('codes'):
+                l['codes'] = [c for c in l['codes'] if c not in claimed]
+    for i, a in enumerate(added, 1):
+        after = float(a.get('after_row') or 0)
+        base.append({'row': after + i / 1000.0,
+                     'level': int(a.get('level') or 2),
+                     'name': a.get('name') or '(이름 없음)',
+                     'kind': 'detail',
+                     'codes': list(a.get('codes') or []),
+                     'added_id': a.get('id')})
+    base.sort(key=lambda x: float(x['row']))
+    return base
+
+
 def _report_period_labels(period):
     """'2026-2Q' → (당기 라벨, 전기 라벨, 전기 결산기간)"""
     m = re.match(r'^(\d{4})-(\d)Q$', str(period or ''))
@@ -11561,9 +11623,15 @@ def _report_period_labels(period):
     return {'bs': (cur_bs, pri_bs), 'pl': (cur_pl, pri_pl)}, prior, prior
 
 
-def _report_values(ctx, cash, stmt, mapping):
-    """보고서 한 종류의 라인별 (당기, 전기) 금액 산출."""
-    lines = (mapping.get('statements', {}).get(stmt) or {}).get('lines') or []
+def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None):
+    """보고서 한 종류의 라인별 (당기, 전기) 금액 산출.
+
+    lines   : 병합된 라인 목록 (기본 매핑 + 추가 계정). 없으면 기본 매핑 사용.
+    manuals : {라인키(str): {'amount':n,'memo':..}} — 상세 라인 당기금액에 가산.
+    """
+    if lines is None:
+        lines = (mapping.get('statements', {}).get(stmt) or {}).get('lines') or []
+    manuals = manuals or {}
 
     # 코드 → (당기, 전기)
     src = {}
@@ -11596,6 +11664,9 @@ def _report_values(ctx, cash, stmt, mapping):
         for c in l.get('codes') or []:
             a, b = src.get(c, (0.0, 0.0))
             cur += a; pri += b
+        man = (manuals.get(str(l['row'])) or {}).get('amount')
+        if man:
+            cur += float(man)
         vals[l['row']] = [cur, pri]
 
     # ①-2 순증감(net) 표시 — 순액이 +면 유입 줄, −면 유출 줄에 넣고 반대쪽은 0.
@@ -11695,8 +11766,13 @@ def _report_values(ctx, cash, stmt, mapping):
     out = []
     for l in lines:
         v = vals.get(l['row'], [0.0, 0.0])
+        mrec = manuals.get(str(l['row'])) or {}
+        man = float(mrec.get('amount') or 0)
         out.append({'row': l['row'], 'level': l['level'], 'name': l['name'],
                     'kind': l['kind'], 'codes': l.get('codes') or [],
+                    'added_id': l.get('added_id'),
+                    'manual': man, 'memo': mrec.get('memo') or '',
+                    'base': v[0] - man,          # 수기조정 전 산출값
                     'cur': v[0], 'pri': v[1]})
     return out
 
@@ -11725,7 +11801,10 @@ def _compute_report_fs(group_id, period, stmt):
             prior_period = None
 
     cash = _make_cash_result(ctx, period) if stmt == 'CF' else {}
-    rows = _report_values(ctx, cash, stmt, mapping)
+    ovr = _load_report_overrides()
+    lines = _report_merged_lines(mapping, ovr, stmt)
+    manuals = (ovr.get('manuals') or {}).get(_report_manual_key(group_id, period, stmt)) or {}
+    rows = _report_values(ctx, cash, stmt, mapping, lines=lines, manuals=manuals)
 
     labels, _p, _pp = _report_period_labels(period)
     lab = labels['bs'] if stmt == 'BS' else labels['pl']
@@ -11737,6 +11816,8 @@ def _compute_report_fs(group_id, period, stmt):
         'entity': entity,
         'cur_label': lab[0], 'pri_label': lab[1],
         'rows': rows,
+        'can_edit': _has_permission(session.get('username'), 'report.edit'),
+        'manual_total': sum(r['manual'] for r in rows if r['kind'] == 'detail'),
     }
 
 
@@ -11771,6 +11852,145 @@ def report_fs_data():
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         return _json_error(e)
+
+
+@app.route('/report-fs/manual', methods=['POST'])
+@login_required
+@require_permission('report.edit')
+def report_fs_manual_save():
+    """수기조정 저장. body: {group_id, year, stmt, edits:{라인키: {amount, memo}}}"""
+    d = request.get_json(silent=True) or {}
+    gid = str(d.get('group_id') or '').strip()
+    period = str(d.get('year') or '').strip()
+    stmt = str(d.get('stmt') or '').strip().upper()
+    edits = d.get('edits')
+    if not _valid_year(period) or stmt not in ('BS', 'PL', 'CF'):
+        return jsonify({'error': '잘못된 요청입니다.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    if _is_locked(period):
+        return jsonify({'error': f'{period} 결산기간은 마감되어 수정할 수 없습니다. '
+                                 '상단 결산기간을 확인하세요.'}), 403
+    if not isinstance(edits, dict):
+        return jsonify({'error': 'edits 형식 오류'}), 400
+
+    ovr = _load_report_overrides()
+    key = _report_manual_key(gid, period, stmt)
+    cur = (ovr.setdefault('manuals', {}).get(key) or {})
+    for k, v in edits.items():
+        try:
+            amt = float((v or {}).get('amount') or 0)
+        except (TypeError, ValueError):
+            amt = 0.0
+        memo = str((v or {}).get('memo') or '').strip()
+        if amt == 0 and not memo:
+            cur.pop(str(k), None)
+        else:
+            cur[str(k)] = {'amount': amt, 'memo': memo,
+                           'by': session.get('username'),
+                           'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    if cur:
+        ovr['manuals'][key] = cur
+    else:
+        ovr['manuals'].pop(key, None)
+    _save_report_overrides(ovr)
+    return jsonify({'ok': True, 'count': len(cur)})
+
+
+@app.route('/report-fs/line', methods=['POST', 'DELETE'])
+@login_required
+@require_permission('report.edit')
+def report_fs_line_edit():
+    """보고 계정 추가/삭제.
+    POST   {stmt, after_row, name, level, codes[]}
+    DELETE {stmt, id}
+    """
+    d = request.get_json(silent=True) or {}
+    stmt = str(d.get('stmt') or '').strip().upper()
+    if stmt not in ('BS', 'PL', 'CF'):
+        return jsonify({'error': 'BS/PL/CF 중에서 선택하세요.'}), 400
+    ovr = _load_report_overrides()
+    arr = ovr.setdefault('lines', {}).setdefault(stmt, [])
+
+    if request.method == 'DELETE':
+        lid = str(d.get('id') or '')
+        n0 = len(arr)
+        ovr['lines'][stmt] = [a for a in arr if str(a.get('id')) != lid]
+        if len(ovr['lines'][stmt]) == n0:
+            return jsonify({'error': '해당 계정을 찾을 수 없습니다.'}), 404
+        _save_report_overrides(ovr)
+        return jsonify({'ok': True})
+
+    name = str(d.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': '계정명을 입력하세요.'}), 400
+    codes = [str(c).strip() for c in (d.get('codes') or []) if str(c).strip()]
+    if not codes:
+        return jsonify({'error': '연결정산표(또는 현금정산표) 계정코드를 1개 이상 지정하세요.'}), 400
+    try:
+        after = float(d.get('after_row'))
+    except (TypeError, ValueError):
+        return jsonify({'error': '삽입 위치가 올바르지 않습니다.'}), 400
+
+    # 같은 코드를 두 번 뽑아 쓰지 않도록 방지
+    for a in arr:
+        dup = set(a.get('codes') or []) & set(codes)
+        if dup:
+            return jsonify({'error': f'이미 「{a.get("name")}」 에서 사용 중인 코드입니다: '
+                                     + ', '.join(sorted(dup))}), 400
+    arr.append({'id': uuid.uuid4().hex[:8], 'after_row': after, 'name': name,
+                'level': int(d.get('level') or 2), 'codes': codes,
+                'by': session.get('username'),
+                'at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})
+    _save_report_overrides(ovr)
+    return jsonify({'ok': True, 'count': len(arr)})
+
+
+@app.route('/report-fs/accounts')
+@login_required
+@require_permission('report.edit')
+def report_fs_accounts():
+    """계정 추가 화면용 — 선택 가능한 원장 계정 목록(현재 매핑 위치 포함)."""
+    gid = (request.args.get('group_id') or '').strip()
+    period = (request.args.get('year') or '').strip()
+    stmt = (request.args.get('stmt') or 'BS').strip().upper()
+    if not _valid_year(period) or stmt not in ('BS', 'PL', 'CF'):
+        return jsonify({'error': '잘못된 요청입니다.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    try:
+        ctx = _compute_group_internal(gid, period)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+    mapping = _load_report_mapping() or {}
+    ovr = _load_report_overrides()
+    lines = _report_merged_lines(mapping, ovr, stmt)
+    where = {}
+    for l in lines:
+        for c in l.get('codes') or []:
+            where[c] = l['name']
+
+    items = []
+    if stmt == 'CF':
+        cash = _make_cash_result(ctx, period)
+        for sec in (cash.get('sections') or []):
+            for r in (sec.get('rows') or []):
+                c = str(r.get('cf_code') or '')
+                if c:
+                    items.append({'code': c, 'name': r.get('name') or '',
+                                  'amount': float(r.get('final') or 0),
+                                  'where': where.get(c, '')})
+    else:
+        for r in (ctx.get('result') or {}).get('rows') or []:
+            if r.get('kind') != 'detail':
+                continue
+            c = str(r.get('code') or '')
+            if c:
+                items.append({'code': c, 'name': r.get('name') or '',
+                              'amount': float(r.get('final') or 0),
+                              'where': where.get(c, '')})
+    return jsonify({'accounts': items})
 
 
 @app.route('/report-fs/excel')
@@ -11810,12 +12030,13 @@ def report_fs_excel():
     for row in d['rows']:
         indent = '    ' * int(row['level'])
         c = ws.cell(rr, 2, indent + row['name'])
-        c.font = _F(bold=(row['kind'] == 'subtotal'), size=10, name='맑은 고딕')
+        bold = row['kind'] in ('subtotal', 'header')
+        c.font = _F(bold=bold, size=10, name='맑은 고딕')
         for col, key in ((4, 'cur'), (5, 'pri')):
-            v = row[key]
+            v = 0 if row['kind'] == 'header' else row[key]
             cc = ws.cell(rr, col, v if abs(v) >= 0.5 else None)
-            cc.number_format = '#,##0;(#,##0);"-"'
-            cc.font = _F(bold=(row['kind'] == 'subtotal'), size=10, name='맑은 고딕')
+            cc.number_format = '#,##0;(#,##0);"-"' if row['kind'] != 'header' else 'General'
+            cc.font = _F(bold=bold, size=10, name='맑은 고딕')
         rr += 1
     ws.column_dimensions['B'].width = 44
     ws.column_dimensions['C'].width = 2
