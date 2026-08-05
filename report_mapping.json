@@ -1,0 +1,4434 @@
+{
+ "version": "2026-08-05 16:49",
+ "source": "공시용.xlsx",
+ "note": "보고 계정 ← 연결정산표(BS/PL) · 현금정산표(CF) 계정코드 매핑",
+ "titles": {
+  "BS": "연 결 재 무 상 태 표",
+  "PL": "연 결 손 익 계 산 서",
+  "CF": "연 결 현 금 흐 름 표"
+ },
+ "entity_names": {
+  "글로벌세아": "글로벌세아주식회사와 그 종속기업"
+ },
+ "formulas": {
+  "BS": {
+   "자산총계": [
+    [
+     "+",
+     "Ⅰ.유동자산"
+    ],
+    [
+     "+",
+     "Ⅱ.비유동자산"
+    ]
+   ],
+   "부채총계": [
+    [
+     "+",
+     "Ⅰ.유동부채"
+    ],
+    [
+     "+",
+     "Ⅱ.비유동부채"
+    ]
+   ],
+   "지배주주지분": [
+    [
+     "+",
+     "Ⅰ.자본금"
+    ],
+    [
+     "+",
+     "Ⅱ.자본잉여금"
+    ],
+    [
+     "+",
+     "Ⅲ.자본조정"
+    ],
+    [
+     "+",
+     "Ⅳ.기타포괄손익누계액"
+    ],
+    [
+     "+",
+     "Ⅴ.이익잉여금"
+    ]
+   ],
+   "자본총계": [
+    [
+     "+",
+     "지배주주지분"
+    ],
+    [
+     "+",
+     "비지배지분"
+    ]
+   ],
+   "부채 및 자본합계": [
+    [
+     "+",
+     "부채총계"
+    ],
+    [
+     "+",
+     "자본총계"
+    ]
+   ]
+  },
+  "PL": {
+   "Ⅲ.매출총이익": [
+    [
+     "+",
+     "Ⅰ.매출액"
+    ],
+    [
+     "-",
+     "Ⅱ.매출원가"
+    ]
+   ],
+   "Ⅴ.영업이익": [
+    [
+     "+",
+     "Ⅲ.매출총이익"
+    ],
+    [
+     "-",
+     "Ⅳ.판매관리비"
+    ]
+   ],
+   "Ⅷ.법인세비용차감전순이익": [
+    [
+     "+",
+     "Ⅴ.영업이익"
+    ],
+    [
+     "+",
+     "Ⅵ.영업외수익"
+    ],
+    [
+     "-",
+     "Ⅶ.영업외비용"
+    ]
+   ],
+   "Ⅹ.계속사업이익": [
+    [
+     "+",
+     "Ⅷ.법인세비용차감전순이익"
+    ],
+    [
+     "-",
+     "Ⅸ.법인세비용"
+    ]
+   ],
+   "XII.당기순이익": [
+    [
+     "+",
+     "Ⅹ.계속사업이익"
+    ],
+    [
+     "+",
+     "XI.중단사업이익"
+    ]
+   ]
+  },
+  "CF": {
+   "Ⅳ. 현금의 증가(감소) (Ⅰ+Ⅱ+Ⅲ)": [
+    [
+     "+",
+     "Ⅰ.영업활동으로 인한 현금흐름(주석20)"
+    ],
+    [
+     "+",
+     "Ⅱ. 투자활동으로 인한 현금흐름"
+    ],
+    [
+     "+",
+     "Ⅲ. 재무활동으로 인한 현금흐름"
+    ]
+   ]
+  }
+ },
+ "netting": {
+  "CF": [
+   {
+    "name": "단기금융상품의 순증감",
+    "plus": [
+     "CF3111001"
+    ],
+    "minus": [
+     "CF4111001"
+    ],
+    "in_row": 119,
+    "out_row": 152
+   }
+  ]
+ },
+ "cash_specials": {
+  "1. 당기순이익": "net_income",
+  "Ⅴ. 환율변동효과": "fx_effect",
+  "연결범위변동": "scope_change",
+  "Ⅵ. 기초의현금": "cash_begin",
+  "Ⅶ. 기말의현금": "cash_end"
+ },
+ "statements": {
+  "BS": {
+   "lines": [
+    {
+     "row": 9,
+     "level": 0,
+     "name": "자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 10,
+     "level": 0,
+     "name": "Ⅰ.유동자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 11,
+     "level": 1,
+     "name": "(1)당좌자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 12,
+     "level": 2,
+     "name": "현금및현금등가물",
+     "kind": "detail",
+     "codes": [
+      "1110101"
+     ]
+    },
+    {
+     "row": 13,
+     "level": 2,
+     "name": "단기금융상품",
+     "kind": "detail",
+     "codes": [
+      "1110201"
+     ]
+    },
+    {
+     "row": 14,
+     "level": 2,
+     "name": "국고보조금",
+     "kind": "detail",
+     "codes": [
+      "1110102"
+     ]
+    },
+    {
+     "row": 15,
+     "level": 2,
+     "name": "유동성당기손익-공정가치측정금융자산",
+     "kind": "detail",
+     "codes": [
+      "1110203"
+     ]
+    },
+    {
+     "row": 16,
+     "level": 2,
+     "name": "유동성매도가능증권",
+     "kind": "detail",
+     "codes": [
+      "1110205"
+     ]
+    },
+    {
+     "row": 17,
+     "level": 2,
+     "name": "단기대여금",
+     "kind": "detail",
+     "codes": [
+      "1110401"
+     ]
+    },
+    {
+     "row": 18,
+     "level": 2,
+     "name": "대손충당금-단기대여금",
+     "kind": "detail",
+     "codes": [
+      "1110491"
+     ]
+    },
+    {
+     "row": 19,
+     "level": 2,
+     "name": "유동성만기보유증권",
+     "kind": "detail",
+     "codes": [
+      "1110206"
+     ]
+    },
+    {
+     "row": 20,
+     "level": 2,
+     "name": "매출채권",
+     "kind": "detail",
+     "codes": [
+      "1110301"
+     ]
+    },
+    {
+     "row": 21,
+     "level": 2,
+     "name": "대손충당금",
+     "kind": "detail",
+     "codes": [
+      "1110391"
+     ]
+    },
+    {
+     "row": 22,
+     "level": 2,
+     "name": "미청구공사",
+     "kind": "detail",
+     "codes": [
+      "1110304"
+     ]
+    },
+    {
+     "row": 23,
+     "level": 2,
+     "name": "대손충당금-미청구공사",
+     "kind": "detail",
+     "codes": [
+      "1110394"
+     ]
+    },
+    {
+     "row": 24,
+     "level": 2,
+     "name": "미수금",
+     "kind": "detail",
+     "codes": [
+      "1110302"
+     ]
+    },
+    {
+     "row": 25,
+     "level": 2,
+     "name": "대손충당금-미수금",
+     "kind": "detail",
+     "codes": [
+      "1110392"
+     ]
+    },
+    {
+     "row": 26,
+     "level": 2,
+     "name": "미수수익",
+     "kind": "detail",
+     "codes": [
+      "1110303"
+     ]
+    },
+    {
+     "row": 27,
+     "level": 2,
+     "name": "대손충당금-미수수익",
+     "kind": "detail",
+     "codes": [
+      "1110393"
+     ]
+    },
+    {
+     "row": 28,
+     "level": 2,
+     "name": "선급금",
+     "kind": "detail",
+     "codes": [
+      "1110501"
+     ]
+    },
+    {
+     "row": 29,
+     "level": 2,
+     "name": "선급비용",
+     "kind": "detail",
+     "codes": [
+      "1110502"
+     ]
+    },
+    {
+     "row": 30,
+     "level": 2,
+     "name": "보증금",
+     "kind": "detail",
+     "codes": [
+      "1110402"
+     ]
+    },
+    {
+     "row": 31,
+     "level": 2,
+     "name": "유동성파생상품자산",
+     "kind": "detail",
+     "codes": [
+      "1110207"
+     ]
+    },
+    {
+     "row": 32,
+     "level": 2,
+     "name": "부가세대급금",
+     "kind": "detail",
+     "codes": [
+      "1110504"
+     ]
+    },
+    {
+     "row": 33,
+     "level": 2,
+     "name": "선급법인세",
+     "kind": "detail",
+     "codes": [
+      "1110503"
+     ]
+    },
+    {
+     "row": 34,
+     "level": 2,
+     "name": "유동성이연법인세자산",
+     "kind": "detail",
+     "codes": [
+      "1110505"
+     ]
+    },
+    {
+     "row": 35,
+     "level": 2,
+     "name": "기타유동자산",
+     "kind": "detail",
+     "codes": [
+      "1199901"
+     ]
+    },
+    {
+     "row": 36,
+     "level": 1,
+     "name": "(2)재고자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 37,
+     "level": 2,
+     "name": "상품",
+     "kind": "detail",
+     "codes": [
+      "1120602",
+      "1120692"
+     ]
+    },
+    {
+     "row": 38,
+     "level": 2,
+     "name": "제품",
+     "kind": "detail",
+     "codes": [
+      "1120601",
+      "1120691"
+     ]
+    },
+    {
+     "row": 39,
+     "level": 2,
+     "name": "재공품",
+     "kind": "detail",
+     "codes": [
+      "1120604"
+     ]
+    },
+    {
+     "row": 40,
+     "level": 2,
+     "name": "원재료",
+     "kind": "detail",
+     "codes": [
+      "1120603"
+     ]
+    },
+    {
+     "row": 41,
+     "level": 2,
+     "name": "미착품",
+     "kind": "detail",
+     "codes": [
+      "1120606"
+     ]
+    },
+    {
+     "row": 42,
+     "level": 2,
+     "name": "저장품",
+     "kind": "detail",
+     "codes": [
+      "1120605"
+     ]
+    },
+    {
+     "row": 43,
+     "level": 2,
+     "name": "기타의 재고자산",
+     "kind": "detail",
+     "codes": [
+      "1120699"
+     ]
+    },
+    {
+     "row": 44,
+     "level": 1,
+     "name": "(3)매각예정유동자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 45,
+     "level": 0,
+     "name": "Ⅱ.비유동자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 46,
+     "level": 1,
+     "name": "(1)투자자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 47,
+     "level": 2,
+     "name": "장기금융상품",
+     "kind": "detail",
+     "codes": [
+      "1210101"
+     ]
+    },
+    {
+     "row": 48,
+     "level": 2,
+     "name": "당기손익-공정가치측정금융자산",
+     "kind": "detail",
+     "codes": [
+      "1210104"
+     ]
+    },
+    {
+     "row": 49,
+     "level": 2,
+     "name": "기타포괄손익-공정가치측정금융자산",
+     "kind": "detail",
+     "codes": [
+      "1210105"
+     ]
+    },
+    {
+     "row": 50,
+     "level": 2,
+     "name": "비유동성파생상품자산",
+     "kind": "detail",
+     "codes": [
+      "1210106"
+     ]
+    },
+    {
+     "row": 51,
+     "level": 2,
+     "name": "장기대여금",
+     "kind": "detail",
+     "codes": [
+      "1210201"
+     ]
+    },
+    {
+     "row": 52,
+     "level": 2,
+     "name": "대손충당금-장기대여금",
+     "kind": "detail",
+     "codes": [
+      "1210291"
+     ]
+    },
+    {
+     "row": 53,
+     "level": 2,
+     "name": "매도가능증권",
+     "kind": "detail",
+     "codes": [
+      "1210102"
+     ]
+    },
+    {
+     "row": 54,
+     "level": 2,
+     "name": "만기보유증권",
+     "kind": "detail",
+     "codes": [
+      "1210103"
+     ]
+    },
+    {
+     "row": 55,
+     "level": 2,
+     "name": "지분법적용투자주식",
+     "kind": "detail",
+     "codes": [
+      "1210107"
+     ]
+    },
+    {
+     "row": 56,
+     "level": 2,
+     "name": "장기미수금",
+     "kind": "detail",
+     "codes": [
+      "1240603"
+     ]
+    },
+    {
+     "row": 57,
+     "level": 2,
+     "name": "대손충당금-장기미수금",
+     "kind": "detail",
+     "codes": [
+      "1240693"
+     ]
+    },
+    {
+     "row": 58,
+     "level": 2,
+     "name": "장기미수수익",
+     "kind": "detail",
+     "codes": [
+      "1240604"
+     ]
+    },
+    {
+     "row": 59,
+     "level": 2,
+     "name": "대손충당금-장기미수수익",
+     "kind": "detail",
+     "codes": [
+      "1240694"
+     ]
+    },
+    {
+     "row": 60,
+     "level": 2,
+     "name": "퇴직연금운용자산",
+     "kind": "detail",
+     "codes": [
+      "1210109"
+     ]
+    },
+    {
+     "row": 61,
+     "level": 2,
+     "name": "사외적립자산-IFRS",
+     "kind": "detail",
+     "codes": [
+      "1210108"
+     ]
+    },
+    {
+     "row": 62,
+     "level": 2,
+     "name": "투자부동산-토지",
+     "kind": "detail",
+     "codes": [
+      "1210301"
+     ]
+    },
+    {
+     "row": 63,
+     "level": 2,
+     "name": "투자부동산-건물",
+     "kind": "detail",
+     "codes": [
+      "1210302"
+     ]
+    },
+    {
+     "row": 64,
+     "level": 2,
+     "name": "투자부동산-건물상각액",
+     "kind": "detail",
+     "codes": [
+      "1210391"
+     ]
+    },
+    {
+     "row": 65,
+     "level": 2,
+     "name": "특정현금과 예금",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 66,
+     "level": 1,
+     "name": "(2)유형자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 67,
+     "level": 2,
+     "name": "토지",
+     "kind": "detail",
+     "codes": [
+      "1220401"
+     ]
+    },
+    {
+     "row": 68,
+     "level": 2,
+     "name": "건물",
+     "kind": "detail",
+     "codes": [
+      "1220402"
+     ]
+    },
+    {
+     "row": 69,
+     "level": 2,
+     "name": "건물감액손실누계액",
+     "kind": "detail",
+     "codes": [
+      "1220482"
+     ]
+    },
+    {
+     "row": 70,
+     "level": 2,
+     "name": "건물감가상각누계액",
+     "kind": "detail",
+     "codes": [
+      "1220492"
+     ]
+    },
+    {
+     "row": 71,
+     "level": 2,
+     "name": "기계장치",
+     "kind": "detail",
+     "codes": [
+      "1220403"
+     ]
+    },
+    {
+     "row": 72,
+     "level": 2,
+     "name": "기계장치감액손실누계액",
+     "kind": "detail",
+     "codes": [
+      "1220483"
+     ]
+    },
+    {
+     "row": 73,
+     "level": 2,
+     "name": "기계장치감가상각누계액",
+     "kind": "detail",
+     "codes": [
+      "1220493"
+     ]
+    },
+    {
+     "row": 74,
+     "level": 2,
+     "name": "차량운반구",
+     "kind": "detail",
+     "codes": [
+      "1220404"
+     ]
+    },
+    {
+     "row": 75,
+     "level": 2,
+     "name": "차량운반구감액손실누계액",
+     "kind": "detail",
+     "codes": [
+      "1220484"
+     ]
+    },
+    {
+     "row": 76,
+     "level": 2,
+     "name": "차량운반구감가상각누계액",
+     "kind": "detail",
+     "codes": [
+      "1220494"
+     ]
+    },
+    {
+     "row": 77,
+     "level": 2,
+     "name": "비품",
+     "kind": "detail",
+     "codes": [
+      "1220405"
+     ]
+    },
+    {
+     "row": 78,
+     "level": 2,
+     "name": "비품감액손실누계액",
+     "kind": "detail",
+     "codes": [
+      "1220485"
+     ]
+    },
+    {
+     "row": 79,
+     "level": 2,
+     "name": "비품감가상각누계액",
+     "kind": "detail",
+     "codes": [
+      "1220495"
+     ]
+    },
+    {
+     "row": 80,
+     "level": 2,
+     "name": "시설장치",
+     "kind": "detail",
+     "codes": [
+      "1220406"
+     ]
+    },
+    {
+     "row": 81,
+     "level": 2,
+     "name": "시설장치감가상각누계액",
+     "kind": "detail",
+     "codes": [
+      "1220496"
+     ]
+    },
+    {
+     "row": 82,
+     "level": 2,
+     "name": "시설장치감액손실누계액",
+     "kind": "detail",
+     "codes": [
+      "1220486"
+     ]
+    },
+    {
+     "row": 83,
+     "level": 2,
+     "name": "기타유형자산",
+     "kind": "detail",
+     "codes": [
+      "1220409"
+     ]
+    },
+    {
+     "row": 84,
+     "level": 2,
+     "name": "기타유형자산감가상각누계액",
+     "kind": "detail",
+     "codes": [
+      "1220499"
+     ]
+    },
+    {
+     "row": 85,
+     "level": 2,
+     "name": "건설중인자산",
+     "kind": "detail",
+     "codes": [
+      "1220411"
+     ]
+    },
+    {
+     "row": 86,
+     "level": 1,
+     "name": "(3)무형자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 87,
+     "level": 2,
+     "name": "산업재산권",
+     "kind": "detail",
+     "codes": [
+      "1230501"
+     ]
+    },
+    {
+     "row": 88,
+     "level": 2,
+     "name": "개발비",
+     "kind": "detail",
+     "codes": [
+      "1230503"
+     ]
+    },
+    {
+     "row": 89,
+     "level": 2,
+     "name": "토지사용권",
+     "kind": "detail",
+     "codes": [
+      "1230505"
+     ]
+    },
+    {
+     "row": 90,
+     "level": 2,
+     "name": "영업권",
+     "kind": "detail",
+     "codes": [
+      "1230506"
+     ]
+    },
+    {
+     "row": 91,
+     "level": 2,
+     "name": "고객가치",
+     "kind": "detail",
+     "codes": [
+      "1230507"
+     ]
+    },
+    {
+     "row": 92,
+     "level": 2,
+     "name": "컴퓨터SOFTWARE",
+     "kind": "detail",
+     "codes": [
+      "1230502"
+     ]
+    },
+    {
+     "row": 93,
+     "level": 2,
+     "name": "기타무형자산",
+     "kind": "detail",
+     "codes": [
+      "1230599"
+     ]
+    },
+    {
+     "row": 94,
+     "level": 1,
+     "name": "(4)기타비유동자산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 95,
+     "level": 2,
+     "name": "예치보증금",
+     "kind": "detail",
+     "codes": [
+      "1240601"
+     ]
+    },
+    {
+     "row": 96,
+     "level": 2,
+     "name": "장기선급비용",
+     "kind": "detail",
+     "codes": [
+      "1240607"
+     ]
+    },
+    {
+     "row": 97,
+     "level": 2,
+     "name": "장기매출채권",
+     "kind": "detail",
+     "codes": [
+      "1240602"
+     ]
+    },
+    {
+     "row": 98,
+     "level": 2,
+     "name": "대손충당금-장기매출채권",
+     "kind": "detail",
+     "codes": [
+      "1240692"
+     ]
+    },
+    {
+     "row": 99,
+     "level": 2,
+     "name": "비유동미청구공사",
+     "kind": "detail",
+     "codes": [
+      "1240701"
+     ]
+    },
+    {
+     "row": 100,
+     "level": 2,
+     "name": "대손충당금-비유동미청구공사",
+     "kind": "detail",
+     "codes": [
+      "1240791"
+     ]
+    },
+    {
+     "row": 101,
+     "level": 2,
+     "name": "장기선급금",
+     "kind": "detail",
+     "codes": [
+      "1240606"
+     ]
+    },
+    {
+     "row": 102,
+     "level": 2,
+     "name": "회원권",
+     "kind": "detail",
+     "codes": [
+      "1240608"
+     ]
+    },
+    {
+     "row": 103,
+     "level": 2,
+     "name": "기타의기타비유동자산",
+     "kind": "detail",
+     "codes": [
+      "1240609",
+      "1240610",
+      "1299901"
+     ]
+    },
+    {
+     "row": 104,
+     "level": 2,
+     "name": "비유동성이연법인세자산",
+     "kind": "detail",
+     "codes": [
+      "1240605"
+     ]
+    },
+    {
+     "row": 105,
+     "level": 1,
+     "name": "(5)기타비유동자산",
+     "kind": "detail",
+     "codes": [
+      "1240703"
+     ]
+    },
+    {
+     "row": 106,
+     "level": 0,
+     "name": "자산총계",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 108,
+     "level": 0,
+     "name": "부채",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 109,
+     "level": 0,
+     "name": "Ⅰ.유동부채",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 110,
+     "level": 2,
+     "name": "매입채무",
+     "kind": "detail",
+     "codes": [
+      "2100101"
+     ]
+    },
+    {
+     "row": 111,
+     "level": 2,
+     "name": "미지급금",
+     "kind": "detail",
+     "codes": [
+      "2100102"
+     ]
+    },
+    {
+     "row": 112,
+     "level": 2,
+     "name": "유동성초과청구공사",
+     "kind": "detail",
+     "codes": [
+      "2100603"
+     ]
+    },
+    {
+     "row": 113,
+     "level": 2,
+     "name": "무역금융",
+     "kind": "detail",
+     "codes": [
+      "2100202"
+     ]
+    },
+    {
+     "row": 114,
+     "level": 2,
+     "name": "USANCE차입금",
+     "kind": "detail",
+     "codes": [
+      "2100203"
+     ]
+    },
+    {
+     "row": 115,
+     "level": 2,
+     "name": "일반대차입금",
+     "kind": "detail",
+     "codes": [
+      "2100204"
+     ]
+    },
+    {
+     "row": 116,
+     "level": 2,
+     "name": "원재료차입금",
+     "kind": "detail",
+     "codes": [
+      "2100205"
+     ]
+    },
+    {
+     "row": 117,
+     "level": 2,
+     "name": "유동성장기차입금",
+     "kind": "detail",
+     "codes": [
+      "2100201"
+     ]
+    },
+    {
+     "row": 118,
+     "level": 2,
+     "name": "사채",
+     "kind": "detail",
+     "codes": [
+      "2100301",
+      "2100391"
+     ]
+    },
+    {
+     "row": 119,
+     "level": 2,
+     "name": "선수금",
+     "kind": "detail",
+     "codes": [
+      "2100601"
+     ]
+    },
+    {
+     "row": 120,
+     "level": 2,
+     "name": "선수수익",
+     "kind": "detail",
+     "codes": [
+      "2100602"
+     ]
+    },
+    {
+     "row": 121,
+     "level": 2,
+     "name": "미지급비용",
+     "kind": "detail",
+     "codes": [
+      "2100103"
+     ]
+    },
+    {
+     "row": 122,
+     "level": 2,
+     "name": "예수금",
+     "kind": "detail",
+     "codes": [
+      "2100104"
+     ]
+    },
+    {
+     "row": 123,
+     "level": 2,
+     "name": "부가세예수금",
+     "kind": "detail",
+     "codes": [
+      "2100105"
+     ]
+    },
+    {
+     "row": 124,
+     "level": 2,
+     "name": "유동성임대보증금",
+     "kind": "detail",
+     "codes": [
+      "2100402"
+     ]
+    },
+    {
+     "row": 125,
+     "level": 2,
+     "name": "유동성예수보증금",
+     "kind": "detail",
+     "codes": [
+      "2100403"
+     ]
+    },
+    {
+     "row": 126,
+     "level": 2,
+     "name": "미지급법인세",
+     "kind": "detail",
+     "codes": [
+      "2100106"
+     ]
+    },
+    {
+     "row": 127,
+     "level": 2,
+     "name": "유동성이연법인세부채",
+     "kind": "detail",
+     "codes": [
+      "2100604"
+     ]
+    },
+    {
+     "row": 128,
+     "level": 2,
+     "name": "유동성파생상품부채",
+     "kind": "detail",
+     "codes": [
+      "2100501"
+     ]
+    },
+    {
+     "row": 129,
+     "level": 2,
+     "name": "유동성공사손실충당부채",
+     "kind": "detail",
+     "codes": [
+      "2100701"
+     ]
+    },
+    {
+     "row": 130,
+     "level": 2,
+     "name": "유동성하자보수충당부채",
+     "kind": "detail",
+     "codes": [
+      "2100702"
+     ]
+    },
+    {
+     "row": 131,
+     "level": 2,
+     "name": "유동성금융보증충당부채",
+     "kind": "detail",
+     "codes": [
+      "2100703"
+     ]
+    },
+    {
+     "row": 132,
+     "level": 2,
+     "name": "유동성리스부채-IFRS",
+     "kind": "detail",
+     "codes": [
+      "2100401"
+     ]
+    },
+    {
+     "row": 133,
+     "level": 2,
+     "name": "유동성기타충당부채",
+     "kind": "detail",
+     "codes": [
+      "2100709"
+     ]
+    },
+    {
+     "row": 134,
+     "level": 2,
+     "name": "기타유동부채",
+     "kind": "detail",
+     "codes": [
+      "2199901"
+     ]
+    },
+    {
+     "row": 135,
+     "level": 0,
+     "name": "Ⅱ.비유동부채",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 136,
+     "level": 2,
+     "name": "장기차입금",
+     "kind": "detail",
+     "codes": [
+      "2200101"
+     ]
+    },
+    {
+     "row": 137,
+     "level": 2,
+     "name": "장기미지급금",
+     "kind": "detail",
+     "codes": [
+      "2200301",
+      "2200303"
+     ]
+    },
+    {
+     "row": 138,
+     "level": 2,
+     "name": "장기미지급비용",
+     "kind": "detail",
+     "codes": [
+      "2200302"
+     ]
+    },
+    {
+     "row": 139,
+     "level": 2,
+     "name": "퇴직급여충당금",
+     "kind": "detail",
+     "codes": [
+      "2200401"
+     ]
+    },
+    {
+     "row": 140,
+     "level": 2,
+     "name": "퇴직연금운용자산",
+     "kind": "detail",
+     "codes": [
+      "2200403"
+     ]
+    },
+    {
+     "row": 141,
+     "level": 2,
+     "name": "국민연금전환금",
+     "kind": "detail",
+     "codes": [
+      "2200402"
+     ]
+    },
+    {
+     "row": 142,
+     "level": 2,
+     "name": "순확정급여채무-IFRS",
+     "kind": "detail",
+     "codes": [
+      "2200501",
+      "2200502",
+      "2200503"
+     ]
+    },
+    {
+     "row": 143,
+     "level": 2,
+     "name": "비유동성임대보증금",
+     "kind": "detail",
+     "codes": [
+      "2200305"
+     ]
+    },
+    {
+     "row": 144,
+     "level": 2,
+     "name": "비유동성예수보증금",
+     "kind": "detail",
+     "codes": [
+      "2200306"
+     ]
+    },
+    {
+     "row": 145,
+     "level": 2,
+     "name": "비유동이연법인세부채",
+     "kind": "detail",
+     "codes": [
+      "2200701"
+     ]
+    },
+    {
+     "row": 146,
+     "level": 2,
+     "name": "사채",
+     "kind": "detail",
+     "codes": [
+      "2200201",
+      "2200291"
+     ]
+    },
+    {
+     "row": 147,
+     "level": 2,
+     "name": "장기파생상품부채",
+     "kind": "detail",
+     "codes": [
+      "2200307"
+     ]
+    },
+    {
+     "row": 148,
+     "level": 2,
+     "name": "비유동성하자보수충당부채",
+     "kind": "detail",
+     "codes": [
+      "2200602"
+     ]
+    },
+    {
+     "row": 149,
+     "level": 2,
+     "name": "비유동성공사손실충당부채",
+     "kind": "detail",
+     "codes": [
+      "2200601"
+     ]
+    },
+    {
+     "row": 150,
+     "level": 2,
+     "name": "비유동성리스부채",
+     "kind": "detail",
+     "codes": [
+      "2200304"
+     ]
+    },
+    {
+     "row": 151,
+     "level": 2,
+     "name": "비유동성금융보증충당부채",
+     "kind": "detail",
+     "codes": [
+      "2200603"
+     ]
+    },
+    {
+     "row": 152,
+     "level": 2,
+     "name": "비유동성기타충당부채",
+     "kind": "detail",
+     "codes": [
+      "2200659"
+     ]
+    },
+    {
+     "row": 153,
+     "level": 2,
+     "name": "기타비유동부채",
+     "kind": "detail",
+     "codes": [
+      "2299901"
+     ]
+    },
+    {
+     "row": 154,
+     "level": 0,
+     "name": "부채총계",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 155,
+     "level": 0,
+     "name": "자본",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 156,
+     "level": 0,
+     "name": "지배주주지분",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 157,
+     "level": 0,
+     "name": "Ⅰ.자본금",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 158,
+     "level": 2,
+     "name": "보통주자본금",
+     "kind": "detail",
+     "codes": [
+      "3100101"
+     ]
+    },
+    {
+     "row": 159,
+     "level": 0,
+     "name": "Ⅱ.자본잉여금",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 160,
+     "level": 2,
+     "name": "기타자본잉여금",
+     "kind": "detail",
+     "codes": [
+      "3200199"
+     ]
+    },
+    {
+     "row": 161,
+     "level": 2,
+     "name": "주식발행초과금",
+     "kind": "detail",
+     "codes": [
+      "3200101"
+     ]
+    },
+    {
+     "row": 162,
+     "level": 0,
+     "name": "Ⅲ.자본조정",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 162.5,
+     "level": 2,
+     "name": "주식할인발행차금",
+     "kind": "detail",
+     "codes": [
+      "3300101"
+     ]
+    },
+    {
+     "row": 163,
+     "level": 2,
+     "name": "자기주식-보통주",
+     "kind": "detail",
+     "codes": [
+      "3300103"
+     ]
+    },
+    {
+     "row": 164,
+     "level": 2,
+     "name": "기타자본조정",
+     "kind": "detail",
+     "codes": [
+      "3300199"
+     ]
+    },
+    {
+     "row": 165,
+     "level": 2,
+     "name": "지분법자본조정",
+     "kind": "detail",
+     "codes": [
+      "3300102"
+     ]
+    },
+    {
+     "row": 166,
+     "level": 0,
+     "name": "Ⅳ.기타포괄손익누계액",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 167,
+     "level": 2,
+     "name": "지분법자본변동",
+     "kind": "detail",
+     "codes": [
+      "3400102"
+     ]
+    },
+    {
+     "row": 168,
+     "level": 2,
+     "name": "부의지분법자본변동",
+     "kind": "detail",
+     "codes": [
+      "3400103"
+     ]
+    },
+    {
+     "row": 169,
+     "level": 2,
+     "name": "기타포괄손실",
+     "kind": "detail",
+     "codes": [
+      "3400199"
+     ]
+    },
+    {
+     "row": 170,
+     "level": 2,
+     "name": "매도가능금융자산평가",
+     "kind": "detail",
+     "codes": [
+      "3400101"
+     ]
+    },
+    {
+     "row": 171,
+     "level": 2,
+     "name": "파생상품평가손익",
+     "kind": "detail",
+     "codes": [
+      "3400105"
+     ]
+    },
+    {
+     "row": 172,
+     "level": 2,
+     "name": "해외사업환산손익",
+     "kind": "detail",
+     "codes": [
+      "3400104"
+     ]
+    },
+    {
+     "row": 173,
+     "level": 2,
+     "name": "재평가차익",
+     "kind": "detail",
+     "codes": [
+      "3400106"
+     ]
+    },
+    {
+     "row": 174,
+     "level": 0,
+     "name": "Ⅴ.이익잉여금",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 175,
+     "level": 2,
+     "name": "이익준비금",
+     "kind": "detail",
+     "codes": [
+      "3500101"
+     ]
+    },
+    {
+     "row": 176,
+     "level": 2,
+     "name": "기업발전적립금",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 177,
+     "level": 2,
+     "name": "임의적립금",
+     "kind": "detail",
+     "codes": [
+      "3500102"
+     ]
+    },
+    {
+     "row": 178,
+     "level": 2,
+     "name": "이익잉여금",
+     "kind": "detail",
+     "codes": [
+      "3500103",
+      "3500104",
+      "3500105"
+     ]
+    },
+    {
+     "row": 179,
+     "level": 0,
+     "name": "비지배지분",
+     "kind": "detail",
+     "codes": [
+      "3600101"
+     ]
+    },
+    {
+     "row": 180,
+     "level": 0,
+     "name": "자본총계",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 181,
+     "level": 0,
+     "name": "부채 및 자본합계",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 187,
+     "level": 2,
+     "name": "차입금",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 188,
+     "level": 2,
+     "name": "부채비율",
+     "kind": "detail",
+     "codes": []
+    }
+   ]
+  },
+  "PL": {
+   "lines": [
+    {
+     "row": 9,
+     "level": 0,
+     "name": "Ⅰ.매출액",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 10,
+     "level": 1,
+     "name": "상품매출",
+     "kind": "detail",
+     "codes": [
+      "4100103"
+     ]
+    },
+    {
+     "row": 11,
+     "level": 1,
+     "name": "제품매출",
+     "kind": "detail",
+     "codes": [
+      "4100102"
+     ]
+    },
+    {
+     "row": 12,
+     "level": 1,
+     "name": "공사매출",
+     "kind": "detail",
+     "codes": [
+      "4100104"
+     ]
+    },
+    {
+     "row": 13,
+     "level": 1,
+     "name": "수수료수입",
+     "kind": "detail",
+     "codes": [
+      "4100105"
+     ]
+    },
+    {
+     "row": 14,
+     "level": 1,
+     "name": "기타매출",
+     "kind": "detail",
+     "codes": [
+      "4100106",
+      "4100199"
+     ]
+    },
+    {
+     "row": 15,
+     "level": 0,
+     "name": "Ⅱ.매출원가",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 16,
+     "level": 1,
+     "name": "제품매출원가",
+     "kind": "detail",
+     "codes": [
+      "4200102"
+     ]
+    },
+    {
+     "row": 17,
+     "level": 1,
+     "name": "상품매출원가",
+     "kind": "detail",
+     "codes": [
+      "4200103"
+     ]
+    },
+    {
+     "row": 18,
+     "level": 1,
+     "name": "기타매출원가",
+     "kind": "detail",
+     "codes": [
+      "4200104",
+      "4200199"
+     ]
+    },
+    {
+     "row": 19,
+     "level": 0,
+     "name": "Ⅲ.매출총이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 20,
+     "level": 0,
+     "name": "Ⅳ.판매관리비",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 21,
+     "level": 1,
+     "name": "급여",
+     "kind": "detail",
+     "codes": [
+      "4300101"
+     ]
+    },
+    {
+     "row": 22,
+     "level": 1,
+     "name": "상여금",
+     "kind": "detail",
+     "codes": [
+      "4300102"
+     ]
+    },
+    {
+     "row": 23,
+     "level": 1,
+     "name": "잡급",
+     "kind": "detail",
+     "codes": [
+      "4300103"
+     ]
+    },
+    {
+     "row": 24,
+     "level": 1,
+     "name": "퇴직급여",
+     "kind": "detail",
+     "codes": [
+      "4300104"
+     ]
+    },
+    {
+     "row": 25,
+     "level": 1,
+     "name": "복리후생비",
+     "kind": "detail",
+     "codes": [
+      "4300105"
+     ]
+    },
+    {
+     "row": 26,
+     "level": 1,
+     "name": "여비교통비",
+     "kind": "detail",
+     "codes": [
+      "4300201"
+     ]
+    },
+    {
+     "row": 27,
+     "level": 1,
+     "name": "통신비",
+     "kind": "detail",
+     "codes": [
+      "4300202"
+     ]
+    },
+    {
+     "row": 28,
+     "level": 1,
+     "name": "수도광열비",
+     "kind": "detail",
+     "codes": [
+      "4300209"
+     ]
+    },
+    {
+     "row": 29,
+     "level": 1,
+     "name": "지급수수료",
+     "kind": "detail",
+     "codes": [
+      "4300203"
+     ]
+    },
+    {
+     "row": 30,
+     "level": 1,
+     "name": "세금과공과",
+     "kind": "detail",
+     "codes": [
+      "4300204"
+     ]
+    },
+    {
+     "row": 31,
+     "level": 1,
+     "name": "소모품비",
+     "kind": "detail",
+     "codes": [
+      "4300205"
+     ]
+    },
+    {
+     "row": 32,
+     "level": 1,
+     "name": "수선비",
+     "kind": "detail",
+     "codes": [
+      "4300206"
+     ]
+    },
+    {
+     "row": 33,
+     "level": 1,
+     "name": "접대비",
+     "kind": "detail",
+     "codes": [
+      "4300207"
+     ]
+    },
+    {
+     "row": 34,
+     "level": 1,
+     "name": "차량유지비",
+     "kind": "detail",
+     "codes": [
+      "4300208"
+     ]
+    },
+    {
+     "row": 35,
+     "level": 1,
+     "name": "도서인쇄비",
+     "kind": "detail",
+     "codes": [
+      "4300210"
+     ]
+    },
+    {
+     "row": 36,
+     "level": 1,
+     "name": "운반비",
+     "kind": "detail",
+     "codes": [
+      "4300211"
+     ]
+    },
+    {
+     "row": 37,
+     "level": 1,
+     "name": "광고선전비",
+     "kind": "detail",
+     "codes": [
+      "4300212"
+     ]
+    },
+    {
+     "row": 38,
+     "level": 1,
+     "name": "교육훈련비",
+     "kind": "detail",
+     "codes": [
+      "4300213"
+     ]
+    },
+    {
+     "row": 39,
+     "level": 1,
+     "name": "대손상각비",
+     "kind": "detail",
+     "codes": [
+      "4300214"
+     ]
+    },
+    {
+     "row": 40,
+     "level": 1,
+     "name": "보험료",
+     "kind": "detail",
+     "codes": [
+      "4300215"
+     ]
+    },
+    {
+     "row": 41,
+     "level": 1,
+     "name": "하자보수비",
+     "kind": "detail",
+     "codes": [
+      "4300216"
+     ]
+    },
+    {
+     "row": 42,
+     "level": 1,
+     "name": "견적및설계비",
+     "kind": "detail",
+     "codes": [
+      "4300217"
+     ]
+    },
+    {
+     "row": 43,
+     "level": 1,
+     "name": "수출CLAIM비",
+     "kind": "detail",
+     "codes": [
+      "4300218"
+     ]
+    },
+    {
+     "row": 44,
+     "level": 1,
+     "name": "견본비",
+     "kind": "detail",
+     "codes": [
+      "4300219"
+     ]
+    },
+    {
+     "row": 45,
+     "level": 1,
+     "name": "시험검사비",
+     "kind": "detail",
+     "codes": [
+      "4300220"
+     ]
+    },
+    {
+     "row": 46,
+     "level": 1,
+     "name": "지급임차료",
+     "kind": "detail",
+     "codes": [
+      "4300221"
+     ]
+    },
+    {
+     "row": 47,
+     "level": 1,
+     "name": "판매촉진비",
+     "kind": "detail",
+     "codes": [
+      "4300222"
+     ]
+    },
+    {
+     "row": 48,
+     "level": 1,
+     "name": "판매수수료",
+     "kind": "detail",
+     "codes": [
+      "4300224"
+     ]
+    },
+    {
+     "row": 49,
+     "level": 1,
+     "name": "기타판관비",
+     "kind": "detail",
+     "codes": [
+      "4399901"
+     ]
+    },
+    {
+     "row": 50,
+     "level": 1,
+     "name": "회의비",
+     "kind": "detail",
+     "codes": [
+      "4300225"
+     ]
+    },
+    {
+     "row": 51,
+     "level": 1,
+     "name": "연구개발비",
+     "kind": "detail",
+     "codes": [
+      "4300227"
+     ]
+    },
+    {
+     "row": 52,
+     "level": 1,
+     "name": "사용권자산상각비",
+     "kind": "detail",
+     "codes": [
+      "4300303"
+     ]
+    },
+    {
+     "row": 53,
+     "level": 1,
+     "name": "무형자산상각비",
+     "kind": "detail",
+     "codes": [
+      "4300302"
+     ]
+    },
+    {
+     "row": 54,
+     "level": 1,
+     "name": "감가상각비",
+     "kind": "detail",
+     "codes": [
+      "4300301",
+      "4300304"
+     ]
+    },
+    {
+     "row": 55,
+     "level": 0,
+     "name": "Ⅴ.영업이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 56,
+     "level": 0,
+     "name": "Ⅵ.영업외수익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 57,
+     "level": 1,
+     "name": "이자수익",
+     "kind": "detail",
+     "codes": [
+      "4400201",
+      "4400202"
+     ]
+    },
+    {
+     "row": 58,
+     "level": 1,
+     "name": "배당수익",
+     "kind": "detail",
+     "codes": [
+      "4400203"
+     ]
+    },
+    {
+     "row": 59,
+     "level": 1,
+     "name": "외환차익",
+     "kind": "detail",
+     "codes": [
+      "4400101"
+     ]
+    },
+    {
+     "row": 60,
+     "level": 1,
+     "name": "외화환산이익",
+     "kind": "detail",
+     "codes": [
+      "4400102"
+     ]
+    },
+    {
+     "row": 61,
+     "level": 1,
+     "name": "대손충당금환입",
+     "kind": "detail",
+     "codes": [
+      "4401101"
+     ]
+    },
+    {
+     "row": 62,
+     "level": 1,
+     "name": "채무면제이익",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 63,
+     "level": 1,
+     "name": "지분법평가이익",
+     "kind": "detail",
+     "codes": [
+      "4401201"
+     ]
+    },
+    {
+     "row": 64,
+     "level": 1,
+     "name": "지분법투자주식처분이익",
+     "kind": "detail",
+     "codes": [
+      "4401202"
+     ]
+    },
+    {
+     "row": 65,
+     "level": 1,
+     "name": "투자자산평가손실환입",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 66,
+     "level": 1,
+     "name": "유형자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400301"
+     ]
+    },
+    {
+     "row": 67,
+     "level": 1,
+     "name": "무형자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400311"
+     ]
+    },
+    {
+     "row": 68,
+     "level": 1,
+     "name": "무형자산손상차손환입",
+     "kind": "detail",
+     "codes": [
+      "4400312"
+     ]
+    },
+    {
+     "row": 69,
+     "level": 1,
+     "name": "매도가능증권처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400321"
+     ]
+    },
+    {
+     "row": 70,
+     "level": 1,
+     "name": "금융자산평가이익",
+     "kind": "detail",
+     "codes": [
+      "4400391"
+     ]
+    },
+    {
+     "row": 71,
+     "level": 1,
+     "name": "투자자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400392"
+     ]
+    },
+    {
+     "row": 72,
+     "level": 1,
+     "name": "투자부동산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400362"
+     ]
+    },
+    {
+     "row": 73,
+     "level": 1,
+     "name": "투자부동산재평가이익",
+     "kind": "detail",
+     "codes": [
+      "4400361"
+     ]
+    },
+    {
+     "row": 74,
+     "level": 1,
+     "name": "통화선도거래이익",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 75,
+     "level": 1,
+     "name": "파생상품거래이익",
+     "kind": "detail",
+     "codes": [
+      "4400351"
+     ]
+    },
+    {
+     "row": 76,
+     "level": 1,
+     "name": "파생상품평가이익",
+     "kind": "detail",
+     "codes": [
+      "4400352"
+     ]
+    },
+    {
+     "row": 77,
+     "level": 1,
+     "name": "보험차익",
+     "kind": "detail",
+     "codes": [
+      "4401102"
+     ]
+    },
+    {
+     "row": 78,
+     "level": 1,
+     "name": "기타금융이익",
+     "kind": "detail",
+     "codes": [
+      "4400299"
+     ]
+    },
+    {
+     "row": 79,
+     "level": 1,
+     "name": "매각예정자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400371"
+     ]
+    },
+    {
+     "row": 80,
+     "level": 1,
+     "name": "염가매수차익",
+     "kind": "detail",
+     "codes": [
+      "4401103"
+     ]
+    },
+    {
+     "row": 81,
+     "level": 1,
+     "name": "기타영업외수익",
+     "kind": "detail",
+     "codes": [
+      "4401199",
+      "4499901"
+     ]
+    },
+    {
+     "row": 82,
+     "level": 0,
+     "name": "Ⅶ.영업외비용",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 83,
+     "level": 1,
+     "name": "이자비용",
+     "kind": "detail",
+     "codes": [
+      "4500201",
+      "4500202"
+     ]
+    },
+    {
+     "row": 84,
+     "level": 1,
+     "name": "외환차손",
+     "kind": "detail",
+     "codes": [
+      "4500101"
+     ]
+    },
+    {
+     "row": 85,
+     "level": 1,
+     "name": "외화환산손실",
+     "kind": "detail",
+     "codes": [
+      "4500102"
+     ]
+    },
+    {
+     "row": 86,
+     "level": 1,
+     "name": "매도가능금융자산손상차손",
+     "kind": "detail",
+     "codes": [
+      "4500322"
+     ]
+    },
+    {
+     "row": 87,
+     "level": 1,
+     "name": "매도가능금융자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500321"
+     ]
+    },
+    {
+     "row": 88,
+     "level": 1,
+     "name": "매출채권처분손실",
+     "kind": "detail",
+     "codes": [
+      "4501101"
+     ]
+    },
+    {
+     "row": 89,
+     "level": 1,
+     "name": "지분법평가손실",
+     "kind": "detail",
+     "codes": [
+      "4501201"
+     ]
+    },
+    {
+     "row": 90,
+     "level": 1,
+     "name": "지분법적용투자주식손상차손",
+     "kind": "detail",
+     "codes": [
+      "4501203"
+     ]
+    },
+    {
+     "row": 91,
+     "level": 1,
+     "name": "지분법투자주식처분손실",
+     "kind": "detail",
+     "codes": [
+      "4501202"
+     ]
+    },
+    {
+     "row": 92,
+     "level": 1,
+     "name": "유형자산폐기손실",
+     "kind": "detail",
+     "codes": [
+      "4500303"
+     ]
+    },
+    {
+     "row": 93,
+     "level": 1,
+     "name": "유형자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500301"
+     ]
+    },
+    {
+     "row": 94,
+     "level": 1,
+     "name": "무형자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500311"
+     ]
+    },
+    {
+     "row": 95,
+     "level": 1,
+     "name": "유형자산손상차손",
+     "kind": "detail",
+     "codes": [
+      "4500302"
+     ]
+    },
+    {
+     "row": 96,
+     "level": 1,
+     "name": "투자부동산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500362"
+     ]
+    },
+    {
+     "row": 97,
+     "level": 1,
+     "name": "무형자산손상차손",
+     "kind": "detail",
+     "codes": [
+      "4500312"
+     ]
+    },
+    {
+     "row": 98,
+     "level": 1,
+     "name": "금융자산평가손실",
+     "kind": "detail",
+     "codes": [
+      "4500391"
+     ]
+    },
+    {
+     "row": 99,
+     "level": 1,
+     "name": "금융자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500392"
+     ]
+    },
+    {
+     "row": 100,
+     "level": 1,
+     "name": "투자자산평가손실",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 101,
+     "level": 1,
+     "name": "투자자산처분손실",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 102,
+     "level": 1,
+     "name": "파생상품거래손실",
+     "kind": "detail",
+     "codes": [
+      "4500351"
+     ]
+    },
+    {
+     "row": 103,
+     "level": 1,
+     "name": "파생상품평가손실",
+     "kind": "detail",
+     "codes": [
+      "4500352"
+     ]
+    },
+    {
+     "row": 104,
+     "level": 1,
+     "name": "기타대손상각비",
+     "kind": "detail",
+     "codes": [
+      "4501103"
+     ]
+    },
+    {
+     "row": 105,
+     "level": 1,
+     "name": "기부금",
+     "kind": "detail",
+     "codes": [
+      "4501102"
+     ]
+    },
+    {
+     "row": 106,
+     "level": 1,
+     "name": "매각예정자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500371"
+     ]
+    },
+    {
+     "row": 107,
+     "level": 1,
+     "name": "기타영업외비용",
+     "kind": "detail",
+     "codes": [
+      "4501104",
+      "4501199",
+      "4599901"
+     ]
+    },
+    {
+     "row": 108,
+     "level": 0,
+     "name": "Ⅷ.법인세비용차감전순이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 109,
+     "level": 0,
+     "name": "Ⅸ.법인세비용",
+     "kind": "detail",
+     "codes": [
+      "4800001"
+     ]
+    },
+    {
+     "row": 110,
+     "level": 0,
+     "name": "Ⅹ.계속사업이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 111,
+     "level": 0,
+     "name": "XI.중단사업이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 112,
+     "level": 0,
+     "name": "XII.당기순이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 114,
+     "level": 1,
+     "name": "지배기업지분순이익",
+     "kind": "detail",
+     "codes": [
+      "4900001"
+     ]
+    },
+    {
+     "row": 115,
+     "level": 1,
+     "name": "비지배지분순이익",
+     "kind": "detail",
+     "codes": [
+      "4900002"
+     ]
+    }
+   ]
+  },
+  "CF": {
+   "lines": [
+    {
+     "row": 7,
+     "level": 0,
+     "name": "Ⅰ.영업활동으로 인한 현금흐름(주석20)",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 8,
+     "level": 0,
+     "name": "1. 당기순이익",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 9,
+     "level": 0,
+     "name": "2. 현금의 유출이 없는 비용등의 가산",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 10,
+     "level": 0,
+     "name": "외화환산손실/외환차손",
+     "kind": "detail",
+     "codes": [
+      "4500102"
+     ]
+    },
+    {
+     "row": 11,
+     "level": 0,
+     "name": "매출채권처분손실",
+     "kind": "detail",
+     "codes": [
+      "4501101"
+     ]
+    },
+    {
+     "row": 12,
+     "level": 0,
+     "name": "지분법투자주식처분손실",
+     "kind": "detail",
+     "codes": [
+      "4501202"
+     ]
+    },
+    {
+     "row": 13,
+     "level": 0,
+     "name": "지분법평가손실",
+     "kind": "detail",
+     "codes": [
+      "4501201"
+     ]
+    },
+    {
+     "row": 14,
+     "level": 0,
+     "name": "매도가능증권손상차손",
+     "kind": "detail",
+     "codes": [
+      "4500322"
+     ]
+    },
+    {
+     "row": 15,
+     "level": 0,
+     "name": "당기손익-공정가치측정금융자산처분손실",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 16,
+     "level": 0,
+     "name": "지분법투자주식손상차손",
+     "kind": "detail",
+     "codes": [
+      "4501203"
+     ]
+    },
+    {
+     "row": 17,
+     "level": 0,
+     "name": "감가상각비",
+     "kind": "detail",
+     "codes": [
+      "4300301",
+      "5300301"
+     ]
+    },
+    {
+     "row": 18,
+     "level": 0,
+     "name": "무형자산상각비",
+     "kind": "detail",
+     "codes": [
+      "4300302",
+      "5300302"
+     ]
+    },
+    {
+     "row": 19,
+     "level": 0,
+     "name": "투자부동산상각비",
+     "kind": "detail",
+     "codes": [
+      "4300304",
+      "5300304"
+     ]
+    },
+    {
+     "row": 20,
+     "level": 0,
+     "name": "사용권자산상각비",
+     "kind": "detail",
+     "codes": [
+      "4300303",
+      "5300303"
+     ]
+    },
+    {
+     "row": 21,
+     "level": 0,
+     "name": "대손상각비",
+     "kind": "detail",
+     "codes": [
+      "4300214"
+     ]
+    },
+    {
+     "row": 22,
+     "level": 0,
+     "name": "기타의대손상각비",
+     "kind": "detail",
+     "codes": [
+      "4501103"
+     ]
+    },
+    {
+     "row": 23,
+     "level": 0,
+     "name": "파생상품평가손실",
+     "kind": "detail",
+     "codes": [
+      "4500352"
+     ]
+    },
+    {
+     "row": 24,
+     "level": 0,
+     "name": "파생상품거래손실",
+     "kind": "detail",
+     "codes": [
+      "4500351"
+     ]
+    },
+    {
+     "row": 25,
+     "level": 0,
+     "name": "유형자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500301"
+     ]
+    },
+    {
+     "row": 26,
+     "level": 0,
+     "name": "유형자산폐기손실",
+     "kind": "detail",
+     "codes": [
+      "4500303"
+     ]
+    },
+    {
+     "row": 27,
+     "level": 0,
+     "name": "유형자산손상차손",
+     "kind": "detail",
+     "codes": [
+      "4500302"
+     ]
+    },
+    {
+     "row": 28,
+     "level": 0,
+     "name": "투자부동산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500362"
+     ]
+    },
+    {
+     "row": 29,
+     "level": 0,
+     "name": "무형자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500311"
+     ]
+    },
+    {
+     "row": 30,
+     "level": 0,
+     "name": "무형자산손상차손",
+     "kind": "detail",
+     "codes": [
+      "4500312"
+     ]
+    },
+    {
+     "row": 31,
+     "level": 0,
+     "name": "금융자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500392"
+     ]
+    },
+    {
+     "row": 32,
+     "level": 0,
+     "name": "매도가능증권처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500321"
+     ]
+    },
+    {
+     "row": 33,
+     "level": 0,
+     "name": "매도가능금융자산손상차손",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 34,
+     "level": 0,
+     "name": "퇴직급여",
+     "kind": "detail",
+     "codes": [
+      "4300104",
+      "5200104"
+     ]
+    },
+    {
+     "row": 35,
+     "level": 0,
+     "name": "공사손실충당부채전입액",
+     "kind": "detail",
+     "codes": [
+      "5300201"
+     ]
+    },
+    {
+     "row": 36,
+     "level": 0,
+     "name": "하자보수충당부채전입액",
+     "kind": "detail",
+     "codes": [
+      "5300202"
+     ]
+    },
+    {
+     "row": 37,
+     "level": 0,
+     "name": "기타충당부채전입액",
+     "kind": "detail",
+     "codes": [
+      "5300203"
+     ]
+    },
+    {
+     "row": 38,
+     "level": 0,
+     "name": "금융자산평가손실",
+     "kind": "detail",
+     "codes": [
+      "4500391"
+     ]
+    },
+    {
+     "row": 39,
+     "level": 0,
+     "name": "투자자산평가손실",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 40,
+     "level": 0,
+     "name": "보상비",
+     "kind": "detail",
+     "codes": [
+      "4501104",
+      "5300109"
+     ]
+    },
+    {
+     "row": 41,
+     "level": 0,
+     "name": "수선비",
+     "kind": "detail",
+     "codes": [
+      "5300104"
+     ]
+    },
+    {
+     "row": 42,
+     "level": 0,
+     "name": "이자비용",
+     "kind": "detail",
+     "codes": [
+      "4500201"
+     ]
+    },
+    {
+     "row": 43,
+     "level": 0,
+     "name": "미발생원가충당금전입액",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 44,
+     "level": 0,
+     "name": "매각예정자산처분손실",
+     "kind": "detail",
+     "codes": [
+      "4500371"
+     ]
+    },
+    {
+     "row": 45,
+     "level": 0,
+     "name": "기타비용",
+     "kind": "detail",
+     "codes": [
+      "4200199",
+      "4300105",
+      "4599901",
+      "CF7100001"
+     ]
+    },
+    {
+     "row": 46,
+     "level": 0,
+     "name": "3. 현금의 유입이 없는 수익등의 차감",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 47,
+     "level": 0,
+     "name": "외화환산이익/외환차익",
+     "kind": "detail",
+     "codes": [
+      "4400102"
+     ]
+    },
+    {
+     "row": 48,
+     "level": 0,
+     "name": "지분법평가이익",
+     "kind": "detail",
+     "codes": [
+      "4401201"
+     ]
+    },
+    {
+     "row": 49,
+     "level": 0,
+     "name": "대손충당금환입",
+     "kind": "detail",
+     "codes": [
+      "4401101"
+     ]
+    },
+    {
+     "row": 50,
+     "level": 0,
+     "name": "기타금융자산평가이익",
+     "kind": "detail",
+     "codes": [
+      "4400391"
+     ]
+    },
+    {
+     "row": 51,
+     "level": 0,
+     "name": "당기손익-공정가치측정금융자산평가이익",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 52,
+     "level": 0,
+     "name": "지분법투자주식처분이익",
+     "kind": "detail",
+     "codes": [
+      "4401202"
+     ]
+    },
+    {
+     "row": 53,
+     "level": 0,
+     "name": "투자자산평가환입",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 54,
+     "level": 0,
+     "name": "파생상품거래이익",
+     "kind": "detail",
+     "codes": [
+      "4400351"
+     ]
+    },
+    {
+     "row": 55,
+     "level": 0,
+     "name": "파생상품평가이익",
+     "kind": "detail",
+     "codes": [
+      "4400352"
+     ]
+    },
+    {
+     "row": 56,
+     "level": 0,
+     "name": "보험차익",
+     "kind": "detail",
+     "codes": [
+      "4401102"
+     ]
+    },
+    {
+     "row": 57,
+     "level": 0,
+     "name": "유형자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400301"
+     ]
+    },
+    {
+     "row": 58,
+     "level": 0,
+     "name": "투자부동산평가이익",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 59,
+     "level": 0,
+     "name": "투자부동산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400362"
+     ]
+    },
+    {
+     "row": 60,
+     "level": 0,
+     "name": "무형자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400311"
+     ]
+    },
+    {
+     "row": 61,
+     "level": 0,
+     "name": "무형자산손상차손환입",
+     "kind": "detail",
+     "codes": [
+      "4400312"
+     ]
+    },
+    {
+     "row": 62,
+     "level": 0,
+     "name": "매도가능증권처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400321"
+     ]
+    },
+    {
+     "row": 63,
+     "level": 0,
+     "name": "투자부동산재평가이익",
+     "kind": "detail",
+     "codes": [
+      "4400361"
+     ]
+    },
+    {
+     "row": 64,
+     "level": 0,
+     "name": "공사손실충당부채 환입액",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 65,
+     "level": 0,
+     "name": "하자보수충당부채 환입액",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 66,
+     "level": 0,
+     "name": "보상비 환입액",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 67,
+     "level": 0,
+     "name": "리스자산 해지이익",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 68,
+     "level": 0,
+     "name": "이자수익",
+     "kind": "detail",
+     "codes": [
+      "4400201"
+     ]
+    },
+    {
+     "row": 69,
+     "level": 0,
+     "name": "매각예정자산처분이익",
+     "kind": "detail",
+     "codes": [
+      "4400371"
+     ]
+    },
+    {
+     "row": 70,
+     "level": 0,
+     "name": "염가매수차익",
+     "kind": "detail",
+     "codes": [
+      "4401103"
+     ]
+    },
+    {
+     "row": 71,
+     "level": 0,
+     "name": "기타수익",
+     "kind": "detail",
+     "codes": [
+      "4499901"
+     ]
+    },
+    {
+     "row": 72,
+     "level": 0,
+     "name": "4. 영업활동으로 인한 자산부채의 변동",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 73,
+     "level": 0,
+     "name": "매출채권의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110301"
+     ]
+    },
+    {
+     "row": 74,
+     "level": 0,
+     "name": "미수금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110302"
+     ]
+    },
+    {
+     "row": 75,
+     "level": 0,
+     "name": "미청구공사의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110304"
+     ]
+    },
+    {
+     "row": 76,
+     "level": 0,
+     "name": "미수수익의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110303"
+     ]
+    },
+    {
+     "row": 77,
+     "level": 0,
+     "name": "선급금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110501"
+     ]
+    },
+    {
+     "row": 78,
+     "level": 0,
+     "name": "선급비용의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110502"
+     ]
+    },
+    {
+     "row": 79,
+     "level": 0,
+     "name": "부가세대급금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110504"
+     ]
+    },
+    {
+     "row": 80,
+     "level": 0,
+     "name": "유동성이연법인세자산의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110505"
+     ]
+    },
+    {
+     "row": 81,
+     "level": 0,
+     "name": "선급법인세의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1110503"
+     ]
+    },
+    {
+     "row": 82,
+     "level": 0,
+     "name": "재고자산의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1120000"
+     ]
+    },
+    {
+     "row": 83,
+     "level": 0,
+     "name": "기타의유동자산의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1199901"
+     ]
+    },
+    {
+     "row": 84,
+     "level": 0,
+     "name": "장기미수금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240603"
+     ]
+    },
+    {
+     "row": 85,
+     "level": 0,
+     "name": "장기미수수익의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240604"
+     ]
+    },
+    {
+     "row": 86,
+     "level": 0,
+     "name": "장기매출채권의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240602"
+     ]
+    },
+    {
+     "row": 87,
+     "level": 0,
+     "name": "장기선급금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240606"
+     ]
+    },
+    {
+     "row": 88,
+     "level": 0,
+     "name": "비유동미청구공사의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240701"
+     ]
+    },
+    {
+     "row": 89,
+     "level": 0,
+     "name": "비유동성이연법인세자산의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240605"
+     ]
+    },
+    {
+     "row": 90,
+     "level": 0,
+     "name": "예치보증금의 증감",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 91,
+     "level": 0,
+     "name": "장기선급비용의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1240607"
+     ]
+    },
+    {
+     "row": 92,
+     "level": 0,
+     "name": "기타비유동자산의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF1299901"
+     ]
+    },
+    {
+     "row": 93,
+     "level": 0,
+     "name": "매입채무의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100101"
+     ]
+    },
+    {
+     "row": 94,
+     "level": 0,
+     "name": "미지급금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100102"
+     ]
+    },
+    {
+     "row": 95,
+     "level": 0,
+     "name": "유동성초과청구공사의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100603"
+     ]
+    },
+    {
+     "row": 96,
+     "level": 0,
+     "name": "선수금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100601"
+     ]
+    },
+    {
+     "row": 97,
+     "level": 0,
+     "name": "미지급비용의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100103"
+     ]
+    },
+    {
+     "row": 98,
+     "level": 0,
+     "name": "선수수익의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100602"
+     ]
+    },
+    {
+     "row": 99,
+     "level": 0,
+     "name": "예수금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100104"
+     ]
+    },
+    {
+     "row": 100,
+     "level": 0,
+     "name": "부가세예수금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100105"
+     ]
+    },
+    {
+     "row": 101,
+     "level": 0,
+     "name": "미지급법인세의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100106"
+     ]
+    },
+    {
+     "row": 102,
+     "level": 0,
+     "name": "유동성이연법인세부채의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100604"
+     ]
+    },
+    {
+     "row": 103,
+     "level": 0,
+     "name": "기타유동부채의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2199901"
+     ]
+    },
+    {
+     "row": 104,
+     "level": 0,
+     "name": "장기미지급금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2200301"
+     ]
+    },
+    {
+     "row": 105,
+     "level": 0,
+     "name": "장기미지급비용의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2200302"
+     ]
+    },
+    {
+     "row": 106,
+     "level": 0,
+     "name": "임대보증금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100402"
+     ]
+    },
+    {
+     "row": 107,
+     "level": 0,
+     "name": "예수보증금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2100403"
+     ]
+    },
+    {
+     "row": 108,
+     "level": 0,
+     "name": "비유동이연법인세부채의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2200701"
+     ]
+    },
+    {
+     "row": 109,
+     "level": 0,
+     "name": "퇴직금의 지급",
+     "kind": "detail",
+     "codes": [
+      "CF2200401"
+     ]
+    },
+    {
+     "row": 110,
+     "level": 0,
+     "name": "국민연금전환금의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2200402"
+     ]
+    },
+    {
+     "row": 111,
+     "level": 0,
+     "name": "퇴직연금운용자산의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2200403"
+     ]
+    },
+    {
+     "row": 112,
+     "level": 0,
+     "name": "공사손실충당부채 사용액",
+     "kind": "detail",
+     "codes": [
+      "CF2100701"
+     ]
+    },
+    {
+     "row": 113,
+     "level": 0,
+     "name": "하자보수충당부채 사용액",
+     "kind": "detail",
+     "codes": [
+      "CF2100702"
+     ]
+    },
+    {
+     "row": 114,
+     "level": 0,
+     "name": "기타충당부채 사용액",
+     "kind": "detail",
+     "codes": [
+      "CF2100709"
+     ]
+    },
+    {
+     "row": 115,
+     "level": 0,
+     "name": "비유동성기타충당부채 증감",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 116,
+     "level": 0,
+     "name": "기타비유동부채의 증감",
+     "kind": "detail",
+     "codes": [
+      "CF2299901"
+     ]
+    },
+    {
+     "row": 117,
+     "level": 0,
+     "name": "Ⅱ. 투자활동으로 인한 현금흐름",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 118,
+     "level": 0,
+     "name": "1.투자활동으로 인한 현금유입액",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 119,
+     "level": 0,
+     "name": "단기금융상품의 순증감",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 120,
+     "level": 0,
+     "name": "단기매매증권의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3111002"
+     ]
+    },
+    {
+     "row": 121,
+     "level": 0,
+     "name": "기타유동자산의 감소",
+     "kind": "detail",
+     "codes": [
+      "CF3121001"
+     ]
+    },
+    {
+     "row": 122,
+     "level": 0,
+     "name": "매도가능증권의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3111005"
+     ]
+    },
+    {
+     "row": 123,
+     "level": 0,
+     "name": "당기손익-공정가치측정금융자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3111003"
+     ]
+    },
+    {
+     "row": 124,
+     "level": 0,
+     "name": "기타포괄손익-공정가치측정금융자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3111004"
+     ]
+    },
+    {
+     "row": 125,
+     "level": 0,
+     "name": "만기보유증권 감소",
+     "kind": "detail",
+     "codes": [
+      "CF3111006"
+     ]
+    },
+    {
+     "row": 126,
+     "level": 0,
+     "name": "단기대여금의 감소",
+     "kind": "detail",
+     "codes": [
+      "CF3111007"
+     ]
+    },
+    {
+     "row": 127,
+     "level": 0,
+     "name": "파생상품정산",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 128,
+     "level": 0,
+     "name": "장기금융상품의 순증감",
+     "kind": "detail",
+     "codes": [
+      "CF3121002",
+      "CF4121002"
+     ]
+    },
+    {
+     "row": 129,
+     "level": 0,
+     "name": "장기대여금의 감소",
+     "kind": "detail",
+     "codes": [
+      "CF3121005"
+     ]
+    },
+    {
+     "row": 130,
+     "level": 0,
+     "name": "장기금융상품의 감소",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 131,
+     "level": 0,
+     "name": "장기선급금의 감소",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 132,
+     "level": 0,
+     "name": "투자부동산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3121006",
+      "CF3121007"
+     ]
+    },
+    {
+     "row": 133,
+     "level": 0,
+     "name": "국고보조금 수령",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 134,
+     "level": 0,
+     "name": "토지의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122001"
+     ]
+    },
+    {
+     "row": 135,
+     "level": 0,
+     "name": "건물의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122002"
+     ]
+    },
+    {
+     "row": 136,
+     "level": 0,
+     "name": "기계장치의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122003"
+     ]
+    },
+    {
+     "row": 137,
+     "level": 0,
+     "name": "차량운반구의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122004"
+     ]
+    },
+    {
+     "row": 138,
+     "level": 0,
+     "name": "비품의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122005"
+     ]
+    },
+    {
+     "row": 139,
+     "level": 0,
+     "name": "시설장치의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122006"
+     ]
+    },
+    {
+     "row": 140,
+     "level": 0,
+     "name": "기타유형자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122008"
+     ]
+    },
+    {
+     "row": 141,
+     "level": 0,
+     "name": "건설중인자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3122007"
+     ]
+    },
+    {
+     "row": 142,
+     "level": 0,
+     "name": "산업재산권의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3123001"
+     ]
+    },
+    {
+     "row": 143,
+     "level": 0,
+     "name": "컴퓨터SOFTWARE의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3123002"
+     ]
+    },
+    {
+     "row": 144,
+     "level": 0,
+     "name": "예치보증금의 감소",
+     "kind": "detail",
+     "codes": [
+      "CF3124001"
+     ]
+    },
+    {
+     "row": 145,
+     "level": 0,
+     "name": "기타무형자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3123007"
+     ]
+    },
+    {
+     "row": 146,
+     "level": 0,
+     "name": "회원권의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3124002"
+     ]
+    },
+    {
+     "row": 147,
+     "level": 0,
+     "name": "기타투자자산의 처분",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 148,
+     "level": 0,
+     "name": "매각예정자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3124006"
+     ]
+    },
+    {
+     "row": 149,
+     "level": 0,
+     "name": "사용권자산의 처분",
+     "kind": "detail",
+     "codes": [
+      "CF3124004"
+     ]
+    },
+    {
+     "row": 150,
+     "level": 0,
+     "name": "기타비유동자산의 감소",
+     "kind": "detail",
+     "codes": [
+      "CF3124005"
+     ]
+    },
+    {
+     "row": 151,
+     "level": 0,
+     "name": "2.투자활동으로 인한 현금유출액",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 152,
+     "level": 0,
+     "name": "단기금융상품의 순증감",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 153,
+     "level": 0,
+     "name": "단기대여금의 증가",
+     "kind": "detail",
+     "codes": [
+      "CF4111007"
+     ]
+    },
+    {
+     "row": 154,
+     "level": 0,
+     "name": "지분법적용투자주식의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4121003"
+     ]
+    },
+    {
+     "row": 155,
+     "level": 0,
+     "name": "매도가능금융자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4111005"
+     ]
+    },
+    {
+     "row": 156,
+     "level": 0,
+     "name": "만기보유증권의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4111006"
+     ]
+    },
+    {
+     "row": 157,
+     "level": 0,
+     "name": "당기손익-공정가치측정금융자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4111003"
+     ]
+    },
+    {
+     "row": 158,
+     "level": 0,
+     "name": "기타포괄손익-공정가치측정금융자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4111004"
+     ]
+    },
+    {
+     "row": 159,
+     "level": 0,
+     "name": "장기대여금의 증가",
+     "kind": "detail",
+     "codes": [
+      "CF4121004"
+     ]
+    },
+    {
+     "row": 160,
+     "level": 0,
+     "name": "토지의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122001"
+     ]
+    },
+    {
+     "row": 161,
+     "level": 0,
+     "name": "건물의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122002"
+     ]
+    },
+    {
+     "row": 162,
+     "level": 0,
+     "name": "기계장치의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122003"
+     ]
+    },
+    {
+     "row": 163,
+     "level": 0,
+     "name": "차량운반구의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122004"
+     ]
+    },
+    {
+     "row": 164,
+     "level": 0,
+     "name": "비품의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122005"
+     ]
+    },
+    {
+     "row": 165,
+     "level": 0,
+     "name": "시설장치의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122006"
+     ]
+    },
+    {
+     "row": 166,
+     "level": 0,
+     "name": "기타유형자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122008"
+     ]
+    },
+    {
+     "row": 167,
+     "level": 0,
+     "name": "건설중인자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4122007"
+     ]
+    },
+    {
+     "row": 168,
+     "level": 0,
+     "name": "투자부동산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4121005",
+      "CF4121006"
+     ]
+    },
+    {
+     "row": 169,
+     "level": 0,
+     "name": "산업재산권의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4123001"
+     ]
+    },
+    {
+     "row": 170,
+     "level": 0,
+     "name": "컴퓨터SOFTWARE의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4123002"
+     ]
+    },
+    {
+     "row": 171,
+     "level": 0,
+     "name": "개발비의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4123003"
+     ]
+    },
+    {
+     "row": 172,
+     "level": 0,
+     "name": "기타무형자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4123007"
+     ]
+    },
+    {
+     "row": 173,
+     "level": 0,
+     "name": "예치보증금의 증가",
+     "kind": "detail",
+     "codes": [
+      "CF4124001"
+     ]
+    },
+    {
+     "row": 174,
+     "level": 0,
+     "name": "장기금융상품의 순증감",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 175,
+     "level": 0,
+     "name": "기타비유동자산의 증가",
+     "kind": "detail",
+     "codes": [
+      "CF4124005"
+     ]
+    },
+    {
+     "row": 176,
+     "level": 0,
+     "name": "회원권의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4124002"
+     ]
+    },
+    {
+     "row": 177,
+     "level": 0,
+     "name": "기타투자자산의 취득",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 178,
+     "level": 0,
+     "name": "파생상품의 정산",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 179,
+     "level": 0,
+     "name": "투자주식현금유출",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 180,
+     "level": 0,
+     "name": "사업양수도로 인한 현금유출",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 181,
+     "level": 0,
+     "name": "사업결합으로 인한 순현금유출",
+     "kind": "detail",
+     "codes": [
+      "CF4220003"
+     ]
+    },
+    {
+     "row": 182,
+     "level": 0,
+     "name": "Ⅲ. 재무활동으로 인한 현금흐름",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 183,
+     "level": 0,
+     "name": "1.재무활동으로 인한 현금유입액",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 184,
+     "level": 0,
+     "name": "무역금융의 차입",
+     "kind": "detail",
+     "codes": [
+      "CF5210002"
+     ]
+    },
+    {
+     "row": 185,
+     "level": 0,
+     "name": "USANCE차입금의 차입",
+     "kind": "detail",
+     "codes": [
+      "CF5210003"
+     ]
+    },
+    {
+     "row": 186,
+     "level": 0,
+     "name": "일반대차입금의 차입",
+     "kind": "detail",
+     "codes": [
+      "CF5210004"
+     ]
+    },
+    {
+     "row": 187,
+     "level": 0,
+     "name": "사채의 발행",
+     "kind": "detail",
+     "codes": [
+      "CF5220001"
+     ]
+    },
+    {
+     "row": 188,
+     "level": 0,
+     "name": "원재료차입금의 차입",
+     "kind": "detail",
+     "codes": [
+      "CF5210005"
+     ]
+    },
+    {
+     "row": 189,
+     "level": 0,
+     "name": "장기차입금의 증가",
+     "kind": "detail",
+     "codes": [
+      "CF5220002"
+     ]
+    },
+    {
+     "row": 190,
+     "level": 0,
+     "name": "신종자본증권의 발행",
+     "kind": "detail",
+     "codes": [
+      "CF5220005"
+     ]
+    },
+    {
+     "row": 191,
+     "level": 0,
+     "name": "비지배지분과의 거래(유입)",
+     "kind": "detail",
+     "codes": [
+      "CF5220006"
+     ]
+    },
+    {
+     "row": 192,
+     "level": 0,
+     "name": "2.재무활동으로 인한 현금유출액",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 193,
+     "level": 0,
+     "name": "무역금융의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6210002"
+     ]
+    },
+    {
+     "row": 194,
+     "level": 0,
+     "name": "USANCE차입금의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6210003"
+     ]
+    },
+    {
+     "row": 195,
+     "level": 0,
+     "name": "일반대차입금의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6210004"
+     ]
+    },
+    {
+     "row": 196,
+     "level": 0,
+     "name": "원재료차입금의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6210005"
+     ]
+    },
+    {
+     "row": 197,
+     "level": 0,
+     "name": "유동성장기차입금의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6210001"
+     ]
+    },
+    {
+     "row": 198,
+     "level": 0,
+     "name": "장기차입금의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6220002"
+     ]
+    },
+    {
+     "row": 199,
+     "level": 0,
+     "name": "사채의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6220001"
+     ]
+    },
+    {
+     "row": 200,
+     "level": 0,
+     "name": "수입보증금의 감소",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 201,
+     "level": 0,
+     "name": "주식발행비의 증가",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 202,
+     "level": 0,
+     "name": "리스부채의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6220007"
+     ]
+    },
+    {
+     "row": 203,
+     "level": 0,
+     "name": "회생채무의 상환",
+     "kind": "detail",
+     "codes": [
+      "CF6220008"
+     ]
+    },
+    {
+     "row": 204,
+     "level": 0,
+     "name": "배당금 지급",
+     "kind": "detail",
+     "codes": [
+      "CF6220006"
+     ]
+    },
+    {
+     "row": 205,
+     "level": 0,
+     "name": "신종자본증권 거래원가",
+     "kind": "detail",
+     "codes": [
+      "CF6220009"
+     ]
+    },
+    {
+     "row": 206,
+     "level": 0,
+     "name": "주식발행비",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 207,
+     "level": 0,
+     "name": "자기주식의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF6220004"
+     ]
+    },
+    {
+     "row": 208,
+     "level": 0,
+     "name": "비지배지분과의 거래(유출)",
+     "kind": "detail",
+     "codes": [
+      "CF6220010"
+     ]
+    },
+    {
+     "row": 209,
+     "level": 0,
+     "name": "Ⅳ. 현금의 증가(감소) (Ⅰ+Ⅱ+Ⅲ)",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 210,
+     "level": 0,
+     "name": "Ⅴ. 환율변동효과",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 211,
+     "level": 0,
+     "name": "연결범위변동",
+     "kind": "detail",
+     "codes": []
+    },
+    {
+     "row": 212,
+     "level": 0,
+     "name": "Ⅵ. 기초의현금",
+     "kind": "subtotal",
+     "codes": []
+    },
+    {
+     "row": 213,
+     "level": 0,
+     "name": "Ⅶ. 기말의현금",
+     "kind": "subtotal",
+     "codes": []
+    }
+   ]
+  }
+ }
+}

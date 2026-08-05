@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>보고용 재무제표 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6; --rule:#333;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+    --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+    --border:#334155; --rule:#94a3b8;
+  }
+  body { color-scheme: dark; }
+  .card { background:var(--card-bg); color:var(--text-body); }
+  .form-select { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family:'Pretendard Variable', Pretendard, system-ui, 'Malgun Gothic', sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border:1px solid var(--border); border-radius:10px; }
+
+/* ── 공시 양식 표 ─────────────────────────────── */
+.fs-wrap { background:var(--card-bg); border-radius:8px; padding:22px 26px 26px; overflow-x:auto; }
+.fs-title { text-align:center; font-size:1.35rem; font-weight:800; letter-spacing:.35em; margin:0 0 14px; }
+.fs-sub { font-size:.86rem; margin:0; }
+.fs-entity { display:flex; justify-content:space-between; align-items:flex-end;
+             margin:14px 0 6px; font-size:.9rem; font-weight:600; }
+.fs-unit { font-size:.82rem; color:var(--text-muted); font-weight:500; }
+.fs-table { width:100%; border-collapse:collapse; font-size:.87rem; }
+.fs-table th { border-top:2px solid var(--rule); border-bottom:1px solid var(--rule);
+               padding:7px 10px; font-weight:700; text-align:center; white-space:nowrap; }
+.fs-table th:first-child { text-align:center; }
+.fs-table td { padding:3px 10px; }
+.fs-table td.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; min-width:150px; }
+.fs-table tr.lv0 > td { font-weight:700; }
+.fs-table tr.lv1 > td:first-child { padding-left:22px; font-weight:600; }
+.fs-table tr.lv2 > td:first-child { padding-left:40px; }
+.fs-table tr.sub > td { background:var(--brand-050); }
+.fs-table tr.total > td { border-top:1px solid var(--rule); border-bottom:2px double var(--rule); font-weight:800; }
+.fs-table td.cell-sel { outline:2px solid var(--brand-700); outline-offset:-2px; }
+.pill { font-size:.78rem; padding:3px 10px; border-radius:999px; background:var(--brand-050);
+        color:var(--brand-900); font-weight:700; }
+.tabs .btn { min-width:120px; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'report_fs' %}
+{% include '_sidebar.html' %}
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-diagram-3"></i> 연결그룹</label>
+      <select id="groupSelect" class="form-select" style="max-width:220px" onchange="load()"></select>
+
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:160px" onchange="load()">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+
+      <div class="btn-group tabs" role="group">
+        <button class="btn btn-outline-primary active" data-stmt="BS" onclick="setStmt('BS')">재무상태표</button>
+        <button class="btn btn-outline-primary" data-stmt="PL" onclick="setStmt('PL')">손익계산서</button>
+        <button class="btn btn-outline-primary" data-stmt="CF" onclick="setStmt('CF')">현금흐름표</button>
+      </div>
+
+      <div class="ms-auto d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="copyTable(this)">
+          <i class="bi bi-clipboard"></i> 전체 복사
+        </button>
+        <a id="xlsBtn" class="btn btn-success btn-sm" href="#">
+          <i class="bi bi-download"></i> 엑셀 다운로드
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div id="notice"></div>
+
+  <div class="card section-card">
+    <div class="card-body">
+      <div class="fs-wrap" id="area">
+        <div class="text-center py-5 text-muted"><span class="spinner-border"></span> 불러오는 중…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let STMT = 'BS';
+let GROUPS = [];
+
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function period(){return document.getElementById('periodSelect').value;}
+function groupId(){return document.getElementById('groupSelect').value;}
+
+// 원 단위 · 음수는 괄호
+function fmt(v){
+  const n = Math.round(Number(v)||0);
+  if (n === 0) return '-';
+  return n < 0 ? '(' + Math.abs(n).toLocaleString('ko-KR') + ')' : n.toLocaleString('ko-KR');
+}
+
+function setStmt(s){
+  STMT = s;
+  document.querySelectorAll('.tabs .btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.stmt === s));
+  load();
+}
+
+async function loadGroups(){
+  const r = await fetch('/consolidation/groups?year=' + encodeURIComponent(period()));
+  const j = await r.json();
+  GROUPS = j.groups || [];
+  const sel = document.getElementById('groupSelect');
+  sel.innerHTML = GROUPS.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+}
+
+async function load(){
+  const area = document.getElementById('area');
+  const notice = document.getElementById('notice');
+  if (!groupId()){ area.innerHTML = '<div class="text-muted py-4">연결그룹이 없습니다.</div>'; return; }
+  const url = `/report-fs/data?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}&stmt=${STMT}`;
+  document.getElementById('xlsBtn').href =
+      `/report-fs/excel?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}&stmt=${STMT}`;
+  area.innerHTML = '<div class="text-center py-5 text-muted"><span class="spinner-border"></span> 계산 중…</div>';
+  notice.innerHTML = '';
+  try{
+    const res = await fetch(url);
+    const d = await res.json();
+    if (!res.ok || d.error) throw new Error(d.error || '조회 실패');
+    render(d);
+  }catch(e){
+    area.innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message)}</div>`;
+  }
+}
+
+function render(d){
+  const rows = d.rows || [];
+  const body = rows.map(r => {
+    const cls = ['lv' + r.level, r.kind === 'subtotal' ? 'sub' : ''];
+    if (/(총계|합계|당기순이익|기말의현금)/.test(r.name) && r.kind === 'subtotal') cls.push('total');
+    return `<tr class="${cls.join(' ')}">
+      <td>${esc(r.name)}</td>
+      <td class="num" data-val="${Math.round(r.cur||0)}">${fmt(r.cur)}</td>
+      <td class="num" data-val="${Math.round(r.pri||0)}">${fmt(r.pri)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('area').innerHTML = `
+    <div class="fs-title">${esc(d.title)}</div>
+    <div class="fs-sub">당기 : ${esc(d.cur_label)}</div>
+    <div class="fs-sub">전기 : ${esc(d.pri_label)}</div>
+    <div class="fs-entity"><span>${esc(d.entity)}</span><span class="fs-unit">(단위 : 원)</span></div>
+    <table class="fs-table" id="fsTable">
+      <thead><tr><th style="width:46%">과&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;목</th>
+        <th>당기</th><th>전기</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+
+  if (!d.prior_period){
+    document.getElementById('notice').innerHTML =
+      `<div class="alert alert-warning py-2 px-3 small mb-3">
+         <i class="bi bi-exclamation-triangle-fill me-1"></i>
+         전기(전년 4분기) 자료를 불러오지 못해 전기 열이 0으로 표시됩니다.
+       </div>`;
+  }
+}
+
+// ── 셀 선택 · 방향키 · 서식없는 복사 (연결정산표와 동일) ─────────
+(function(){
+  let sel = null;
+  function pick(cell){
+    if (!cell) return;
+    if (sel) sel.classList.remove('cell-sel');
+    sel = cell; cell.classList.add('cell-sel');
+    const s = window.getSelection(), r = document.createRange();
+    r.selectNodeContents(cell); s.removeAllRanges(); s.addRange(r);
+  }
+  document.addEventListener('click', e => {
+    const t = document.getElementById('fsTable');
+    if (!t) return;
+    const s = window.getSelection();
+    if (s && !s.isCollapsed) return;
+    const cell = e.target.closest('td, th');
+    if (cell && t.contains(cell)) pick(cell);
+  });
+  document.addEventListener('keydown', e => {
+    if (!sel || !document.body.contains(sel)) return;
+    const K = ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+    if (!K.includes(e.key)) return;
+    const ae = document.activeElement;
+    if (ae && ['INPUT','TEXTAREA','SELECT'].includes(ae.tagName)) return;
+    const tr = sel.parentElement, idx = Array.from(tr.children).indexOf(sel);
+    const t = document.getElementById('fsTable');
+    let tgt = null;
+    if (e.key === 'ArrowLeft') tgt = sel.previousElementSibling;
+    if (e.key === 'ArrowRight') tgt = sel.nextElementSibling;
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown'){
+      const rs = Array.from(t.querySelectorAll('tr'));
+      const nr = rs[rs.indexOf(tr) + (e.key === 'ArrowUp' ? -1 : 1)];
+      if (nr) tgt = nr.children[Math.min(idx, nr.children.length - 1)];
+    }
+    if (!tgt) return;
+    e.preventDefault(); pick(tgt); tgt.scrollIntoView({block:'nearest'});
+  });
+  document.addEventListener('copy', e => {
+    const t = document.getElementById('fsTable');
+    const s = window.getSelection();
+    if (!t || !s || s.rangeCount === 0 || s.isCollapsed) return;
+    if (!t.contains(s.anchorNode)) return;
+    const lines = [];
+    t.querySelectorAll('tr').forEach(tr => {
+      const v = []; let hit = false;
+      Array.from(tr.children).forEach(c => {
+        if (s.containsNode(c, true)){
+          hit = true;
+          v.push(c.hasAttribute('data-val') ? c.getAttribute('data-val') : c.innerText.trim());
+        }
+      });
+      if (hit){ lines.push(v.join('\t')); }
+    });
+    if (!lines.length) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', lines.join('\n'));
+  });
+})();
+
+function copyTable(btn){
+  const t = document.getElementById('fsTable');
+  if (!t) return;
+  const lines = [];
+  t.querySelectorAll('tr').forEach(tr => {
+    const v = [];
+    Array.from(tr.children).forEach(c =>
+      v.push(c.hasAttribute('data-val') ? c.getAttribute('data-val') : c.innerText.trim()));
+    lines.push(v.join('\t'));
+  });
+  const text = lines.join('\n');
+  const orig = btn.innerHTML;
+  const done = () => {
+    btn.innerHTML = '<i class="bi bi-check-lg"></i> 복사됨!';
+    btn.classList.replace('btn-primary','btn-success');
+    setTimeout(()=>{ btn.innerHTML = orig; btn.classList.replace('btn-success','btn-primary'); }, 2000);
+  };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(done, ()=>fallback(text, done));
+  } else fallback(text, done);
+}
+function fallback(text, done){
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position='fixed'; ta.style.left='-9999px';
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch(e){}
+  document.body.removeChild(ta);
+}
+
+document.getElementById('periodSelect').addEventListener('change', async () => {
+  await loadGroups(); load();
+});
+(async () => { await loadGroups(); load(); })();
+</script>
+</body>
+</html>

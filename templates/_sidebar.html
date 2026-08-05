@@ -238,6 +238,12 @@
     <span class="side-label" data-i18n="side.timeseries">시계열 분석</span>
   </a>
   {% endif %}
+  {% if perms and perms.report_fs %}
+  <a href="/report-fs" class="side-link {% if active_menu == 'report_fs' %}active{% endif %}" title="보고용 재무제표">
+    <i class="bi bi-file-earmark-text-fill" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.report_fs">보고용 재무제표</span>
+  </a>
+  {% endif %}
   {% if perms and perms.affiliate_perf %}
   <a href="/affiliate-performance" class="side-link {% if active_menu == 'affiliate_perf' %}active{% endif %}" title="계열사별 실적">
     <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i>

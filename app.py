@@ -316,6 +316,7 @@ def _inject_sidebar_perms():
             'consol_compute':  _has_permission(uname, 'consol.compute'),
             'consol_journal':  _has_permission(uname, 'consol.journal'),
             'affiliate_perf':  _has_permission(uname, 'affiliate.performance'),
+            'report_fs':       _has_permission(uname, 'report.fs'),
             'files_upload':    _has_permission(uname, 'files.upload'),
             'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
@@ -424,6 +425,9 @@ def _ensure_permission_catalog():
          {'system_admin', 'finance_lead'}, None),
         # 계열사별 실적: 자회사담당자만 제외하고 전 그룹 조회 허용
         ('affiliate.performance', '계열사별 실적 조회', 'consol.compute',
+         {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, '연결정산'),
+        # 보고용 재무제표: 자회사담당자만 제외하고 전 그룹 조회 허용
+        ('report.fs', '보고용 재무제표 조회', 'affiliate.performance',
          {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
@@ -8004,6 +8008,7 @@ def _sidebar_perms(uname):
         'consol_compute':   _has_permission(uname, 'consol.compute'),
         'consol_journal':   _has_permission(uname, 'consol.journal'),
         'affiliate_perf':   _has_permission(uname, 'affiliate.performance'),
+        'report_fs':        _has_permission(uname, 'report.fs'),
         'files_upload':     _has_permission(uname, 'files.upload'),
         'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
@@ -11509,6 +11514,318 @@ def affiliate_performance_excel():
     safe = re.sub(r'[\\/:*?"<>|]', '_', period)
     return send_file(buf, as_attachment=True,
                      download_name=f'계열사별실적_{safe}.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 보고용 재무제표 (공시 양식 BS/PL/CF — 연결정산표·현금정산표에서 산출)
+# ─────────────────────────────────────────────────────────────────────────────
+# report_mapping.json 구조
+#   statements.{BS|PL|CF}.lines[] : {row, level, name, kind(detail|subtotal), codes[]}
+#   formulas.{표}.{라인명}         : [('+'|'-', 참조 라인명), ...]  ← 하위 합으로 안 되는 총계
+#   cash_specials.{라인명}         : 현금정산표 특수행 키 (net_income/fx_effect/…)
+#   entity_names.{그룹명}          : 보고서 회사명
+REPORT_MAPPING_PATH = Path('report_mapping.json')
+_REPORT_MAPPING_CACHE = {'mtime': None, 'data': None}
+
+
+def _load_report_mapping():
+    """매핑 로드 (파일 수정 시각 기준 캐시)."""
+    try:
+        mt = REPORT_MAPPING_PATH.stat().st_mtime
+    except OSError:
+        return None
+    if _REPORT_MAPPING_CACHE['mtime'] == mt:
+        return _REPORT_MAPPING_CACHE['data']
+    try:
+        with open(REPORT_MAPPING_PATH, encoding='utf-8') as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+    _REPORT_MAPPING_CACHE.update(mtime=mt, data=data)
+    return data
+
+
+def _report_period_labels(period):
+    """'2026-2Q' → (당기 라벨, 전기 라벨, 전기 결산기간)"""
+    m = re.match(r'^(\d{4})-(\d)Q$', str(period or ''))
+    if not m:
+        return period, '', None
+    y, q = int(m.group(1)), int(m.group(2))
+    end_md = {1: '03월 31일', 2: '06월 30일', 3: '09월 30일', 4: '12월 31일'}[q]
+    cur_bs = f'{y}년 {end_md} 현재'
+    cur_pl = f'{y}년 01월 01일부터 {y}년 {end_md}까지'
+    prior = f'{y-1}-4Q'
+    pri_bs = f'{y-1}년 12월 31일 현재'
+    pri_pl = f'{y-1}년 01월 01일부터 {y-1}년 12월 31일까지'
+    return {'bs': (cur_bs, pri_bs), 'pl': (cur_pl, pri_pl)}, prior, prior
+
+
+def _report_values(ctx, cash, stmt, mapping):
+    """보고서 한 종류의 라인별 (당기, 전기) 금액 산출."""
+    lines = (mapping.get('statements', {}).get(stmt) or {}).get('lines') or []
+
+    # 코드 → (당기, 전기)
+    src = {}
+    if stmt == 'CF':
+        for sec in (cash.get('sections') or []):
+            for row in (sec.get('rows') or []):
+                c = str(row.get('cf_code') or '').strip()
+                if c:
+                    src[c] = (float(row.get('final') or 0), 0.0)
+    else:
+        for row in (ctx.get('result') or {}).get('rows') or []:
+            c = str(row.get('code') or '').strip()
+            if c:
+                src[c] = (float(row.get('final') or 0), float(row.get('prior_final') or 0))
+
+    # 라인 키는 '행번호' — 같은 이름의 라인(유동 사채 ↔ 비유동 사채 등)이
+    # 서로 값을 덮어쓰지 않도록 이름 대신 고유 행번호로 관리한다.
+    vals = {}                      # row → [당기, 전기]
+    by_name = {}                   # 이름 → row (계산식 참조용, 마지막 승자 아닌 첫 소계 우선)
+    for l in lines:
+        nm = l['name']
+        if nm not in by_name or (l['kind'] == 'subtotal' and lines[[x['row'] for x in lines].index(by_name[nm])]['kind'] != 'subtotal'):
+            by_name[nm] = l['row']
+
+    # ① 상세 라인 = 매핑 코드 합
+    for l in lines:
+        if l['kind'] != 'detail':
+            continue
+        cur = pri = 0.0
+        for c in l.get('codes') or []:
+            a, b = src.get(c, (0.0, 0.0))
+            cur += a; pri += b
+        vals[l['row']] = [cur, pri]
+
+    # ①-2 순증감(net) 표시 — 순액이 +면 유입 줄, −면 유출 줄에 넣고 반대쪽은 0.
+    #      유출 줄에는 다른 유출 항목과 같은 규칙(양수 표기)으로 |순액| 을 넣는다.
+    for rule in ((mapping.get('netting') or {}).get(stmt) or []):
+        cur = pri = 0.0
+        for c in rule.get('plus') or []:
+            a, b = src.get(c, (0.0, 0.0)); cur += a; pri += b
+        for c in rule.get('minus') or []:
+            a, b = src.get(c, (0.0, 0.0)); cur -= a; pri -= b
+        ir, orow = rule.get('in_row'), rule.get('out_row')
+        if cur >= 0:
+            if ir is not None:  vals[ir] = [cur, pri]
+            if orow is not None: vals[orow] = [0.0, 0.0]
+        else:
+            if ir is not None:  vals[ir] = [0.0, 0.0]
+            if orow is not None: vals[orow] = [-cur, -pri]
+
+    # ② 현금정산표 특수행 (당기순이익 / 환율변동효과 / 기초·기말현금 …)
+    if stmt == 'CF':
+        for nm, key in (mapping.get('cash_specials') or {}).items():
+            row = cash.get(key) or {}
+            v = float(row.get('final') or 0)
+            if key == 'fx_effect':     # 자동흡수분을 합쳐 항등식 유지
+                v += float((cash.get('fx_plug') or {}).get('final') or 0)
+            if nm in by_name:
+                vals[by_name[nm]] = [v, 0.0]
+
+    # ③ 소계 = 자기 아래 하위 라인 합 (다음 동급/상위 라인 전까지)
+    def _kids_sum(i):
+        base = lines[i]['level']
+        cur = pri = 0.0
+        for j in range(i + 1, len(lines)):
+            if lines[j]['level'] <= base:
+                break
+            if lines[j]['kind'] != 'detail':
+                continue
+            v = vals.get(lines[j]['row'])
+            if v:
+                cur += v[0]; pri += v[1]
+        return [cur, pri]
+
+    # CF 번호 소계(1.~4.)는 현금정산표의 섹션 소계(부호 적용값)를 그대로 쓴다.
+    #   직접 합산하면 '현금의 유출이 없는 비용등의 가산' 처럼 이름에 '유출'이 들어간
+    #   가산 구간의 부호를 잘못 뒤집게 된다. 부호 판단은 현금정산표가 이미 하고 있다.
+    # CF 는 모든 라인이 같은 레벨이라 '이름'으로 구간을 나눈다
+    def _cf_section_sum(i):
+        nm = lines[i]['name']
+        is_roman = nm[0] in 'ⅠⅡⅢⅣⅤⅥⅦⅧ'
+        cur = pri = 0.0
+        for j in range(i + 1, len(lines)):
+            n2 = lines[j]['name']
+            j_roman = n2[0] in 'ⅠⅡⅢⅣⅤⅥⅦⅧ'
+            j_num = bool(re.match(r'^\s*\d+\s*\.', n2))
+            if j_roman:
+                break
+            if is_roman:                       # Ⅰ/Ⅱ/Ⅲ = 하위 번호 소계 합
+                if j_num:
+                    v = vals.get(lines[j]['row'])
+                    if v: cur += v[0]; pri += v[1]
+            else:                              # 1./2./3./4. = 그 아래 상세 합
+                if j_num:
+                    break
+                if lines[j]['kind'] == 'detail':
+                    v = vals.get(lines[j]['row'])
+                    if v: cur += v[0]; pri += v[1]
+        # '현금의 유출이 없는 비용등의 가산' 처럼 '유출'만 보고 판단하면 안 되므로
+        # '유출액' / '차감' 으로만 차감 구간을 판정한다.
+        if not is_roman and any(k in nm for k in ('차감', '유출액')):
+            cur, pri = -cur, -pri
+        return [cur, pri]
+
+    formulas = (mapping.get('formulas') or {}).get(stmt) or {}
+    # 안쪽(번호) → 바깥(로마) 순으로 채우기 위해 역순 처리
+    for i in range(len(lines) - 1, -1, -1):
+        l = lines[i]
+        if l['kind'] != 'subtotal' or l['row'] in vals:
+            continue
+        if l['name'] in formulas:
+            continue                        # ④ 에서 처리
+        vals[l['row']] = _cf_section_sum(i) if stmt == 'CF' else _kids_sum(i)
+
+    # ④ 계산식 라인 (자산총계·매출총이익 등) — 참조가 먼저 채워지도록 반복
+    for _ in range(6):
+        for nm, terms in formulas.items():
+            if nm not in by_name:
+                continue
+            cur = pri = 0.0
+            for sign, ref in terms:
+                v = vals.get(by_name.get(ref))
+                if v is None:
+                    continue
+                cur += v[0] if sign == '+' else -v[0]
+                pri += v[1] if sign == '+' else -v[1]
+            vals[by_name[nm]] = [cur, pri]
+
+    out = []
+    for l in lines:
+        v = vals.get(l['row'], [0.0, 0.0])
+        out.append({'row': l['row'], 'level': l['level'], 'name': l['name'],
+                    'kind': l['kind'], 'codes': l.get('codes') or [],
+                    'cur': v[0], 'pri': v[1]})
+    return out
+
+
+def _compute_report_fs(group_id, period, stmt):
+    mapping = _load_report_mapping()
+    if not mapping:
+        raise ValueError('보고서 매핑(report_mapping.json)을 찾을 수 없습니다.')
+    if stmt not in ('BS', 'PL', 'CF'):
+        raise ValueError('BS / PL / CF 중에서 선택하세요.')
+    g = consol_get_group(group_id)
+    if not g:
+        raise ValueError('존재하지 않는 연결그룹입니다.')
+    ctx = _compute_group_internal(group_id, period)
+
+    # 전기(전년 4Q) 값 주입 — 연결정산표 rows 에 prior_final 채우기
+    prior_period = _prior_q4_period(period)
+    if prior_period and _valid_year(prior_period):
+        try:
+            pctx = _compute_group_internal(group_id, prior_period)
+            pmap = {str(r.get('code')): r.get('final')
+                    for r in pctx['result']['rows'] if r.get('code')}
+            for r in ctx['result']['rows']:
+                r['prior_final'] = pmap.get(str(r.get('code') or ''), 0)
+        except Exception:
+            prior_period = None
+
+    cash = _make_cash_result(ctx, period) if stmt == 'CF' else {}
+    rows = _report_values(ctx, cash, stmt, mapping)
+
+    labels, _p, _pp = _report_period_labels(period)
+    lab = labels['bs'] if stmt == 'BS' else labels['pl']
+    entity = (mapping.get('entity_names') or {}).get(g['name']) or f"{g['name']} 및 그 종속기업"
+    return {
+        'group': g['name'], 'period': period, 'prior_period': prior_period,
+        'stmt': stmt,
+        'title': (mapping.get('titles') or {}).get(stmt, stmt),
+        'entity': entity,
+        'cur_label': lab[0], 'pri_label': lab[1],
+        'rows': rows,
+    }
+
+
+@app.route('/report-fs')
+@login_required
+@require_permission('report.fs')
+def report_fs_page():
+    """보고용 재무제표 페이지."""
+    year = request.args.get('year') or YEARS_DATA.get('default')
+    if not _valid_year(year):
+        year = YEARS_DATA.get('default')
+    return render_template('report_fs.html',
+                           year=year, years=YEARS_DATA['years'],
+                           username=session.get('username'),
+                           is_admin=_is_admin(session.get('username')))
+
+
+@app.route('/report-fs/data')
+@login_required
+@require_permission('report.fs')
+def report_fs_data():
+    gid = (request.args.get('group_id') or '').strip()
+    period = (request.args.get('year') or '').strip()
+    stmt = (request.args.get('stmt') or 'BS').strip().upper()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    try:
+        return jsonify(_compute_report_fs(gid, period, stmt))
+    except (ValueError, RuntimeError) as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return _json_error(e)
+
+
+@app.route('/report-fs/excel')
+@login_required
+@require_permission('report.fs')
+def report_fs_excel():
+    gid = (request.args.get('group_id') or '').strip()
+    period = (request.args.get('year') or '').strip()
+    stmt = (request.args.get('stmt') or 'BS').strip().upper()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    try:
+        d = _compute_report_fs(gid, period, stmt)
+    except (ValueError, RuntimeError) as e:
+        return jsonify({'error': str(e)}), 400
+
+    from openpyxl import Workbook as _WB
+    from openpyxl.styles import Font as _F, Alignment as _A, Border as _B, Side as _S
+    wb = _WB(); ws = wb.active; ws.title = stmt
+    thin = _S(style='thin', color='BFBFBF')
+    ws['B1'] = d['title']; ws['B1'].font = _F(bold=True, size=15, name='맑은 고딕')
+    ws['B3'] = f"당기 : {d['cur_label']}"
+    ws['B4'] = f"전기 : {d['pri_label']}"
+    ws['B6'] = d['entity']
+    ws['E6'] = '(단위 : 원)'; ws['E6'].alignment = _A(horizontal='right')
+    for r in (3, 4, 6):
+        ws.cell(r, 2).font = _F(size=10, name='맑은 고딕')
+    hdr = ['과                      목', '당기', '전기']
+    for i, h in enumerate(hdr, 2):
+        c = ws.cell(8, i if i == 2 else i + 1, h)
+        c.font = _F(bold=True, size=10, name='맑은 고딕')
+        c.alignment = _A(horizontal='center')
+        c.border = _B(top=thin, bottom=thin)
+    rr = 9
+    for row in d['rows']:
+        indent = '    ' * int(row['level'])
+        c = ws.cell(rr, 2, indent + row['name'])
+        c.font = _F(bold=(row['kind'] == 'subtotal'), size=10, name='맑은 고딕')
+        for col, key in ((4, 'cur'), (5, 'pri')):
+            v = row[key]
+            cc = ws.cell(rr, col, v if abs(v) >= 0.5 else None)
+            cc.number_format = '#,##0;(#,##0);"-"'
+            cc.font = _F(bold=(row['kind'] == 'subtotal'), size=10, name='맑은 고딕')
+        rr += 1
+    ws.column_dimensions['B'].width = 44
+    ws.column_dimensions['C'].width = 2
+    ws.column_dimensions['D'].width = 22
+    ws.column_dimensions['E'].width = 22
+    ws.freeze_panes = 'B9'
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    safe = re.sub(r'[\\/:*?"<>|]', '_', f"{d['group']}_{period}")
+    return send_file(buf, as_attachment=True,
+                     download_name=f'연결{stmt}_{safe}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
