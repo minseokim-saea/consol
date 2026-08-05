@@ -184,7 +184,7 @@ body {
     <div class="dash-header-left">
       <div class="dash-logo"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i></div>
       <div>
-        <div class="dash-title">분기 결산 재무 대시보드</div>
+        <div class="dash-title">시계열 분석</div>
         <div class="dash-sub" id="dashSub">연결그룹 선택 대기 중…</div>
       </div>
     </div>
@@ -233,8 +233,7 @@ body {
     각 열은 <strong>해당 결산분기</strong> 기준입니다. 분기 결산(1Q·2Q·3Q)의 손익 항목은 <strong>연환산</strong>되며, 재무상태표 항목은 분기말 잔액 그대로입니다.
   </div>
 
-  <!-- 4. KPI 카드 행 -->
-  <div id="kpiRow" class="kpi-row" style="display:none"></div>
+  <!-- 4. KPI 카드 행 — 표·그래프와 내용이 겹쳐 제거 (렌더 함수는 no-op 로 유지) -->
 
   <!-- 5. 본문 (표) -->
   <div id="seriesBody">
@@ -385,6 +384,7 @@ const KPI_DEFS = [
 
 function renderKpis(cols) {
   const wrap = document.getElementById('kpiRow');
+  if (!wrap) return;          // KPI 카드 행 제거됨 — 표·그래프로 충분
   const dataCols = (cols || []).filter(c => c.has_data && c.metrics);
   if (dataCols.length === 0) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
   const cur  = dataCols[dataCols.length - 1];
@@ -431,6 +431,7 @@ function renderKpis(cols) {
 
 function hideKpis() {
   const wrap = document.getElementById('kpiRow');
+  if (!wrap) return;
   wrap.style.display = 'none';
   wrap.innerHTML = '';
 }
