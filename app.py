@@ -11817,7 +11817,6 @@ def _compute_report_fs(group_id, period, stmt):
         'entity': entity,
         'cur_label': lab[0], 'pri_label': lab[1],
         'rows': rows,
-        'can_edit': _has_permission(session.get('username'), 'report.edit'),
         'manual_total': sum(r['manual'] for r in rows if r['kind'] == 'detail'),
     }
 
@@ -11848,7 +11847,9 @@ def report_fs_data():
     if not _can_access_group(session.get('username'), gid):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
     try:
-        return jsonify(_compute_report_fs(gid, period, stmt))
+        d = _compute_report_fs(gid, period, stmt)
+        d['can_edit'] = _has_permission(session.get('username'), 'report.edit')
+        return jsonify(d)
     except (ValueError, RuntimeError) as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
@@ -12027,8 +12028,13 @@ def report_fs_excel():
         c.font = _F(bold=True, size=10, name='맑은 고딕')
         c.alignment = _A(horizontal='center')
         c.border = _B(top=thin, bottom=thin)
+    hide_zero = (request.args.get('hide_zero') or '').lower() in ('1', 'true', 'yes', 'on')
     rr = 9
     for row in d['rows']:
+        # 값 0 라인 숨기기 — 상세 라인만 대상 (소계·총계·표제는 항상 출력)
+        if (hide_zero and row['kind'] == 'detail'
+                and abs(row['cur']) < 0.5 and abs(row['pri']) < 0.5):
+            continue
         indent = '    ' * int(row['level'])
         c = ws.cell(rr, 2, indent + row['name'])
         bold = row['kind'] in ('subtotal', 'header')

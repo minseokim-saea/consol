@@ -90,6 +90,13 @@ body { background:var(--surface); color:var(--text-body);
         <button class="btn btn-outline-primary" data-stmt="CF" onclick="setStmt('CF')">현금흐름표</button>
       </div>
 
+      <div class="form-check mb-0 ms-2">
+        <input class="form-check-input" type="checkbox" id="hideZero" checked onchange="load()">
+        <label class="form-check-label small" for="hideZero">
+          값 0 라인 숨기기 <span class="text-muted" id="hiddenCnt"></span>
+        </label>
+      </div>
+
       <div class="ms-auto d-flex gap-2 align-items-center">
         <div id="editBox" class="d-none d-flex gap-2 align-items-center">
           <div class="form-check form-switch mb-0">
@@ -216,7 +223,8 @@ async function load(){
   if (!groupId()){ area.innerHTML = '<div class="text-muted py-4">연결그룹이 없습니다.</div>'; return; }
   const url = `/report-fs/data?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}&stmt=${STMT}`;
   document.getElementById('xlsBtn').href =
-      `/report-fs/excel?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}&stmt=${STMT}`;
+      `/report-fs/excel?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}`
+      + `&stmt=${STMT}&hide_zero=${hideZeroOn() ? 1 : 0}`;
   area.innerHTML = '<div class="text-center py-5 text-muted"><span class="spinner-border"></span> 계산 중…</div>';
   notice.innerHTML = '';
   try{
@@ -229,10 +237,23 @@ async function load(){
   }
 }
 
+function hideZeroOn(){ return document.getElementById('hideZero').checked; }
+
 function render(d){
   DATA = d;
   document.getElementById('editBox').classList.toggle('d-none', !d.can_edit);
-  const rows = d.rows || [];
+  const all = d.rows || [];
+  // 값 0 라인 숨기기 — 상세 라인만 대상. 소계·총계·표제는 항상 표시하고,
+  // 편집 모드에서는 수기조정을 넣을 수 있도록 모두 보여준다.
+  let hidden = 0;
+  const rows = (hideZeroOn() && !EDIT)
+    ? all.filter(r => {
+        if (r.kind !== 'detail') return true;
+        if (Math.round(r.cur || 0) !== 0 || Math.round(r.pri || 0) !== 0) return true;
+        hidden++; return false;
+      })
+    : all;
+  document.getElementById('hiddenCnt').textContent = hidden ? `(${hidden}개 숨김)` : '';
   const body = rows.map(r => {
     const cls = ['lv' + r.level, (r.kind === 'subtotal' || r.kind === 'header') ? 'sub' : ''];
     if (/(총계|합계|당기순이익|기말의현금)/.test(r.name) && r.kind === 'subtotal') cls.push('total');
@@ -269,7 +290,7 @@ function render(d){
     </table>`;
 
   // ── 검산 표시 ────────────────────────────────────────────
-  const V = n => { const r = rows.find(x => x.name === n); return r ? r.cur : 0; };
+  const V = n => { const r = all.find(x => x.name === n); return r ? r.cur : 0; };
   const notes = [];
   if (d.stmt === 'BS'){
     const diff = Math.round(V('자산총계') - V('부채총계') - V('자본총계'));
