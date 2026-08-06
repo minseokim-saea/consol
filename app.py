@@ -9839,6 +9839,14 @@ def _make_cash_result(ctx, period):
     manuals   = _cf_get_manuals(group_id, period)   if group_id else {}
     roundings = _cf_get_roundings(group_id, period) if group_id else {}
 
+    # 자금조정(O 컬럼) — 글로벌세아 전용. 빠뜨리면 최종값이 현금정산표 화면과 달라진다.
+    fund_adj = None
+    try:
+        if (ctx.get('group') or {}).get('name') == '글로벌세아' and group_id:
+            fund_adj = _compute_global_sae_fund_adj(group_id, period)
+    except Exception:
+        fund_adj = None
+
     # 연결정산표 최종 NI — sub에도 동일 plug 보정 적용 (sub 자체 NI 일치)
     target_final_ni = None
     try:
@@ -9854,7 +9862,8 @@ def _make_cash_result(ctx, period):
                       rounding_adjustments=roundings,
                       prior_inter_entries=prior_inter_entries,
                       target_final_ni=target_final_ni,
-                      rollups=(ctx.get('rollups') or None))
+                      rollups=(ctx.get('rollups') or None),
+                      fund_adjustments=fund_adj)
 
 
 def _bridge_leg(bs_code, bs_name, signed_amt):
