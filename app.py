@@ -11995,6 +11995,93 @@ def report_fs_accounts():
     return jsonify({'accounts': items})
 
 
+@app.route('/report-fs/check')
+@login_required
+@require_permission('report.fs')
+def report_fs_check():
+    """매핑 점검 — 금액이 있는데 보고서 어디에도 안 붙은 계정, 중복 사용,
+    존재하지 않는 코드, 그리고 총계 검산 결과를 한 번에 반환."""
+    gid = (request.args.get('group_id') or '').strip()
+    period = (request.args.get('year') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    mapping = _load_report_mapping()
+    if not mapping:
+        return jsonify({'error': '보고서 매핑을 찾을 수 없습니다.'}), 400
+    try:
+        ctx = _compute_group_internal(gid, period)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+    ovr = _load_report_overrides()
+
+    consol = {str(r['code']): (r.get('name') or '', float(r.get('final') or 0), r.get('kind'))
+              for r in (ctx.get('result') or {}).get('rows') or [] if r.get('code')}
+    cash = _make_cash_result(ctx, period)
+    cf = {}
+    for sec in (cash.get('sections') or []):
+        for row in (sec.get('rows') or []):
+            c = str(row.get('cf_code') or '')
+            if c:
+                cf[c] = (row.get('name') or '', float(row.get('final') or 0))
+
+    owner, missing, dup, unknown = {}, [], [], []
+    for stmt in ('BS', 'PL', 'CF'):
+        uni = cf if stmt == 'CF' else consol
+        for l in _report_merged_lines(mapping, ovr, stmt):
+            for c in l.get('codes') or []:
+                owner.setdefault((stmt, c), []).append(l['name'])
+                if c not in uni:
+                    unknown.append({'stmt': stmt, 'code': c, 'line': l['name']})
+    for (stmt, c), names in owner.items():
+        if len(set(names)) > 1:
+            uni = cf if stmt == 'CF' else consol
+            dup.append({'stmt': stmt, 'code': c, 'name': (uni.get(c) or ('', 0))[0],
+                        'amount': (uni.get(c) or ('', 0))[1], 'lines': sorted(set(names))})
+
+    mapped_cs = {c for (s, c) in owner if s in ('BS', 'PL')}
+    for c, (n, v, k) in consol.items():
+        if k == 'detail' and abs(v) >= 1 and c not in mapped_cs:
+            missing.append({'stmt': 'BS/PL', 'code': c, 'name': n, 'amount': v})
+    mapped_cf = {c for (s, c) in owner if s == 'CF'}
+    for rule in ((mapping.get('netting') or {}).get('CF') or []):
+        mapped_cf |= set(rule.get('plus') or []) | set(rule.get('minus') or [])
+    for c, (n, v) in cf.items():
+        if abs(v) >= 1 and c not in mapped_cf:
+            missing.append({'stmt': 'CF', 'code': c, 'name': n, 'amount': v})
+    missing.sort(key=lambda x: -abs(x['amount']))
+
+    # 총계 검산
+    checks = []
+    for stmt in ('BS', 'PL', 'CF'):
+        d = _compute_report_fs(gid, period, stmt)
+        V = {}
+        for r in d['rows']:
+            V.setdefault(r['name'], r['cur'])
+        if stmt == 'BS':
+            diff = V.get('자산총계', 0) - V.get('부채총계', 0) - V.get('자본총계', 0)
+            checks.append({'name': 'BS 대차 (자산 = 부채 + 자본)', 'diff': diff})
+            for nm, code in (('자산총계', '1000000'), ('부채총계', '2000000'), ('자본총계', '3000000')):
+                checks.append({'name': f'{nm} = 연결정산표',
+                               'diff': V.get(nm, 0) - (consol.get(code) or ('', 0, ''))[1]})
+        elif stmt == 'PL':
+            for nm, code in (('Ⅰ.매출액', '4100000'), ('Ⅴ.영업이익', '4700002'),
+                             ('XII.당기순이익', '4700004')):
+                checks.append({'name': f'{nm} = 연결정산표',
+                               'diff': V.get(nm, 0) - (consol.get(code) or ('', 0, ''))[1]})
+        else:
+            lhs = (V.get('Ⅳ. 현금의 증가(감소) (Ⅰ+Ⅱ+Ⅲ)', 0) + V.get('Ⅴ. 환율변동효과', 0)
+                   + V.get('연결범위변동', 0) + V.get('Ⅵ. 기초의현금', 0))
+            checks.append({'name': 'CF 항등식 (Ⅳ+Ⅴ+연결범위변동+Ⅵ = Ⅶ)',
+                           'diff': lhs - V.get('Ⅶ. 기말의현금', 0)})
+
+    return jsonify({'group_id': gid, 'period': period,
+                    'missing': missing, 'dup': dup, 'unknown': unknown,
+                    'checks': checks,
+                    'ok': not missing and not dup and all(abs(c['diff']) < 1 for c in checks)})
+
+
 @app.route('/report-fs/excel')
 @login_required
 @require_permission('report.fs')

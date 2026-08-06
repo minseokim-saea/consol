@@ -110,6 +110,9 @@ body { background:var(--surface); color:var(--text-body);
             <i class="bi bi-floppy"></i> 수기조정 저장
           </button>
         </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="runCheck()">
+          <i class="bi bi-shield-check"></i> 매핑 점검
+        </button>
         <button class="btn btn-primary btn-sm" onclick="copyTable(this)">
           <i class="bi bi-clipboard"></i> 전체 복사
         </button>
@@ -162,6 +165,22 @@ body { background:var(--surface); color:var(--text-body);
           <span id="addMsg" class="me-auto small"></span>
           <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
           <button class="btn btn-primary" onclick="submitAdd()">추가</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 매핑 점검 결과 -->
+  <div class="modal fade" id="checkModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--brand-900); color:#fff;">
+          <h5 class="modal-title">매핑 점검</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="checkBody"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
         </div>
       </div>
     </div>
@@ -317,6 +336,68 @@ function render(d){
     return `<div class="alert ${cls} py-2 px-3 small mb-2">
               <i class="bi bi-${ico} me-1"></i>${esc(n.t)}</div>`;
   }).join('');
+}
+
+// ── 매핑 점검 ────────────────────────────────────────────────
+async function runCheck(){
+  const body = document.getElementById('checkBody');
+  body.innerHTML = '<div class="text-center py-4 text-muted"><span class="spinner-border"></span> 점검 중…</div>';
+  new bootstrap.Modal(document.getElementById('checkModal')).show();
+  try{
+    const r = await fetch(`/report-fs/check?group_id=${encodeURIComponent(groupId())}&year=${encodeURIComponent(period())}`);
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || '점검 실패');
+    body.innerHTML = renderCheck(j);
+  }catch(e){ body.innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message)}</div>`; }
+}
+
+function renderCheck(j){
+  const head = j.ok
+    ? `<div class="alert alert-success"><i class="bi bi-check-circle-fill me-1"></i>
+         이상 없음 — 빠진 금액도, 중복도 없고 총계도 모두 맞습니다.</div>`
+    : `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>
+         확인이 필요한 항목이 있습니다.</div>`;
+
+  const chk = `<h6 class="fw-bold mt-3">총계 검산</h6>
+    <table class="table table-sm"><tbody>` +
+    j.checks.map(c => {
+      const ok = Math.abs(c.diff) < 1;
+      return `<tr><td>${esc(c.name)}</td>
+        <td class="text-end" style="width:200px">${ok ? '<span class="badge bg-success">일치</span>'
+          : `<span class="badge bg-danger">차이 ${fmt(c.diff)}</span>`}</td></tr>`;
+    }).join('') + '</tbody></table>';
+
+  const miss = `<h6 class="fw-bold mt-3">금액이 있는데 보고서에 없는 계정
+      <span class="badge ${j.missing.length ? 'bg-danger' : 'bg-success'}">${j.missing.length}건</span></h6>` +
+    (j.missing.length ? `<div class="alert alert-warning py-2 px-3 small">
+        이 금액은 보고서에서 빠집니다. 어느 보고 계정으로 보낼지 지정해야 합니다.</div>
+      <table class="table table-sm table-hover">
+        <thead><tr><th>구분</th><th>코드</th><th>계정명</th><th class="text-end">당기금액</th></tr></thead>
+        <tbody>${j.missing.map(m => `<tr>
+          <td class="small">${esc(m.stmt)}</td><td class="small">${esc(m.code)}</td>
+          <td class="small">${esc(m.name)}</td>
+          <td class="small text-end fw-bold">${fmt(m.amount)}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="text-muted small">없음</p>');
+
+  const dup = `<h6 class="fw-bold mt-3">같은 계정을 두 줄이 함께 사용 (이중계상)
+      <span class="badge ${j.dup.length ? 'bg-danger' : 'bg-success'}">${j.dup.length}건</span></h6>` +
+    (j.dup.length ? `<table class="table table-sm table-hover">
+        <thead><tr><th>구분</th><th>코드</th><th>계정명</th><th class="text-end">금액</th><th>사용 중인 줄</th></tr></thead>
+        <tbody>${j.dup.map(m => `<tr>
+          <td class="small">${esc(m.stmt)}</td><td class="small">${esc(m.code)}</td>
+          <td class="small">${esc(m.name)}</td>
+          <td class="small text-end">${fmt(m.amount)}</td>
+          <td class="small">${esc(m.lines.join(' / '))}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="text-muted small">없음</p>');
+
+  const unk = j.unknown.length ? `<h6 class="fw-bold mt-3">존재하지 않는 코드
+      <span class="badge bg-secondary">${j.unknown.length}건</span></h6>
+      <p class="text-muted small">연결정산표·현금정산표에 없는 코드입니다. 다른 그룹에만 있는 계정이면 무시해도 됩니다.</p>
+      <table class="table table-sm"><tbody>${j.unknown.map(u => `<tr>
+        <td class="small">${esc(u.stmt)}</td><td class="small">${esc(u.code)}</td>
+        <td class="small">${esc(u.line)}</td></tr>`).join('')}</tbody></table>` : '';
+
+  return head + chk + miss + dup + unk;
 }
 
 // ── 수기조정 저장 ────────────────────────────────────────────
