@@ -59,6 +59,7 @@ body { background:var(--surface); color:var(--text-body);
              background:var(--brand-050); color:var(--brand-900); margin-left:6px; }
 .btn-del { border:none; background:none; color:#b4232e; font-weight:700; cursor:pointer;
            padding:0 4px; line-height:1; }
+.fs-note { margin-top:12px; font-size:.8rem; color:var(--text-muted); }
 .pill { font-size:.78rem; padding:3px 10px; border-radius:999px; background:var(--brand-050);
         color:var(--brand-900); font-weight:700; }
 .tabs .btn { min-width:120px; }
@@ -110,6 +111,9 @@ body { background:var(--surface); color:var(--text-body);
             <i class="bi bi-floppy"></i> 수기조정 저장
           </button>
         </div>
+        <button class="btn btn-warning btn-sm" onclick="runVerify()">
+          <i class="bi bi-clipboard2-check"></i> 재무제표 검증
+        </button>
         <button class="btn btn-outline-secondary btn-sm" onclick="runCheck()">
           <i class="bi bi-shield-check"></i> 매핑 점검
         </button>
@@ -179,6 +183,22 @@ body { background:var(--surface); color:var(--text-body);
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body" id="checkBody"></div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 재무제표 검증 결과 -->
+  <div class="modal fade" id="verifyModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:var(--brand-900); color:#fff;">
+          <h5 class="modal-title">재무제표 검증 — 전체 연결그룹</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="verifyBody"></div>
         <div class="modal-footer">
           <button class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
         </div>
@@ -306,7 +326,8 @@ function render(d){
       <thead><tr><th style="width:${EDIT ? 34 : 46}%">과&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;목</th>
         ${editHead}<th>당기</th><th>전기</th></tr></thead>
       <tbody>${body}</tbody>
-    </table>`;
+    </table>
+    ${d.note ? `<div class="fs-note">${esc(d.note)}</div>` : ''}`;
 
   // ── 검산 표시 ────────────────────────────────────────────
   const V = n => { const r = all.find(x => x.name === n); return r ? r.cur : 0; };
@@ -336,6 +357,66 @@ function render(d){
     return `<div class="alert ${cls} py-2 px-3 small mb-2">
               <i class="bi bi-${ico} me-1"></i>${esc(n.t)}</div>`;
   }).join('');
+}
+
+// ── 재무제표 검증 (전체 그룹) ────────────────────────────────
+async function runVerify(){
+  const body = document.getElementById('verifyBody');
+  body.innerHTML = '<div class="text-center py-4 text-muted"><span class="spinner-border"></span> 전체 그룹 검증 중… (그룹 수에 따라 시간이 걸립니다)</div>';
+  new bootstrap.Modal(document.getElementById('verifyModal')).show();
+  try{
+    const r = await fetch(`/report-fs/verify?year=${encodeURIComponent(period())}`);
+    const j = await r.json();
+    if (!r.ok || j.error) throw new Error(j.error || '검증 실패');
+    body.innerHTML = renderVerify(j);
+  }catch(e){ body.innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message)}</div>`; }
+}
+
+function renderVerify(j){
+  const head = j.ok
+    ? `<div class="alert alert-success"><i class="bi bi-check-circle-fill me-1"></i>
+         ${esc(j.period)} — 전체 ${j.groups.length}개 그룹이 모두 일치합니다.</div>`
+    : `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle-fill me-1"></i>
+         ${esc(j.period)} — ${j.ng_groups}개 그룹에서 차이가 있습니다.</div>`;
+
+  const blocks = j.groups.map((g, i) => {
+    if (g.error){
+      return `<div class="border rounded p-2 mb-2">
+        <b>${esc(g.group)}</b>
+        <span class="badge bg-secondary ms-2">계산 불가</span>
+        <div class="small text-danger mt-1">${esc(g.error)}</div></div>`;
+    }
+    const rows = g.checks.map(c => `
+      <tr class="${c.ok ? '' : 'table-danger'}">
+        <td class="small">${esc(c.stmt)}</td>
+        <td class="small">${esc(c.name)}</td>
+        <td class="small text-end">${fmt(c.report)}</td>
+        <td class="small text-end">${fmt(c.base)}</td>
+        <td class="small text-end fw-bold">${c.diff === null ? '—' : fmt(c.diff)}</td>
+        <td class="text-center">${c.ok ? '<span class="badge bg-success">일치</span>'
+                                        : '<span class="badge bg-danger">차이</span>'}</td>
+      </tr>`).join('');
+    return `<div class="border rounded mb-2">
+      <div class="p-2" style="cursor:pointer; background:var(--brand-050)"
+           onclick="document.getElementById('vg-${i}').classList.toggle('d-none')">
+        <b>${esc(g.group)}</b>
+        ${g.ok ? '<span class="badge bg-success ms-2">이상 없음</span>'
+               : `<span class="badge bg-danger ms-2">차이 ${g.ng}건</span>`}
+        <span class="text-muted small ms-2">(클릭하면 상세)</span>
+      </div>
+      <div id="vg-${i}" class="${g.ok ? 'd-none' : ''}">
+        <table class="table table-sm mb-0">
+          <thead><tr><th style="width:60px">구분</th><th>항목</th>
+            <th class="text-end">보고서</th><th class="text-end">기준(정산표)</th>
+            <th class="text-end">차이</th><th style="width:70px" class="text-center">판정</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div></div>`;
+  }).join('');
+
+  return head + `<p class="text-muted small">
+    BS는 자산·부채·자본총계를 연결정산표와, PL은 당기순이익·지배/비지배지분순이익을 연결정산표와,
+    CF는 영업·투자·재무활동 현금흐름과 현금증감·기초·기말현금을 현금정산표와 대조합니다.</p>` + blocks;
 }
 
 // ── 매핑 점검 ────────────────────────────────────────────────

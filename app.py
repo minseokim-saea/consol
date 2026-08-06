@@ -11620,11 +11620,14 @@ def _report_period_labels(period):
     cur_pl = f'{y}년 01월 01일부터 {y}년 {end_md}까지'
     prior = f'{y-1}-4Q'
     pri_bs = f'{y-1}년 12월 31일 현재'
-    pri_pl = f'{y-1}년 01월 01일부터 {y-1}년 12월 31일까지'
-    return {'bs': (cur_bs, pri_bs), 'pl': (cur_pl, pri_pl)}, prior, prior
+    # PL 전기는 전년 '동기' 기준. 전년 동분기 자료가 없어 연간 자료를 월할계산한다.
+    pri_pl = f'{y-1}년 01월 01일부터 {y-1}년 {end_md}까지'
+    if q != 4:
+        pri_pl += ' (월할계산)'
+    return {'bs': (cur_bs, pri_bs), 'pl': (cur_pl, pri_pl)}, prior, q
 
 
-def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None):
+def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_factor=1.0):
     """보고서 한 종류의 라인별 (당기, 전기) 금액 산출.
 
     lines   : 병합된 라인 목록 (기본 매핑 + 추가 계정). 없으면 기본 매핑 사용.
@@ -11646,7 +11649,9 @@ def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None):
         for row in (ctx.get('result') or {}).get('rows') or []:
             c = str(row.get('code') or '').strip()
             if c:
-                src[c] = (float(row.get('final') or 0), float(row.get('prior_final') or 0))
+                # 손익은 기간 누적이라 전년 연간액을 분기수만큼 월할해 동기와 맞춘다
+                src[c] = (float(row.get('final') or 0),
+                          float(row.get('prior_final') or 0) * prior_factor)
 
     # 라인 키는 '행번호' — 같은 이름의 라인(유동 사채 ↔ 비유동 사채 등)이
     # 서로 값을 덮어쓰지 않도록 이름 대신 고유 행번호로 관리한다.
@@ -11778,18 +11783,12 @@ def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None):
     return out
 
 
-def _compute_report_fs(group_id, period, stmt):
-    mapping = _load_report_mapping()
-    if not mapping:
-        raise ValueError('보고서 매핑(report_mapping.json)을 찾을 수 없습니다.')
-    if stmt not in ('BS', 'PL', 'CF'):
-        raise ValueError('BS / PL / CF 중에서 선택하세요.')
-    g = consol_get_group(group_id)
-    if not g:
-        raise ValueError('존재하지 않는 연결그룹입니다.')
-    ctx = _compute_group_internal(group_id, period)
+def _report_prepare_ctx(group_id, period):
+    """연결정산표 실행 + 전기(전년 4Q) 값 주입. 여러 표를 만들 때 재사용한다.
 
-    # 전기(전년 4Q) 값 주입 — 연결정산표 rows 에 prior_final 채우기
+    반환: (ctx, prior_period)  — prior_period 는 못 구했으면 None
+    """
+    ctx = _compute_group_internal(group_id, period)
     prior_period = _prior_q4_period(period)
     if prior_period and _valid_year(prior_period):
         try:
@@ -11800,14 +11799,33 @@ def _compute_report_fs(group_id, period, stmt):
                 r['prior_final'] = pmap.get(str(r.get('code') or ''), 0)
         except Exception:
             prior_period = None
+    else:
+        prior_period = None
+    return ctx, prior_period
 
-    cash = _make_cash_result(ctx, period) if stmt == 'CF' else {}
+
+def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period=None):
+    mapping = _load_report_mapping()
+    if not mapping:
+        raise ValueError('보고서 매핑(report_mapping.json)을 찾을 수 없습니다.')
+    if stmt not in ('BS', 'PL', 'CF'):
+        raise ValueError('BS / PL / CF 중에서 선택하세요.')
+    g = consol_get_group(group_id)
+    if not g:
+        raise ValueError('존재하지 않는 연결그룹입니다.')
+    if ctx is None:
+        ctx, prior_period = _report_prepare_ctx(group_id, period)
+    if stmt == 'CF' and cash is None:
+        cash = _make_cash_result(ctx, period)
+    cash = cash or {}
     ovr = _load_report_overrides()
     lines = _report_merged_lines(mapping, ovr, stmt)
     manuals = (ovr.get('manuals') or {}).get(_report_manual_key(group_id, period, stmt)) or {}
-    rows = _report_values(ctx, cash, stmt, mapping, lines=lines, manuals=manuals)
-
-    labels, _p, _pp = _report_period_labels(period)
+    labels, _p, _q = _report_period_labels(period)
+    # PL 은 기간 누적이므로 전년 연간액을 (분기수/4) 로 월할계산
+    pf = (_q / 4.0) if (stmt == 'PL' and isinstance(_q, int)) else 1.0
+    rows = _report_values(ctx, cash, stmt, mapping, lines=lines, manuals=manuals,
+                          prior_factor=pf)
     lab = labels['bs'] if stmt == 'BS' else labels['pl']
     entity = (mapping.get('entity_names') or {}).get(g['name']) or f"{g['name']} 및 그 종속기업"
     return {
@@ -11818,6 +11836,8 @@ def _compute_report_fs(group_id, period, stmt):
         'cur_label': lab[0], 'pri_label': lab[1],
         'rows': rows,
         'manual_total': sum(r['manual'] for r in rows if r['kind'] == 'detail'),
+        'note': (f'※ 전기 금액은 전년 동기 자료가 없어 전년 연간 금액을 '
+                 f'월할계산({_q}/4)한 금액입니다.') if pf != 1.0 else '',
     }
 
 
@@ -11995,6 +12015,86 @@ def report_fs_accounts():
     return jsonify({'accounts': items})
 
 
+@app.route('/report-fs/verify')
+@login_required
+@require_permission('report.fs')
+def report_fs_verify():
+    """재무제표 검증 — 모든 연결그룹에 대해 보고서 총계가
+    연결정산표·현금정산표와 일치하는지 확인."""
+    period = (request.args.get('year') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    uname = session.get('username')
+    TOL = 1.0
+
+    def pick(rows, *prefixes):
+        """보고서 라인명이 접두사로 시작하는 첫 행의 당기금액."""
+        for pre in prefixes:
+            for r in rows:
+                if str(r['name']).replace(' ', '').startswith(pre.replace(' ', '')):
+                    return float(r['cur'])
+        return None
+
+    results = []
+    for g in consol_list_groups():
+        gid = g.get('id')
+        if not _can_access_group(uname, gid):
+            continue
+        row = {'group_id': gid, 'group': g.get('name'), 'checks': [], 'error': None}
+        try:
+            ctx, _pp = _report_prepare_ctx(gid, period)
+            cash = _make_cash_result(ctx, period)
+        except Exception as e:
+            row['error'] = str(e)
+            results.append(row)
+            continue
+
+        C = {str(r.get('code')): float(r.get('final') or 0)
+             for r in (ctx.get('result') or {}).get('rows') or [] if r.get('code')}
+
+        def add(stmt, name, rep, base):
+            diff = (rep - base) if rep is not None else None
+            row['checks'].append({
+                'stmt': stmt, 'name': name,
+                'report': rep, 'base': base,
+                'diff': diff,
+                'ok': diff is not None and abs(diff) <= TOL,
+            })
+
+        try:
+            bs = _compute_report_fs(gid, period, 'BS', ctx=ctx, cash=cash)['rows']
+            for nm, code in (('자산총계', '1000000'), ('부채총계', '2000000'), ('자본총계', '3000000')):
+                add('BS', nm, pick(bs, nm), C.get(code, 0.0))
+
+            pl = _compute_report_fs(gid, period, 'PL', ctx=ctx, cash=cash)['rows']
+            add('PL', '당기순이익',        pick(pl, 'XII.당기순이익', '당기순이익'), C.get('4700004', 0.0))
+            add('PL', '지배기업지분순이익', pick(pl, '지배기업지분순이익', '지배지분순이익'), C.get('4900001', 0.0))
+            add('PL', '비지배지분순이익',   pick(pl, '비지배지분순이익'), C.get('4900002', 0.0))
+
+            cf = _compute_report_fs(gid, period, 'CF', ctx=ctx, cash=cash)['rows']
+            for nm, pre, key in (
+                    ('영업활동으로 인한 현금흐름', 'Ⅰ.', 'op_cf'),
+                    ('투자활동으로 인한 현금흐름', 'Ⅱ.', 'inv_cf'),
+                    ('재무활동으로 인한 현금흐름', 'Ⅲ.', 'fin_cf'),
+                    ('현금의 증감',              'Ⅳ.', 'net_cash'),
+                    ('기초현금',                'Ⅵ.', 'cash_begin'),
+                    ('기말현금',                'Ⅶ.', 'cash_end')):
+                add('CF', nm, pick(cf, pre), float((cash.get(key) or {}).get('final') or 0))
+        except Exception as e:
+            row['error'] = str(e)
+
+        row['ok'] = (not row['error']) and all(c['ok'] for c in row['checks'])
+        row['ng'] = sum(1 for c in row['checks'] if not c['ok'])
+        results.append(row)
+
+    return jsonify({
+        'period': period,
+        'groups': results,
+        'ok': all(r.get('ok') for r in results) if results else False,
+        'ng_groups': sum(1 for r in results if not r.get('ok')),
+    })
+
+
 @app.route('/report-fs/check')
 @login_required
 @require_permission('report.fs')
@@ -12132,6 +12232,9 @@ def report_fs_excel():
             cc.number_format = '#,##0;(#,##0);"-"' if row['kind'] != 'header' else 'General'
             cc.font = _F(bold=bold, size=10, name='맑은 고딕')
         rr += 1
+    if d.get('note'):
+        nc = ws.cell(rr + 1, 2, d['note'])
+        nc.font = _F(size=9, name='맑은 고딕', color='6C757D')
     ws.column_dimensions['B'].width = 44
     ws.column_dimensions['C'].width = 2
     ws.column_dimensions['D'].width = 22
