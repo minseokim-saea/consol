@@ -248,12 +248,19 @@ function setStmt(s){
   load();
 }
 
+const DEFAULT_GROUP = '글로벌세아';   // 첫 화면 기본 선택 (없으면 첫 번째 그룹)
+
 async function loadGroups(){
+  const prev = document.getElementById('groupSelect').value;   // 기간 변경 시 선택 유지
   const r = await fetch('/consolidation/groups?year=' + encodeURIComponent(period()));
   const j = await r.json();
   GROUPS = j.groups || [];
   const sel = document.getElementById('groupSelect');
   sel.innerHTML = GROUPS.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  const keep = GROUPS.find(g => g.id === prev);
+  const def  = GROUPS.find(g => g.name === DEFAULT_GROUP);
+  if (keep) sel.value = keep.id;
+  else if (def) sel.value = def.id;
 }
 
 async function load(){
