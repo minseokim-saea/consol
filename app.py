@@ -11195,6 +11195,7 @@ AFFIL_NI_CODE     = '4700004'   # 당기순이익
 AFFIL_AMORT_CODE  = '4300302'   # 무형자산상각비 (판관비)
 AFFIL_EQM_GAIN_CODE = '4401201'  # 지분법평가이익
 AFFIL_EQM_LOSS_CODE = '4501201'  # 지분법평가손실
+AFFIL_DIV_INCOME_CODE = '4400203'  # 배당수익
 AFFIL_METRICS = [('sales', '매출액', AFFIL_SALES_CODE),
                  ('op',    '영업이익', AFFIL_OP_CODE),
                  ('ni',    '당기순이익', AFFIL_NI_CODE)]
@@ -11219,13 +11220,18 @@ AFFIL_COLUMNS = [
     {'key': 'saeah',     'label': '세아상역',   'kind': 'pkg',   'companies': ['세아상역(개별)'],
      'adjust': {'ni': {'sub': [AFFIL_EQM_GAIN_CODE], 'add': [AFFIL_EQM_LOSS_CODE]}}},
     {'key': 'ssangyong', 'label': '쌍용건설',   'kind': 'group', 'group': '쌍용'},
+    # 태림페이퍼·태림포장·JJP·JOP 는 당기순이익에서 배당수익을 차감
     {'key': 'trpaper',   'label': '태림페이퍼', 'kind': 'pkg',
-     'companies': ['태림페이퍼', '동원페이퍼']},
+     'companies': ['태림페이퍼', '동원페이퍼'],
+     'adjust': {'ni': {'sub': [AFFIL_DIV_INCOME_CODE]}}},
     {'key': 'trpack',    'label': '태림포장',   'kind': 'pkg',
-     'companies': ['태림포장', '동림로지스틱', '태림판지']},
-    {'key': 'jjp',       'label': 'JJP',       'kind': 'pkg',   'companies': ['전주페이퍼']},
+     'companies': ['태림포장', '동림로지스틱', '태림판지'],
+     'adjust': {'ni': {'sub': [AFFIL_DIV_INCOME_CODE]}}},
+    {'key': 'jjp',       'label': 'JJP',       'kind': 'pkg', 'companies': ['전주페이퍼'],
+     'adjust': {'ni': {'sub': [AFFIL_DIV_INCOME_CODE]}}},
     {'key': 'jop',       'label': 'JOP',       'kind': 'pkg',
-     'companies': ['전주원파워(개별)', '전주파워', '전주에너지']},
+     'companies': ['전주원파워(개별)', '전주파워', '전주에너지'],
+     'adjust': {'ni': {'sub': [AFFIL_DIV_INCOME_CODE]}}},
     {'key': 'indf',      'label': '인디에프',   'kind': 'pkg',   'companies': ['인디에프(연결)']},
     {'key': 'sna',       'label': 'S&A',       'kind': 'pkg',   'companies': ['주식회사 에스앤에이']},
     {'key': 'balmax',    'label': '발맥스',     'kind': 'pkg',   'companies': ['발맥스기술']},
