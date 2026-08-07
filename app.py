@@ -11568,6 +11568,16 @@ INTER_DIFF_TOL = 1000
 # 분개에 차변회사가 비어 있는 건의 표기
 INTER_NO_COMPANY = '(회사 미기재)'
 
+# 분개에서 하위 연결그룹 전체를 하나의 실체로 적는 표기 → 그 그룹의 합산과 비교한다
+class _GroupAliasMap(dict):
+    """분개에서 하위 연결그룹 전체를 하나로 적는 표기 → 그룹명 (표기 흔들림 허용)."""
+
+    def get_norm(self, token):
+        return {_norm_co_local(k): v for k, v in self.items()}.get(_norm_co_local(token))
+
+
+INTER_GROUP_ALIASES = _GroupAliasMap({'KTLP_연결': '태림'})
+
 # 분개에 차변회사가 전혀 없는 그룹(태림·쌍용·글로벌세아)은 회사별로 나눌 수 없으므로
 # 계열 전체를 한 줄로 합산해 비교한다. 회사 컬럼이 있는 분개를 올리면 자동으로 회사별로 바뀐다.
 INTER_ROLLUP_SUFFIX = '계열'
@@ -11603,39 +11613,56 @@ def _inter_abbr_map(period):
     return out
 
 
-def _inter_loan_codes(period, companies):
-    """CF2_연결 / CF3_연결 시트에 나타나는 차입금 계정코드 집합 (계정명 포함)."""
+# 검증 구분 — 차입금(부채)은 분개에서 차변으로, 대여금(자산)은 대변으로 제거된다.
+INTER_KINDS = {
+    'loan': {'label': '차입금', 'sheets': ('CF2_연결', 'CF3_연결'),
+             'only': None, 'primary': 'debit', 'col': '분개 차변'},
+    'lend': {'label': '대여금', 'sheets': ('CF1_연결',),
+             'only': {'1110401', '1210201'}, 'primary': 'credit', 'col': '분개 대변'},
+}
+
+
+def _inter_kind(kind):
+    return INTER_KINDS.get(kind) or INTER_KINDS['loan']
+
+
+def _inter_loan_codes(period, companies, kind='loan'):
+    """검증 구분에 해당하는 CF 시트의 계정코드 집합 (계정명 포함)."""
+    spec = _inter_kind(kind)
     codes = {}
     for c in companies:
         f = _find_uploaded_for(period, c)
         if not f:
             continue
         sheets = (f.get('extracted') or {}).get('sheets') or {}
-        for sh in ('CF2_연결', 'CF3_연결'):
+        for sh in spec['sheets']:
             for key, info in (sheets.get(sh) or {}).items():
                 k = str(key)
                 if '::' not in k:
                     continue
                 code = k.split('::', 1)[0]
+                if spec['only'] and code not in spec['only']:
+                    continue
                 nm = str(info.get('kor') or '').split(' / ')[0]
                 codes.setdefault(code, nm)
     return codes
 
 
-def _inter_pkg_end_balance(period, company):
-    """회사 패키지의 CF2_연결·CF3_연결에서 {계정코드: 기말금액(KRW 환산)}."""
+def _inter_pkg_end_balance(period, company, kind='loan'):
+    """회사 패키지의 해당 CF 시트에서 {계정코드: 기말금액(KRW 환산)}."""
+    spec = _inter_kind(kind)
     f = _find_uploaded_for(period, company)
     if not f:
         return None
     sheets = (f.get('extracted') or {}).get('sheets') or {}
     out = {}
-    for sh in ('CF2_연결', 'CF3_연결'):
+    for sh in spec['sheets']:
         for key, info in (sheets.get(sh) or {}).items():
             k = str(key)
             if '::' not in k:
                 continue
             code, label = k.split('::', 1)
-            if '기말' not in label:
+            if '기말' not in label or (spec['only'] and code not in spec['only']):
                 continue
             try:
                 out[code] = out.get(code, 0.0) + float(info.get('value') or 0)
@@ -11644,15 +11671,18 @@ def _inter_pkg_end_balance(period, company):
     return out
 
 
-def _inter_journal_debits(group_id, period, loan_codes):
-    """내부거래조정분개의 차입금 순차변(차변 − 대변)을 (회사 약칭, 계정) 별로 집계.
+def _inter_journal_debits(group_id, period, loan_codes, kind='loan'):
+    """내부거래조정분개의 제거액을 (회사 표기, 계정) 별로 집계.
 
-    쌍용처럼 차입금 제거를 대변에 음수로 적는 경우가 있어 차변만 보면 누락된다.
+    차입금(부채)은 순차변(차변 − 대변), 대여금(자산)은 순대변(대변 − 차변)으로
+    본다. 쌍용처럼 반대편에 음수로 적는 경우가 있어 한쪽만 보면 누락된다.
     """
+    primary = _inter_kind(kind)['primary']
+    order = (('debit', 1.0), ('credit', -1.0)) if primary == 'debit' else             (('credit', 1.0), ('debit', -1.0))
     rec = consol_get_journal(group_id, period) or {}
     out = {}
     for e in rec.get('intercompany_entries') or []:
-        for side, sign in (('debit', 1.0), ('credit', -1.0)):
+        for side, sign in order:
             code = str(e.get(f'{side}_code') or '').strip()
             if code not in loan_codes:
                 continue
@@ -11686,6 +11716,64 @@ def _save_inter_memos(data):
 def _inter_memo_key(group_id, company, code):
     """사유는 기간에 매이지 않는다 — 구조적 차이는 분기마다 반복되기 때문."""
     return f'{group_id}|{company}|{code}'
+
+
+def _inter_group_end_balance(period, group_name, kind):
+    """연결그룹의 연결 후 기말잔액 — 분개가 계열 합산으로 적힌 경우의 비교 대상.
+
+    소속 회사 합산에서 그 그룹이 자체 분개로 이미 제거한 금액을 뺀다.
+    상위 그룹 분개는 이 잔액만큼만 제거하기 때문이다.
+    """
+    grp = next((x for x in consol_list_groups() if x.get('name') == group_name), None)
+    if not grp:
+        return None
+    out = {}
+    for c in _all_leaf_companies(grp['id'], period):
+        for code, v in (_inter_pkg_end_balance(period, c, kind) or {}).items():
+            out[code] = out.get(code, 0.0) + v
+    for (_co, code), amt in _inter_journal_debits(grp['id'], period, out, kind).items():
+        out[code] = out.get(code, 0.0) - amt
+    return out
+
+
+def _inter_group_contains(group_id, target, depth=0):
+    g = consol_get_group(group_id) or {}
+    if depth > 8:
+        return False
+    for sub in (g.get('included_groups') or []):
+        if sub == target or _inter_group_contains(sub, target, depth + 1):
+            return True
+    return False
+
+
+def _inter_ancestor_groups(group_id):
+    """이 그룹을 (간접 포함까지) 품고 있는 상위 연결그룹들."""
+    return [x for x in consol_list_groups()
+            if x['id'] != group_id and _inter_group_contains(x['id'], group_id)]
+
+
+def _inter_parent_adjustments(group_id, period, kind, codes, own, alias_label, abbr, idx):
+    """상위 그룹 분개 중 이 그룹(계열 표기 또는 소속 회사)에 걸린 제거액.
+
+    하위 그룹 잔액의 일부는 상위 그룹에서 제거되므로, 그것까지 더해야 대차가 맞는다.
+    """
+    gname = (consol_get_group(group_id) or {}).get('name')
+    adj, sources = {}, []
+    for anc in _inter_ancestor_groups(group_id):
+        got = False
+        for (co, code), amt in _inter_journal_debits(anc['id'], period, codes, kind).items():
+            if INTER_GROUP_ALIASES.get_norm(co) == gname:
+                target = alias_label
+            else:
+                name = _inter_resolve_company(co, abbr, idx)
+                if not name or _norm_co_local(name) not in own:
+                    continue
+                target = name
+            adj[(target, code)] = adj.get((target, code), 0.0) + amt
+            got = True
+        if got:
+            sources.append(anc['name'])
+    return adj, sources
 
 
 def _inter_company_index(period):
@@ -11724,7 +11812,7 @@ def _inter_resolve_company(token, abbr, idx):
     return hits.pop() if len(hits) == 1 else None
 
 
-def _inter_review(group_id, period):
+def _inter_review(group_id, period, kind='loan'):
     """내부거래분개(차변 차입금) ↔ 패키지 CF2/CF3 연결범위 기말잔액 대조.
 
     하위 연결그룹(예: 상역 밑의 태림·GIT)의 회사는 그 그룹에서 따로 검토하므로
@@ -11735,12 +11823,13 @@ def _inter_review(group_id, period):
         raise ValueError('존재하지 않는 연결그룹입니다.')
     companies = [c for c in (g.get('companies') or []) if c]
     own = {_norm_co_local(c) for c in companies}
-    loan_codes = _inter_loan_codes(period, companies)
+    loan_codes = _inter_loan_codes(period, companies, kind)
     abbr = _inter_abbr_map(period)
 
-    jr = _inter_journal_debits(group_id, period, loan_codes)
+    jr = _inter_journal_debits(group_id, period, loan_codes, kind)
 
     idx = _inter_company_index(period)
+    gmap = {_norm_co_local(k): v for k, v in INTER_GROUP_ALIASES.items()}
 
     def resolve(a):
         return _inter_resolve_company(a, abbr, idx)
@@ -11749,13 +11838,19 @@ def _inter_review(group_id, period):
     rows, unresolved = [], set()
     seen = set()
     for co, code in sorted(jr):
-        name = resolve(co)
-        if name and _norm_co_local(name) not in own:
-            continue                      # 하위 연결그룹 소속 → 제외
-        if not name and co != INTER_NO_COMPANY:
-            unresolved.add(co)
-        if name and name not in bal_cache:
-            bal_cache[name] = _inter_pkg_end_balance(period, name)
+        gname = gmap.get(_norm_co_local(co))
+        if gname:                          # 하위 연결그룹 전체를 가리키는 표기
+            name = gname + INTER_ROLLUP_SUFFIX
+            if name not in bal_cache:
+                bal_cache[name] = _inter_group_end_balance(period, gname, kind)
+        else:
+            name = resolve(co)
+            if name and _norm_co_local(name) not in own:
+                continue                  # 하위 연결그룹 소속 → 제외
+            if not name and co != INTER_NO_COMPANY:
+                unresolved.add(co)
+            if name and name not in bal_cache:
+                bal_cache[name] = _inter_pkg_end_balance(period, name, kind)
         bal = (bal_cache.get(name) or {}) if name else {}
         rows.append({'abbr': co, 'company': name or '', 'code': code,
                      'account': loan_codes.get(code, ''),
@@ -11768,7 +11863,7 @@ def _inter_review(group_id, period):
     for c in companies:
         bal = bal_cache.get(c)
         if bal is None:
-            bal = _inter_pkg_end_balance(period, c)
+            bal = _inter_pkg_end_balance(period, c, kind)
             bal_cache[c] = bal
         for code, v in (bal or {}).items():
             if abs(v) < 1 or (c, code) in seen:
@@ -11796,8 +11891,33 @@ def _inter_review(group_id, period):
             m['package'] = (m['package'] or 0) + r['package']
         m['has_pkg'] = m['has_pkg'] or r['has_pkg']
     rows = list(merged.values())
+
+    # 상위 그룹에서 제거된 금액을 별도 열로 더해 차이를 다시 계산한다
+    alias_label = rollup or (g['name'] + INTER_ROLLUP_SUFFIX)
+    padj, psources = _inter_parent_adjustments(
+        group_id, period, kind, loan_codes, own, alias_label, abbr, idx)
+    if rollup:                       # 계열 합산 모드에선 상위 조정도 한 줄로 모은다
+        collapsed = {}
+        for (_co, code), amt in padj.items():
+            collapsed[(rollup, code)] = collapsed.get((rollup, code), 0.0) + amt
+        padj = collapsed
+    by_key = {}
     for r in rows:
-        r['diff'] = (r['journal'] - r['package']) if r['package'] is not None else None
+        r['parent'] = 0.0
+        by_key[(r['company'], r['code'])] = r
+    for (co, code), amt in padj.items():
+        r = by_key.get((co, code))
+        if r is None:
+            r = {'abbr': '', 'company': co, 'code': code,
+                 'account': loan_codes.get(code, ''), 'journal': 0.0,
+                 'package': None, 'has_pkg': False, 'parent': 0.0}
+            rows.append(r)
+            by_key[(co, code)] = r
+        r['parent'] += amt
+
+    for r in rows:
+        total = r['journal'] + r['parent']
+        r['diff'] = (total - r['package']) if r['package'] is not None else None
 
     memos = _load_inter_memos()
     for r in rows:
@@ -11807,6 +11927,11 @@ def _inter_review(group_id, period):
                              r['company'], r['code']))
     return {
         'group': g['name'], 'period': period, 'rollup': rollup,
+        'kind': kind, 'kind_label': _inter_kind(kind)['label'],
+        'col_label': f"{g['name']} 연결조정",
+        'parent_label': (' · '.join(psources) + ' 연결조정') if psources else None,
+        'total_parent': sum(r['parent'] for r in rows),
+        'side_label': _inter_kind(kind)['col'],
         'rows': rows,
         'unresolved': sorted(unresolved),
         'loan_codes': [{'code': c, 'name': n} for c, n in sorted(loan_codes.items())],
@@ -11864,7 +11989,7 @@ def inter_review_data():
     if not _can_access_group(session.get('username'), gid):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
     try:
-        return jsonify(_inter_review(gid, period))
+        return jsonify(_inter_review(gid, period, request.args.get('kind') or 'loan'))
     except (ValueError, RuntimeError) as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
