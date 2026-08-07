@@ -55,3 +55,6 @@ _startup_log.txt
 
 # 보고용 재무제표 — 화면에서 추가한 계정/수기조정 (서버별 보존)
 report_overrides.json
+
+# 내부거래 검토 — 차이 사유 메모 (서버별 보존)
+inter_review_memos.json

@@ -50,6 +50,12 @@ body { background:var(--surface); color:var(--text-body);
 .pill { font-size:.78rem; padding:3px 10px; border-radius:999px; background:var(--brand-050);
         color:var(--brand-900); font-weight:700; }
 .note { font-size:.8rem; color:var(--text-muted); margin-top:10px; }
+.memo-in { width:100%; min-width:220px; border:none; background:transparent; color:inherit;
+           font:inherit; padding:1px 2px; border-radius:4px; }
+.memo-in:focus { outline:2px solid var(--brand-500); background:var(--card-bg); }
+.memo-in::placeholder { color:var(--text-muted); opacity:.55; }
+.xl-table td.memo { white-space:normal; }
+.saved-tick { color:var(--ok-fg); font-weight:700; margin-left:6px; }
 </style>
 </head>
 <body>
@@ -105,7 +111,8 @@ body { background:var(--surface); color:var(--text-body);
       · <b>하위 연결그룹</b>(예: 상역 밑의 태림·GIT) 소속 회사는 해당 그룹에서 따로 검토하므로 제외합니다.<br>
       · 분개에 <b>차변회사가 없는 그룹</b>(태림·쌍용·글로벌세아)은 회사별로 나눌 수 없어 계열 전체를 <b>◯◯계열</b> 한 줄로 합산해 비교합니다.
         차변회사가 들어간 분개를 올리면 자동으로 회사별 비교로 바뀝니다.<br>
-      · 환산 반올림을 감안해 <b>차이 1,000원 미만</b>은 일치로 봅니다.
+      · 환산 반올림을 감안해 <b>차이 1,000원 미만</b>은 일치로 봅니다.<br>
+      · <b>차이 원인</b>은 입력 후 칸 밖을 클릭하면 저장되며, 회사·계정 기준으로 <b>기간이 바뀌어도 유지</b>됩니다.
     </div>
   </div>
 </div>
@@ -219,6 +226,10 @@ function render(){
       <td class="num ${r.journal < 0 ? 'neg' : ''}">${fmt(r.journal)}</td>
       <td class="num">${pkg}</td>
       <td class="num diff ${!bad ? 'ok' : ''}">${r.diff === null ? '–' : fmt(r.diff)}</td>
+      <td class="memo"><input class="memo-in" value="${esc(r.memo || '')}"
+            placeholder="${bad ? '차이 원인 입력' : ''}"
+            data-co="${esc(r.company)}" data-code="${esc(r.code)}"
+            onchange="saveMemo(this)"></td>
     </tr>`;
   }
 
@@ -229,7 +240,31 @@ function render(){
       <th style="min-width:150px">${esc(DATA.group)} 분개 차변</th>
       <th style="min-width:140px">패키지 기말잔액</th>
       <th style="min-width:130px">차이</th>
+      <th style="min-width:240px">차이 원인</th>
     </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+async function saveMemo(el){
+  const td = el.parentElement;
+  try {
+    const r = await fetch('/inter-review/memo', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({group_id: groupId(), company: el.dataset.co,
+                            code: el.dataset.code, memo: el.value})
+    });
+    const j = await r.json();
+    if (j.error) throw new Error(j.error);
+    // 메모리상의 데이터도 갱신해 필터/재렌더 시 유지
+    const row = DATA.rows.find(x => x.company === el.dataset.co && x.code === el.dataset.code);
+    if (row) row.memo = j.memo;
+    td.querySelectorAll('.saved-tick').forEach(n => n.remove());
+    const tick = document.createElement('span');
+    tick.className = 'saved-tick'; tick.textContent = '저장됨';
+    td.appendChild(tick);
+    setTimeout(() => tick.remove(), 1500);
+  } catch (e) {
+    alert('저장 실패: ' + e.message);
+  }
 }
 
 (async () => { await loadGroups(); load(); })();

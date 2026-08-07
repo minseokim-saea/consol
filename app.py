@@ -11664,6 +11664,30 @@ def _inter_journal_debits(group_id, period, loan_codes):
     return {k: v for k, v in out.items() if abs(v) >= 1}
 
 
+INTER_MEMO_PATH = Path('inter_review_memos.json')
+_inter_memo_lock = threading.Lock()
+
+
+def _load_inter_memos():
+    if not INTER_MEMO_PATH.exists():
+        return {}
+    try:
+        with open(INTER_MEMO_PATH, encoding='utf-8') as f:
+            return json.load(f) or {}
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def _save_inter_memos(data):
+    with _inter_memo_lock:
+        _atomic_write_json(INTER_MEMO_PATH, data)
+
+
+def _inter_memo_key(group_id, company, code):
+    """사유는 기간에 매이지 않는다 — 구조적 차이는 분기마다 반복되기 때문."""
+    return f'{group_id}|{company}|{code}'
+
+
 def _inter_company_index(period):
     """{정규화 회사명: 회사명} — 분개의 회사 표기를 패키지 회사명으로 되돌리기 위한 색인."""
     names = set()
@@ -11775,6 +11799,10 @@ def _inter_review(group_id, period):
     for r in rows:
         r['diff'] = (r['journal'] - r['package']) if r['package'] is not None else None
 
+    memos = _load_inter_memos()
+    for r in rows:
+        r['memo'] = memos.get(_inter_memo_key(group_id, r['company'], r['code']), '')
+
     rows.sort(key=lambda r: (-(abs(r['diff']) if r['diff'] is not None else 0),
                              r['company'], r['code']))
     return {
@@ -11800,6 +11828,29 @@ def inter_review_page():
                            year=year, years=YEARS_DATA['years'],
                            username=session.get('username'),
                            is_admin=_is_admin(session.get('username')))
+
+
+@app.route('/inter-review/memo', methods=['POST'])
+@login_required
+@require_permission('inter.review')
+def inter_review_memo():
+    d = request.get_json(silent=True) or {}
+    gid = str(d.get('group_id') or '').strip()
+    company = str(d.get('company') or '').strip()
+    code = str(d.get('code') or '').strip()
+    text = str(d.get('memo') or '').strip()[:500]
+    if not gid or not code:
+        return jsonify({'error': '대상이 지정되지 않았습니다.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    memos = _load_inter_memos()
+    key = _inter_memo_key(gid, company, code)
+    if text:
+        memos[key] = text
+    else:
+        memos.pop(key, None)
+    _save_inter_memos(memos)
+    return jsonify({'ok': True, 'memo': text})
 
 
 @app.route('/inter-review/data')
