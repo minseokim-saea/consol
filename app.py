@@ -11645,7 +11645,8 @@ def _report_period_labels(period):
     return {'bs': (cur_bs, pri_bs), 'pl': (cur_pl, pri_pl)}, prior, q
 
 
-def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_factor=1.0):
+def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_factor=1.0,
+                   prior_cash=None):
     """보고서 한 종류의 라인별 (당기, 전기) 금액 산출.
 
     lines   : 병합된 라인 목록 (기본 매핑 + 추가 계정). 없으면 기본 매핑 사용.
@@ -11658,11 +11659,18 @@ def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_fac
     # 코드 → (당기, 전기)
     src = {}
     if stmt == 'CF':
+        # 전기: 전년 4Q 현금정산표 값을 분기수만큼 월할 (PL 과 동일 규칙)
+        pcash_src = {}
+        for sec in ((prior_cash or {}).get('sections') or []):
+            for row in (sec.get('rows') or []):
+                c = str(row.get('cf_code') or '').strip()
+                if c:
+                    pcash_src[c] = float(row.get('final') or 0) * prior_factor
         for sec in (cash.get('sections') or []):
             for row in (sec.get('rows') or []):
                 c = str(row.get('cf_code') or '').strip()
                 if c:
-                    src[c] = (float(row.get('final') or 0), 0.0)
+                    src[c] = (float(row.get('final') or 0), pcash_src.get(c, 0.0))
     else:
         for row in (ctx.get('result') or {}).get('rows') or []:
             c = str(row.get('code') or '').strip()
@@ -11712,12 +11720,16 @@ def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_fac
     # ② 현금정산표 특수행 (당기순이익 / 환율변동효과 / 기초·기말현금 …)
     if stmt == 'CF':
         for nm, key in (mapping.get('cash_specials') or {}).items():
-            row = cash.get(key) or {}
-            v = float(row.get('final') or 0)
-            if key == 'fx_effect':     # 자동흡수분을 합쳐 항등식 유지
-                v += float((cash.get('fx_plug') or {}).get('final') or 0)
+            def _val(src_cash, factor):
+                r0 = (src_cash or {}).get(key) or {}
+                x = float(r0.get('final') or 0)
+                if key == 'fx_effect':     # 자동흡수분을 합쳐 항등식 유지
+                    x += float(((src_cash or {}).get('fx_plug') or {}).get('final') or 0)
+                return x * factor
+            # 기초·기말현금은 시점 잔액이라 월할 대상이 아님
+            pfac = 1.0 if key in ('cash_begin', 'cash_end') else prior_factor
             if nm in by_name:
-                vals[by_name[nm]] = [v, 0.0]
+                vals[by_name[nm]] = [_val(cash, 1.0), _val(prior_cash, pfac)]
 
     # ③ 소계 = 자기 아래 하위 라인 합 (다음 동급/상위 라인 전까지)
     def _kids_sum(i):
@@ -11801,25 +11813,53 @@ def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_fac
     return out
 
 
+def _report_prior_label(stmt, lab, mode, prior_cash):
+    """전기 열 머리말. 기준(동분기/연간)과 표시 가능 여부를 그대로 드러낸다."""
+    if mode is None:
+        return '전년 자료 없음'
+    if stmt == 'CF' and not prior_cash:
+        return '전년 동기 자료 없음'
+    if mode == 'same':
+        return lab[1].replace(' (월할계산)', '')   # 실제 동분기 값이므로 월할 표기 제거
+    return lab[1]
+
+
+def _report_prior_same_quarter(period):
+    """'2026-2Q' → '2025-2Q' (등록된 결산기간일 때만)."""
+    m = re.match(r'^(\d{4})-(\d)Q$', str(period or ''))
+    if not m:
+        return None
+    p = f'{int(m.group(1))-1}-{m.group(2)}Q'
+    return p if _valid_year(p) else None
+
+
 def _report_prepare_ctx(group_id, period):
     """연결정산표 실행 + 전기(전년 4Q) 값 주입. 여러 표를 만들 때 재사용한다.
 
     반환: (ctx, prior_period)  — prior_period 는 못 구했으면 None
     """
     ctx = _compute_group_internal(group_id, period)
-    prior_period = _prior_q4_period(period)
-    if prior_period and _valid_year(prior_period):
+    pctx = None
+    mode = None
+    # ① 전년 동분기 자료가 있으면 그대로 비교 (가장 정확)
+    # ② 없으면 전년 4Q(연간) — 손익은 월할, 현금흐름표는 비교 불가
+    for cand, m in ((_report_prior_same_quarter(period), 'same'),
+                    (_prior_q4_period(period), 'annual')):
+        if not cand or not _valid_year(cand):
+            continue
         try:
-            pctx = _compute_group_internal(group_id, prior_period)
-            pmap = {str(r.get('code')): r.get('final')
-                    for r in pctx['result']['rows'] if r.get('code')}
-            for r in ctx['result']['rows']:
-                r['prior_final'] = pmap.get(str(r.get('code') or ''), 0)
+            pctx = _compute_group_internal(group_id, cand)
         except Exception:
-            prior_period = None
-    else:
-        prior_period = None
-    return ctx, prior_period
+            pctx = None
+            continue
+        pmap = {str(r.get('code')): r.get('final')
+                for r in pctx['result']['rows'] if r.get('code')}
+        for r in ctx['result']['rows']:
+            r['prior_final'] = pmap.get(str(r.get('code') or ''), 0)
+        return ctx, cand, pctx, m
+    for r in ctx['result']['rows']:
+        r['prior_final'] = 0
+    return ctx, None, None, None
 
 
 def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period=None):
@@ -11831,8 +11871,9 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
     g = consol_get_group(group_id)
     if not g:
         raise ValueError('존재하지 않는 연결그룹입니다.')
+    prior_ctx, prior_mode = None, None
     if ctx is None:
-        ctx, prior_period = _report_prepare_ctx(group_id, period)
+        ctx, prior_period, prior_ctx, prior_mode = _report_prepare_ctx(group_id, period)
     if stmt == 'CF' and cash is None:
         cash = _make_cash_result(ctx, period)
     cash = cash or {}
@@ -11841,9 +11882,20 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
     manuals = (ovr.get('manuals') or {}).get(_report_manual_key(group_id, period, stmt)) or {}
     labels, _p, _q = _report_period_labels(period)
     # PL 은 기간 누적이므로 전년 연간액을 (분기수/4) 로 월할계산
-    pf = (_q / 4.0) if (stmt == 'PL' and isinstance(_q, int)) else 1.0
+    if prior_mode == 'annual' and stmt == 'PL' and isinstance(_q, int):
+        pf = _q / 4.0                    # 손익은 기간 누적이라 월할이 가능
+    else:
+        pf = 1.0
+    # 현금흐름표는 기초·기말이 시점 잔액이라 월할하면 Ⅳ+Ⅴ+Ⅵ=Ⅶ 항등식이 깨진다.
+    # 전년 '동분기' 자료가 있을 때만 전기를 채우고, 연간뿐이면 비운다.
+    prior_cash = None
+    if stmt == 'CF' and prior_mode == 'same' and prior_ctx is not None and prior_period:
+        try:
+            prior_cash = _make_cash_result(prior_ctx, prior_period)
+        except Exception:
+            prior_cash = None
     rows = _report_values(ctx, cash, stmt, mapping, lines=lines, manuals=manuals,
-                          prior_factor=pf)
+                          prior_factor=pf, prior_cash=prior_cash)
     lab = labels['bs'] if stmt == 'BS' else labels['pl']
     entity = (mapping.get('entity_names') or {}).get(g['name']) or f"{g['name']} 및 그 종속기업"
     return {
@@ -11851,11 +11903,15 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
         'stmt': stmt,
         'title': (mapping.get('titles') or {}).get(stmt, stmt),
         'entity': entity,
-        'cur_label': lab[0], 'pri_label': lab[1],
+        'cur_label': lab[0],
+        'pri_label': _report_prior_label(stmt, lab, prior_mode, prior_cash),
         'rows': rows,
         'manual_total': sum(r['manual'] for r in rows if r['kind'] == 'detail'),
         'note': (f'※ 전기 금액은 전년 동기 자료가 없어 전년 연간 금액을 '
-                 f'월할계산({_q}/4)한 금액입니다.') if pf != 1.0 else '',
+                 f'월할계산({_q}/4)한 금액입니다.') if pf != 1.0
+                else ('※ 전년 동기 자료가 없어 현금흐름표의 전기는 표시하지 않습니다. '
+                      '(기초·기말현금은 시점 잔액이라 월할할 수 없습니다)'
+                      if (stmt == 'CF' and not prior_cash) else ''),
     }
 
 
@@ -12060,7 +12116,7 @@ def report_fs_verify():
             continue
         row = {'group_id': gid, 'group': g.get('name'), 'checks': [], 'error': None}
         try:
-            ctx, _pp = _report_prepare_ctx(gid, period)
+            ctx, _pp, _pctx, _pm = _report_prepare_ctx(gid, period)
             cash = _make_cash_result(ctx, period)
         except Exception as e:
             row['error'] = str(e)
