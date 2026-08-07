@@ -216,6 +216,12 @@
     </div>
   </div>
   {% endif %}
+  {% if perms and perms.inter_review %}
+  <a href="/inter-review" class="side-link {% if active_menu == 'inter_review' %}active{% endif %}" title="내부거래 검토">
+    <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+    <span class="side-label" data-i18n="side.inter_review">내부거래 검토</span>
+  </a>
+  {% endif %}
   {% if perms and (perms.consol_compute or perms.consol_journal) %}
   <a href="/consolidation" class="side-link {% if active_menu == 'consolidation' %}active{% endif %}" title="연결정산표">
     <i class="bi bi-calculator-fill" aria-hidden="true"></i>

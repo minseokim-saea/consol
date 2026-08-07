@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>내부거래 검토 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6; --xl-grid:#c9c9c9; --xl-head:#DDEBF7; --xl-total:#FFF2CC;
+  --bad-bg:#FDE7E9; --bad-fg:#b4232e; --ok-fg:#1a7f37;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+    --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+    --border:#334155; --xl-grid:#44506a; --xl-head:#22354f; --xl-total:#4a3a1a;
+    --bad-bg:#4a1d22; --bad-fg:#ff8f99; --ok-fg:#6fcf8b;
+  }
+  body { color-scheme: dark; }
+  .card { background:var(--card-bg); color:var(--text-body); }
+  .form-select, .form-control { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+                   'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border:1px solid var(--border); border-radius:10px; }
+
+.xl-wrap { overflow-x:auto; background:var(--card-bg); border-radius:8px; padding:14px 16px 18px; }
+.xl-table { border-collapse:collapse; font-size:.86rem; white-space:nowrap; width:100%; }
+.xl-table th, .xl-table td { border:1px solid var(--xl-grid); padding:5px 10px; }
+.xl-table thead th { background:var(--xl-head); text-align:center; font-weight:700;
+                     position:sticky; top:0; z-index:2; }
+.xl-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.xl-table td.neg { color:#dc3545; }
+.xl-table tbody tr:hover td { background:var(--brand-050); }
+.xl-table tr.bad td.diff { background:var(--bad-bg); color:var(--bad-fg); font-weight:700; }
+.xl-table td.ok { color:var(--ok-fg); }
+.xl-table tr.co-start td { border-top:2px solid var(--brand-500); }
+.abbr { font-size:.76rem; color:var(--text-muted); margin-left:6px; }
+.kpi { display:flex; gap:22px; flex-wrap:wrap; }
+.kpi > div { min-width:150px; }
+.kpi .k-label { font-size:.76rem; color:var(--text-muted); }
+.kpi .k-val { font-size:1.05rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.pill { font-size:.78rem; padding:3px 10px; border-radius:999px; background:var(--brand-050);
+        color:var(--brand-900); font-weight:700; }
+.note { font-size:.8rem; color:var(--text-muted); margin-top:10px; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'inter_review' %}
+{% include '_sidebar.html' %}
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-diagram-3"></i> 연결그룹</label>
+      <select id="groupSelect" class="form-select" style="max-width:220px" onchange="load()"></select>
+
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:160px" onchange="onPeriod()">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+
+      <div class="form-check mb-0 ms-2">
+        <input class="form-check-input" type="checkbox" id="onlyDiff" onchange="render()">
+        <label class="form-check-label small" for="onlyDiff">차이 있는 항목만</label>
+      </div>
+
+      <input id="q" class="form-control" style="max-width:200px" placeholder="회사·계정 검색"
+             oninput="render()">
+
+      <span class="ms-auto pill"><i class="bi bi-shield-lock"></i> 관리자 · 연결담당자 전용</span>
+    </div>
+  </div>
+
+  <div class="card section-card mb-3" id="kpiCard" style="display:none">
+    <div class="card-body kpi">
+      <div><div class="k-label" id="kJournalLabel">분개 차변 차입금 합계</div><div class="k-val" id="kJournal">–</div></div>
+      <div id="kSubBox" style="display:none"><div class="k-label" id="kSubLabel">태림 분개 차변</div><div class="k-val" id="kSub">–</div></div>
+      <div><div class="k-label">패키지 기말잔액 합계</div><div class="k-val" id="kPackage">–</div></div>
+      <div><div class="k-label">차이 합계</div><div class="k-val" id="kDiff">–</div></div>
+      <div><div class="k-label">차이 발생 항목</div><div class="k-val" id="kNg">–</div></div>
+    </div>
+  </div>
+
+  <div id="warn"></div>
+
+  <div class="xl-wrap">
+    <h5 class="mb-2"><i class="bi bi-arrow-left-right"></i> 내부거래조정분개(차변 차입금) ↔ 패키지 CF2·CF3 연결범위 기말잔액</h5>
+    <div id="area" class="text-muted py-4">불러오는 중…</div>
+    <div class="note">
+      · 분개: 해당 연결그룹의 내부거래조정분개 중 <b>차변 계정이 차입금(CF2_연결·CF3_연결에 존재하는 계정)</b>인 건을 차변회사·계정별로 집계한 금액입니다.<br>
+      · 패키지: 각 회사 패키지의 <b>CF2_연결 · CF3_연결 시트 기말금액</b>(연결범위회사 대상)입니다.<br>
+      · 차변회사 약칭은 패키지 <b>Master 시트의 CODE 열</b>로 회사명을 찾습니다. 찾지 못한 약칭은 상단에 표시됩니다.<br>
+      · <b>태림 분개 차변</b>은 태림 그룹 내부거래조정분개의 계정별 총액이며, <b>태림계열</b> 행에만 표기합니다.<br>
+      · 차이 = 선택 그룹 분개 + 태림 분개 − 패키지 기말잔액.<br>
+      · 환산 반올림을 감안해 <b>차이 1,000원 미만</b>은 일치로 봅니다.
+    </div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const period  = () => document.getElementById('periodSelect').value;
+const groupId = () => document.getElementById('groupSelect').value;
+const fmt = v => (v === null || v === undefined) ? '' :
+  (Math.round(v) === 0 ? '-' : Math.round(v).toLocaleString('ko-KR'));
+
+const DEFAULT_GROUP = '상역';
+
+async function loadGroups(){
+  const prev = groupId();
+  const r = await fetch('/consolidation/groups?year=' + encodeURIComponent(period()));
+  const j = await r.json();
+  const groups = j.groups || [];
+  const sel = document.getElementById('groupSelect');
+  sel.innerHTML = groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  const keep = groups.find(g => g.id === prev);
+  const def  = groups.find(g => g.name === DEFAULT_GROUP);
+  if (keep) sel.value = keep.id; else if (def) sel.value = def.id;
+}
+
+async function onPeriod(){ await loadGroups(); load(); }
+
+async function load(){
+  const area = document.getElementById('area');
+  document.getElementById('kpiCard').style.display = 'none';
+  document.getElementById('warn').innerHTML = '';
+  if (!groupId()){ area.innerHTML = '<div class="text-muted py-4">연결그룹이 없습니다.</div>'; return; }
+  area.innerHTML = '<div class="text-muted py-4">불러오는 중…</div>';
+  try {
+    const r = await fetch(`/inter-review/data?group_id=${encodeURIComponent(groupId())}`
+                        + `&year=${encodeURIComponent(period())}`);
+    const j = await r.json();
+    if (j.error){ area.innerHTML = `<div class="alert alert-danger mb-0">${esc(j.error)}</div>`; return; }
+    DATA = j;
+    render();
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger mb-0">조회 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+function render(){
+  const area = document.getElementById('area');
+  if (!DATA) return;
+
+  if (DATA.unresolved && DATA.unresolved.length) {
+    document.getElementById('warn').innerHTML =
+      `<div class="alert alert-warning py-2 mb-3">
+         <i class="bi bi-exclamation-triangle"></i> 회사명을 찾지 못한 분개 약칭:
+         <b>${DATA.unresolved.map(esc).join(', ')}</b>
+         — 패키지 Master 시트에 CODE 가 없거나 철자가 다릅니다.
+       </div>`;
+  }
+
+  const TOL = DATA.tol || 1;
+  const SUB = DATA.sub_group || '';
+  const onlyDiff = document.getElementById('onlyDiff').checked;
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  let rows = DATA.rows.filter(r => {
+    if (onlyDiff && !(r.diff === null || Math.abs(r.diff) >= TOL)) return false;
+    if (q && !((r.company + r.abbr + r.code + r.account).toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  document.getElementById('kpiCard').style.display = '';
+  document.getElementById('kJournalLabel').textContent = `${DATA.group} 분개 차변`;
+  document.getElementById('kJournal').textContent = fmt(DATA.total_journal);
+  document.getElementById('kSubBox').style.display = SUB ? '' : 'none';
+  document.getElementById('kSubLabel').textContent = `${SUB} 분개 차변`;
+  document.getElementById('kSub').textContent = fmt(DATA.total_journal_sub);
+  document.getElementById('kPackage').textContent = fmt(DATA.total_package);
+  const td = DATA.total_journal + (DATA.total_journal_sub || 0) - DATA.total_package;
+  const kd = document.getElementById('kDiff');
+  kd.textContent = fmt(td);
+  kd.style.color = Math.abs(td) >= TOL ? 'var(--bad-fg)' : 'var(--ok-fg)';
+  document.getElementById('kNg').textContent = `${DATA.ng} / ${DATA.rows.length}`;
+
+  if (!rows.length){ area.innerHTML = '<div class="text-muted py-4">표시할 항목이 없습니다.</div>'; return; }
+
+  // 회사별로 묶어 보기 쉽게 정렬
+  rows = rows.slice().sort((a, b) =>
+    (a.company || 'ㅎ').localeCompare(b.company || 'ㅎ', 'ko') || a.code.localeCompare(b.code));
+
+  let last = null, body = '';
+  for (const r of rows) {
+    const first = r.company !== last; last = r.company;
+    const bad = (r.diff === null || Math.abs(r.diff) >= TOL);
+    const cls = [bad ? 'bad' : '', first ? 'co-start' : ''].filter(Boolean).join(' ');
+    const co = r.company
+      ? `${esc(r.company)}${r.abbr ? `<span class="abbr">${esc(r.abbr)}</span>` : ''}`
+      : `<span class="text-danger">${esc(r.abbr)} (미매칭)</span>`;
+    const pkg = !r.has_pkg ? '<span class="text-muted">패키지 없음</span>'
+              : (r.package === null || r.package === undefined
+                  ? '<span class="text-muted">계정 없음</span>' : fmt(r.package));
+    body += `<tr class="${cls}">
+      <td>${co}</td>
+      <td>${esc(r.code)}</td>
+      <td>${esc(r.account)}</td>
+      <td class="num ${r.journal < 0 ? 'neg' : ''}">${fmt(r.journal)}</td>
+      ${SUB ? `<td class="num ${r.journal_sub < 0 ? 'neg' : ''}">${fmt(r.journal_sub)}</td>` : ''}
+      <td class="num">${pkg}</td>
+      <td class="num diff ${!bad ? 'ok' : ''}">${r.diff === null ? '–' : fmt(r.diff)}</td>
+    </tr>`;
+  }
+
+  area.innerHTML = `<table class="xl-table"><thead><tr>
+      <th style="min-width:240px">차변회사</th>
+      <th style="min-width:90px">계정코드</th>
+      <th style="min-width:150px">계정명</th>
+      <th style="min-width:150px">${esc(DATA.group)} 분개 차변</th>
+      ${SUB ? `<th style="min-width:150px">${esc(SUB)} 분개 차변</th>` : ''}
+      <th style="min-width:140px">패키지 기말잔액</th>
+      <th style="min-width:130px">차이</th>
+    </tr></thead><tbody>${body}</tbody></table>`;
+}
+
+(async () => { await loadGroups(); load(); })();
+</script>
+</body>
+</html>

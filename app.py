@@ -318,6 +318,7 @@ def _inject_sidebar_perms():
             'affiliate_perf':  _has_permission(uname, 'affiliate.performance'),
             'report_fs':       _has_permission(uname, 'report.fs'),
             'report_edit':     _has_permission(uname, 'report.edit'),
+            'inter_review':    _has_permission(uname, 'inter.review'),
             'files_upload':    _has_permission(uname, 'files.upload'),
             'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
@@ -434,6 +435,9 @@ def _ensure_permission_catalog():
          {'system_admin'}, '연결정산'),
         ('report.edit', '보고용 재무제표 계정추가·수기조정', 'report.fs',
          {'system_admin'}, '연결정산'),
+        # 내부거래 검토 — 관리자·연결담당자만
+        ('inter.review', '내부거래 검토 (분개 적정성)', 'consol.journal',
+         {'system_admin', 'finance_lead'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
@@ -8015,6 +8019,7 @@ def _sidebar_perms(uname):
         'affiliate_perf':   _has_permission(uname, 'affiliate.performance'),
         'report_fs':        _has_permission(uname, 'report.fs'),
         'report_edit':      _has_permission(uname, 'report.edit'),
+        'inter_review':     _has_permission(uname, 'inter.review'),
         'files_upload':     _has_permission(uname, 'files.upload'),
         'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
@@ -11539,6 +11544,255 @@ def affiliate_performance_excel():
     return send_file(buf, as_attachment=True,
                      download_name=f'계열사별실적_{safe}.xlsx',
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 내부거래 검토 — 내부거래조정분개 적정성 (차입금)
+# ─────────────────────────────────────────────────────────────────────────────
+# 분개의 차변회사는 약칭(GCT, SAC …)으로 들어온다. 약칭↔회사명은 패키지 Master
+# 시트(D열 CODE)에서 읽고, 거기에 없는 것만 아래 표로 보완한다.
+INTER_ABBR_OVERRIDES = {
+    'KSA_A': '세아상역(개별)',
+    'SWD':   'SWISSTEX DIRECT, LLC',
+    'PSC':   'PT.SJ CONSULTING',
+    'DASOL': 'DASOLTEX, S.A.',
+    'KVM':   '발맥스기술',
+    'SNS':   'S&S INDUSTRIAL PARK SOCIEDAD ANONIMA DE CAPITAL VARIABLE',
+}
+_INTER_ABBR_CACHE = {}
+
+# 환산 반올림 노이즈(±수원)를 차이로 잡지 않기 위한 허용오차(원)
+INTER_DIFF_TOL = 1000
+
+# 태림 계열사는 개별 회사로 나누지 않고 한 줄로 합산해 보여준다
+INTER_TEARIM_LABEL = '태림계열'
+
+
+def _inter_abbr_map(period):
+    """패키지 Master 시트에서 {약칭: 회사명} 수집 (기간별 1회 캐시)."""
+    if period in _INTER_ABBR_CACHE:
+        return _INTER_ABBR_CACHE[period]
+    out = {}
+    for f in uploaded_files:
+        if f.get('year') != period or not f.get('path'):
+            continue
+        try:
+            from openpyxl import load_workbook as _lw
+            wb = _lw(f['path'], data_only=True, read_only=True)
+            if 'Master' not in wb.sheetnames:
+                wb.close(); continue
+            for row in wb['Master'].iter_rows(min_row=3, values_only=True):
+                if not row or len(row) < 4:
+                    continue
+                code = str(row[3] or '').strip().upper()
+                name = str(row[0] or row[1] or '').strip()
+                if code and name and code not in out:
+                    out[code] = name
+            wb.close()
+            break            # Master 는 전 회사 공통이라 1개만 읽으면 충분
+        except Exception:
+            continue
+    for k, v in INTER_ABBR_OVERRIDES.items():
+        out.setdefault(k.upper(), v)
+    _INTER_ABBR_CACHE[period] = out
+    return out
+
+
+def _inter_loan_codes(period, companies):
+    """CF2_연결 / CF3_연결 시트에 나타나는 차입금 계정코드 집합 (계정명 포함)."""
+    codes = {}
+    for c in companies:
+        f = _find_uploaded_for(period, c)
+        if not f:
+            continue
+        sheets = (f.get('extracted') or {}).get('sheets') or {}
+        for sh in ('CF2_연결', 'CF3_연결'):
+            for key, info in (sheets.get(sh) or {}).items():
+                k = str(key)
+                if '::' not in k:
+                    continue
+                code = k.split('::', 1)[0]
+                nm = str(info.get('kor') or '').split(' / ')[0]
+                codes.setdefault(code, nm)
+    return codes
+
+
+def _inter_pkg_end_balance(period, company):
+    """회사 패키지의 CF2_연결·CF3_연결에서 {계정코드: 기말금액(KRW 환산)}."""
+    f = _find_uploaded_for(period, company)
+    if not f:
+        return None
+    sheets = (f.get('extracted') or {}).get('sheets') or {}
+    out = {}
+    for sh in ('CF2_연결', 'CF3_연결'):
+        for key, info in (sheets.get(sh) or {}).items():
+            k = str(key)
+            if '::' not in k:
+                continue
+            code, label = k.split('::', 1)
+            if '기말' not in label:
+                continue
+            try:
+                out[code] = out.get(code, 0.0) + float(info.get('value') or 0)
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
+def _inter_journal_debits(group_id, period, loan_codes):
+    """내부거래조정분개의 차변 차입금을 (차변회사 약칭, 계정) 별로 집계."""
+    rec = consol_get_journal(group_id, period) or {}
+    out = {}
+    for e in rec.get('intercompany_entries') or []:
+        code = str(e.get('debit_code') or '').strip()
+        if code not in loan_codes:
+            continue
+        amt = float(e.get('debit_amt') or 0)
+        if not amt:
+            continue
+        co = str(e.get('debit_company') or '').strip() or '(회사 미기재)'
+        out[(co, code)] = out.get((co, code), 0.0) + amt
+    return out
+
+
+def _inter_review(group_id, period):
+    """내부거래분개(차변 차입금) ↔ 패키지 CF2/CF3 연결범위 기말잔액 대조."""
+    g = consol_get_group(group_id)
+    if not g:
+        raise ValueError('존재하지 않는 연결그룹입니다.')
+    companies = _all_leaf_companies(group_id, period)
+    loan_codes = _inter_loan_codes(period, companies)
+    abbr = _inter_abbr_map(period)
+
+    # 태림 그룹 분개는 별도 열로 함께 보여준다 (상위 그룹에서 조회할 때만)
+    tg = next((x for x in consol_list_groups() if x.get('name') == '태림'), None)
+    sub_gid = tg['id'] if (tg and tg['id'] != group_id) else None
+
+    jr = _inter_journal_debits(group_id, period, loan_codes)
+    # 태림 분개는 차변회사로 나누지 않고 계정별 총액만 '태림계열' 행에 넣는다
+    sub_by_code = {}
+    if sub_gid:
+        for (_co, code), amt in _inter_journal_debits(sub_gid, period, loan_codes).items():
+            sub_by_code[code] = sub_by_code.get(code, 0.0) + amt
+
+    # 약칭 → 패키지 회사명
+    def resolve(a):
+        u = a.upper()
+        return (abbr.get(u) or abbr.get(u.replace('_', ''))
+                or INTER_ABBR_OVERRIDES.get(u))
+
+    bal_cache = {}
+    rows, unresolved = [], set()
+    seen = set()
+    for co, code in sorted(jr):
+        name = resolve(co)
+        if not name:
+            unresolved.add(co)
+        if name and name not in bal_cache:
+            bal_cache[name] = _inter_pkg_end_balance(period, name)
+        bal = (bal_cache.get(name) or {}) if name else {}
+        rows.append({'abbr': co, 'company': name or '', 'code': code,
+                     'account': loan_codes.get(code, ''),
+                     'journal': jr[(co, code)],
+                     'journal_sub': 0.0,
+                     'package': bal.get(code),
+                     'has_pkg': name is not None and bal_cache.get(name) is not None})
+        seen.add((name, code))
+
+    # 패키지에는 잔액이 있는데 분개가 없는 경우도 드러낸다
+    for c in companies:
+        bal = bal_cache.get(c)
+        if bal is None:
+            bal = _inter_pkg_end_balance(period, c)
+            bal_cache[c] = bal
+        for code, v in (bal or {}).items():
+            if abs(v) < 1 or (c, code) in seen:
+                continue
+            rows.append({'abbr': '', 'company': c, 'code': code,
+                         'account': loan_codes.get(code, ''),
+                         'journal': 0.0, 'journal_sub': 0.0,
+                         'package': v, 'has_pkg': True})
+
+    # 태림 계열사는 개별 회사 대신 '태림계열' 한 줄로 합산 표기
+    tearim = ({_norm_co_local(c) for c in _all_leaf_companies(tg['id'], period)}
+              if tg else set())
+
+    def disp(name):
+        return INTER_TEARIM_LABEL if name and _norm_co_local(name) in tearim else name
+
+    merged = {}
+    for r in rows:
+        d = disp(r['company'])
+        m = merged.get((d, r['code']))
+        if m is None:
+            m = dict(r, company=d)
+            if d == INTER_TEARIM_LABEL:
+                m['abbr'] = ''
+            merged[(d, r['code'])] = m
+            continue
+        m['journal'] += r['journal']
+        m['journal_sub'] += r['journal_sub']
+        if r['package'] is not None:
+            m['package'] = (m['package'] or 0) + r['package']
+        m['has_pkg'] = m['has_pkg'] or r['has_pkg']
+    for code, amt in sub_by_code.items():
+        key = (INTER_TEARIM_LABEL, code)
+        if key not in merged:
+            merged[key] = {'abbr': '', 'company': INTER_TEARIM_LABEL, 'code': code,
+                           'account': loan_codes.get(code, ''), 'journal': 0.0,
+                           'journal_sub': 0.0, 'package': None, 'has_pkg': False}
+        merged[key]['journal_sub'] = amt
+
+    rows = list(merged.values())
+    for r in rows:
+        r['journal_total'] = r['journal'] + r['journal_sub']
+        r['diff'] = (r['journal_total'] - r['package']) if r['package'] is not None else None
+
+    rows.sort(key=lambda r: (-(abs(r['diff']) if r['diff'] is not None else 0),
+                             r['company'], r['code']))
+    return {
+        'group': g['name'], 'period': period,
+        'rows': rows,
+        'unresolved': sorted(unresolved),
+        'loan_codes': [{'code': c, 'name': n} for c, n in sorted(loan_codes.items())],
+        'sub_group': (tg or {}).get('name') if sub_gid else None,
+        'total_journal': sum(r['journal'] for r in rows),
+        'total_journal_sub': sum(sub_by_code.values()),
+        'total_package': sum(r['package'] or 0 for r in rows),
+        'tol': INTER_DIFF_TOL,
+        'ng': sum(1 for r in rows if r['diff'] is None or abs(r['diff']) >= INTER_DIFF_TOL),
+    }
+
+
+@app.route('/inter-review')
+@login_required
+@require_permission('inter.review')
+def inter_review_page():
+    year = request.args.get('year') or YEARS_DATA.get('default')
+    if not _valid_year(year):
+        year = YEARS_DATA.get('default')
+    return render_template('inter_review.html',
+                           year=year, years=YEARS_DATA['years'],
+                           username=session.get('username'),
+                           is_admin=_is_admin(session.get('username')))
+
+
+@app.route('/inter-review/data')
+@login_required
+@require_permission('inter.review')
+def inter_review_data():
+    gid = (request.args.get('group_id') or '').strip()
+    period = (request.args.get('year') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if not _can_access_group(session.get('username'), gid):
+        return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    try:
+        return jsonify(_inter_review(gid, period))
+    except (ValueError, RuntimeError) as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return _json_error(e)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
