@@ -11589,7 +11589,7 @@ def _inter_abbr_map(period):
             for row in wb['Master'].iter_rows(min_row=3, values_only=True):
                 if not row or len(row) < 4:
                     continue
-                code = str(row[3] or '').strip().upper()
+                code = _norm_co_local(row[3])
                 name = str(row[0] or row[1] or '').strip()
                 if code and name and code not in out:
                     out[code] = name
@@ -11598,7 +11598,7 @@ def _inter_abbr_map(period):
         except Exception:
             continue
     for k, v in INTER_ABBR_OVERRIDES.items():
-        out.setdefault(k.upper(), v)
+        out.setdefault(_norm_co_local(k), v)
     _INTER_ABBR_CACHE[period] = out
     return out
 
@@ -11685,13 +11685,13 @@ def _inter_resolve_company(token, abbr, idx):
     t = str(token or '').strip()
     if not t or t == INTER_NO_COMPANY:
         return None
-    u = t.upper()
-    # 1) 패키지 Master 시트의 CODE(약칭)
-    name = abbr.get(u) or abbr.get(u.replace('_', '')) or INTER_ABBR_OVERRIDES.get(u)
+    # 괄호·공백·언더바 표기 차이를 견디도록 정규화 기준으로 비교한다
+    n = _norm_co_local(t)
+    # 1) 패키지 Master 시트의 CODE(약칭) 및 별칭표
+    name = abbr.get(n)
     if name:
         return idx.get(_norm_co_local(name), name)
     # 2) 회사명 직접 매칭 ('(개별)'·'(연결)' 표기 차이 허용)
-    n = _norm_co_local(t)
     for key in (n, re.sub(r'(개별|연결)$', '', n)):
         if key and key in idx:
             return idx[key]
