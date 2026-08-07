@@ -87,7 +87,6 @@ body { background:var(--surface); color:var(--text-body);
   <div class="card section-card mb-3" id="kpiCard" style="display:none">
     <div class="card-body kpi">
       <div><div class="k-label" id="kJournalLabel">분개 차변 차입금 합계</div><div class="k-val" id="kJournal">–</div></div>
-      <div id="kSubBox" style="display:none"><div class="k-label" id="kSubLabel">태림 분개 차변</div><div class="k-val" id="kSub">–</div></div>
       <div><div class="k-label">패키지 기말잔액 합계</div><div class="k-val" id="kPackage">–</div></div>
       <div><div class="k-label">차이 합계</div><div class="k-val" id="kDiff">–</div></div>
       <div><div class="k-label">차이 발생 항목</div><div class="k-val" id="kNg">–</div></div>
@@ -100,11 +99,12 @@ body { background:var(--surface); color:var(--text-body);
     <h5 class="mb-2"><i class="bi bi-arrow-left-right"></i> 내부거래조정분개(차변 차입금) ↔ 패키지 CF2·CF3 연결범위 기말잔액</h5>
     <div id="area" class="text-muted py-4">불러오는 중…</div>
     <div class="note">
-      · 분개: 해당 연결그룹의 내부거래조정분개 중 <b>차변 계정이 차입금(CF2_연결·CF3_연결에 존재하는 계정)</b>인 건을 차변회사·계정별로 집계한 금액입니다.<br>
+      · 분개: 해당 연결그룹의 내부거래조정분개 중 <b>차변 계정이 차입금(CF2_연결·CF3_연결에 존재하는 계정)</b>인 건을 차변회사·계정별로 집계한 <b>순차변(차변 − 대변)</b>입니다.<br>
       · 패키지: 각 회사 패키지의 <b>CF2_연결 · CF3_연결 시트 기말금액</b>(연결범위회사 대상)입니다.<br>
       · 차변회사 약칭은 패키지 <b>Master 시트의 CODE 열</b>로 회사명을 찾습니다. 찾지 못한 약칭은 상단에 표시됩니다.<br>
-      · <b>태림 분개 차변</b>은 태림 그룹 내부거래조정분개의 계정별 총액이며, <b>태림계열</b> 행에만 표기합니다.<br>
-      · 차이 = 선택 그룹 분개 + 태림 분개 − 패키지 기말잔액.<br>
+      · <b>하위 연결그룹</b>(예: 상역 밑의 태림·GIT) 소속 회사는 해당 그룹에서 따로 검토하므로 제외합니다.<br>
+      · 분개에 <b>차변회사가 없는 그룹</b>(태림·쌍용·글로벌세아)은 회사별로 나눌 수 없어 계열 전체를 <b>◯◯계열</b> 한 줄로 합산해 비교합니다.
+        차변회사가 들어간 분개를 올리면 자동으로 회사별 비교로 바뀝니다.<br>
       · 환산 반올림을 감안해 <b>차이 1,000원 미만</b>은 일치로 봅니다.
     </div>
   </div>
@@ -158,8 +158,15 @@ function render(){
   const area = document.getElementById('area');
   if (!DATA) return;
 
-  if (DATA.unresolved && DATA.unresolved.length) {
+  if (DATA.rollup) {
     document.getElementById('warn').innerHTML =
+      `<div class="alert alert-info py-2 mb-3">
+         <i class="bi bi-info-circle"></i> 이 그룹의 내부거래조정분개에는 <b>차변회사 정보가 없어</b>
+         회사별로 나눌 수 없습니다. 계열 전체를 <b>${esc(DATA.rollup)}</b> 한 줄로 합산해 비교합니다.
+       </div>`;
+  }
+  if (DATA.unresolved && DATA.unresolved.length) {
+    document.getElementById('warn').innerHTML +=
       `<div class="alert alert-warning py-2 mb-3">
          <i class="bi bi-exclamation-triangle"></i> 회사명을 찾지 못한 분개 약칭:
          <b>${DATA.unresolved.map(esc).join(', ')}</b>
@@ -168,7 +175,6 @@ function render(){
   }
 
   const TOL = DATA.tol || 1;
-  const SUB = DATA.sub_group || '';
   const onlyDiff = document.getElementById('onlyDiff').checked;
   const q = document.getElementById('q').value.trim().toLowerCase();
   let rows = DATA.rows.filter(r => {
@@ -180,11 +186,8 @@ function render(){
   document.getElementById('kpiCard').style.display = '';
   document.getElementById('kJournalLabel').textContent = `${DATA.group} 분개 차변`;
   document.getElementById('kJournal').textContent = fmt(DATA.total_journal);
-  document.getElementById('kSubBox').style.display = SUB ? '' : 'none';
-  document.getElementById('kSubLabel').textContent = `${SUB} 분개 차변`;
-  document.getElementById('kSub').textContent = fmt(DATA.total_journal_sub);
   document.getElementById('kPackage').textContent = fmt(DATA.total_package);
-  const td = DATA.total_journal + (DATA.total_journal_sub || 0) - DATA.total_package;
+  const td = DATA.total_journal - DATA.total_package;
   const kd = document.getElementById('kDiff');
   kd.textContent = fmt(td);
   kd.style.color = Math.abs(td) >= TOL ? 'var(--bad-fg)' : 'var(--ok-fg)';
@@ -203,7 +206,9 @@ function render(){
     const cls = [bad ? 'bad' : '', first ? 'co-start' : ''].filter(Boolean).join(' ');
     const co = r.company
       ? `${esc(r.company)}${r.abbr ? `<span class="abbr">${esc(r.abbr)}</span>` : ''}`
-      : `<span class="text-danger">${esc(r.abbr)} (미매칭)</span>`;
+      : (r.abbr === '(회사 미기재)'
+          ? `<span class="text-muted">${esc(r.abbr)}</span>`
+          : `<span class="text-danger">${esc(r.abbr)} (미매칭)</span>`);
     const pkg = !r.has_pkg ? '<span class="text-muted">패키지 없음</span>'
               : (r.package === null || r.package === undefined
                   ? '<span class="text-muted">계정 없음</span>' : fmt(r.package));
@@ -212,7 +217,6 @@ function render(){
       <td>${esc(r.code)}</td>
       <td>${esc(r.account)}</td>
       <td class="num ${r.journal < 0 ? 'neg' : ''}">${fmt(r.journal)}</td>
-      ${SUB ? `<td class="num ${r.journal_sub < 0 ? 'neg' : ''}">${fmt(r.journal_sub)}</td>` : ''}
       <td class="num">${pkg}</td>
       <td class="num diff ${!bad ? 'ok' : ''}">${r.diff === null ? '–' : fmt(r.diff)}</td>
     </tr>`;
@@ -223,7 +227,6 @@ function render(){
       <th style="min-width:90px">계정코드</th>
       <th style="min-width:150px">계정명</th>
       <th style="min-width:150px">${esc(DATA.group)} 분개 차변</th>
-      ${SUB ? `<th style="min-width:150px">${esc(SUB)} 분개 차변</th>` : ''}
       <th style="min-width:140px">패키지 기말잔액</th>
       <th style="min-width:130px">차이</th>
     </tr></thead><tbody>${body}</tbody></table>`;

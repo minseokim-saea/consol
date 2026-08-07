@@ -11549,8 +11549,8 @@ def affiliate_performance_excel():
 # ─────────────────────────────────────────────────────────────────────────────
 # 내부거래 검토 — 내부거래조정분개 적정성 (차입금)
 # ─────────────────────────────────────────────────────────────────────────────
-# 분개의 차변회사는 약칭(GCT, SAC …)으로 들어온다. 약칭↔회사명은 패키지 Master
-# 시트(D열 CODE)에서 읽고, 거기에 없는 것만 아래 표로 보완한다.
+# 분개의 차변회사는 약칭(GCT, SAC …)이나 통칭(에스앤에이의류 …)으로 들어온다.
+# 약칭↔회사명은 패키지 Master 시트(D열 CODE)에서 읽고, 거기에 없는 것만 아래 표로 보완한다.
 INTER_ABBR_OVERRIDES = {
     'KSA_A': '세아상역(개별)',
     'SWD':   'SWISSTEX DIRECT, LLC',
@@ -11558,14 +11558,19 @@ INTER_ABBR_OVERRIDES = {
     'DASOL': 'DASOLTEX, S.A.',
     'KVM':   '발맥스기술',
     'SNS':   'S&S INDUSTRIAL PARK SOCIEDAD ANONIMA DE CAPITAL VARIABLE',
+    '에스앤에이의류': '주식회사 에스앤에이',
 }
 _INTER_ABBR_CACHE = {}
 
 # 환산 반올림 노이즈(±수원)를 차이로 잡지 않기 위한 허용오차(원)
 INTER_DIFF_TOL = 1000
 
-# 태림 계열사는 개별 회사로 나누지 않고 한 줄로 합산해 보여준다
-INTER_TEARIM_LABEL = '태림계열'
+# 분개에 차변회사가 비어 있는 건의 표기
+INTER_NO_COMPANY = '(회사 미기재)'
+
+# 분개에 차변회사가 전혀 없는 그룹(태림·쌍용·글로벌세아)은 회사별로 나눌 수 없으므로
+# 계열 전체를 한 줄로 합산해 비교한다. 회사 컬럼이 있는 분개를 올리면 자동으로 회사별로 바뀐다.
+INTER_ROLLUP_SUFFIX = '계열'
 
 
 def _inter_abbr_map(period):
@@ -11640,53 +11645,90 @@ def _inter_pkg_end_balance(period, company):
 
 
 def _inter_journal_debits(group_id, period, loan_codes):
-    """내부거래조정분개의 차변 차입금을 (차변회사 약칭, 계정) 별로 집계."""
+    """내부거래조정분개의 차입금 순차변(차변 − 대변)을 (회사 약칭, 계정) 별로 집계.
+
+    쌍용처럼 차입금 제거를 대변에 음수로 적는 경우가 있어 차변만 보면 누락된다.
+    """
     rec = consol_get_journal(group_id, period) or {}
     out = {}
     for e in rec.get('intercompany_entries') or []:
-        code = str(e.get('debit_code') or '').strip()
-        if code not in loan_codes:
-            continue
-        amt = float(e.get('debit_amt') or 0)
-        if not amt:
-            continue
-        co = str(e.get('debit_company') or '').strip() or '(회사 미기재)'
-        out[(co, code)] = out.get((co, code), 0.0) + amt
-    return out
+        for side, sign in (('debit', 1.0), ('credit', -1.0)):
+            code = str(e.get(f'{side}_code') or '').strip()
+            if code not in loan_codes:
+                continue
+            amt = float(e.get(f'{side}_amt') or 0) * sign
+            if not amt:
+                continue
+            co = str(e.get(f'{side}_company') or '').strip() or INTER_NO_COMPANY
+            out[(co, code)] = out.get((co, code), 0.0) + amt
+    return {k: v for k, v in out.items() if abs(v) >= 1}
+
+
+def _inter_company_index(period):
+    """{정규화 회사명: 회사명} — 분개의 회사 표기를 패키지 회사명으로 되돌리기 위한 색인."""
+    names = set()
+    for grp in consol_list_groups():
+        g = consol_get_group(grp['id']) or {}
+        names.update(c for c in (g.get('companies') or []) if c)
+    idx = {}
+    for n in names:
+        idx.setdefault(_norm_co_local(n), n)
+        # '(개별)' / '(연결)' 을 뗀 형태로도 찾을 수 있게
+        base = re.sub(r'(개별|연결)$', '', _norm_co_local(n))
+        if base:
+            idx.setdefault(base, n)
+    return idx
+
+
+def _inter_resolve_company(token, abbr, idx):
+    """분개의 차변회사 표기(약칭·정식명·축약형) → 패키지 회사명. 못 찾으면 None."""
+    t = str(token or '').strip()
+    if not t or t == INTER_NO_COMPANY:
+        return None
+    u = t.upper()
+    # 1) 패키지 Master 시트의 CODE(약칭)
+    name = abbr.get(u) or abbr.get(u.replace('_', '')) or INTER_ABBR_OVERRIDES.get(u)
+    if name:
+        return idx.get(_norm_co_local(name), name)
+    # 2) 회사명 직접 매칭 ('(개별)'·'(연결)' 표기 차이 허용)
+    n = _norm_co_local(t)
+    for key in (n, re.sub(r'(개별|연결)$', '', n)):
+        if key and key in idx:
+            return idx[key]
+    # 3) 유일하게 앞부분이 일치하는 회사가 있으면 그것으로
+    hits = {v for k, v in idx.items() if n and (k.startswith(n) or n.startswith(k))}
+    return hits.pop() if len(hits) == 1 else None
 
 
 def _inter_review(group_id, period):
-    """내부거래분개(차변 차입금) ↔ 패키지 CF2/CF3 연결범위 기말잔액 대조."""
+    """내부거래분개(차변 차입금) ↔ 패키지 CF2/CF3 연결범위 기말잔액 대조.
+
+    하위 연결그룹(예: 상역 밑의 태림·GIT)의 회사는 그 그룹에서 따로 검토하므로
+    여기서는 제외하고, 선택한 그룹에 직접 소속된 회사만 대상으로 한다.
+    """
     g = consol_get_group(group_id)
     if not g:
         raise ValueError('존재하지 않는 연결그룹입니다.')
-    companies = _all_leaf_companies(group_id, period)
+    companies = [c for c in (g.get('companies') or []) if c]
+    own = {_norm_co_local(c) for c in companies}
     loan_codes = _inter_loan_codes(period, companies)
     abbr = _inter_abbr_map(period)
 
-    # 태림 그룹 분개는 별도 열로 함께 보여준다 (상위 그룹에서 조회할 때만)
-    tg = next((x for x in consol_list_groups() if x.get('name') == '태림'), None)
-    sub_gid = tg['id'] if (tg and tg['id'] != group_id) else None
-
     jr = _inter_journal_debits(group_id, period, loan_codes)
-    # 태림 분개는 차변회사로 나누지 않고 계정별 총액만 '태림계열' 행에 넣는다
-    sub_by_code = {}
-    if sub_gid:
-        for (_co, code), amt in _inter_journal_debits(sub_gid, period, loan_codes).items():
-            sub_by_code[code] = sub_by_code.get(code, 0.0) + amt
 
-    # 약칭 → 패키지 회사명
+    idx = _inter_company_index(period)
+
     def resolve(a):
-        u = a.upper()
-        return (abbr.get(u) or abbr.get(u.replace('_', ''))
-                or INTER_ABBR_OVERRIDES.get(u))
+        return _inter_resolve_company(a, abbr, idx)
 
     bal_cache = {}
     rows, unresolved = [], set()
     seen = set()
     for co, code in sorted(jr):
         name = resolve(co)
-        if not name:
+        if name and _norm_co_local(name) not in own:
+            continue                      # 하위 연결그룹 소속 → 제외
+        if not name and co != INTER_NO_COMPANY:
             unresolved.add(co)
         if name and name not in bal_cache:
             bal_cache[name] = _inter_pkg_end_balance(period, name)
@@ -11694,7 +11736,6 @@ def _inter_review(group_id, period):
         rows.append({'abbr': co, 'company': name or '', 'code': code,
                      'account': loan_codes.get(code, ''),
                      'journal': jr[(co, code)],
-                     'journal_sub': 0.0,
                      'package': bal.get(code),
                      'has_pkg': name is not None and bal_cache.get(name) is not None})
         seen.add((name, code))
@@ -11710,54 +11751,38 @@ def _inter_review(group_id, period):
                 continue
             rows.append({'abbr': '', 'company': c, 'code': code,
                          'account': loan_codes.get(code, ''),
-                         'journal': 0.0, 'journal_sub': 0.0,
-                         'package': v, 'has_pkg': True})
+                         'journal': 0.0, 'package': v, 'has_pkg': True})
 
-    # 태림 계열사는 개별 회사 대신 '태림계열' 한 줄로 합산 표기
-    tearim = ({_norm_co_local(c) for c in _all_leaf_companies(tg['id'], period)}
-              if tg else set())
+    # 분개에 차변회사가 하나도 없으면 회사별로 나눌 수 없으므로 계열 전체를 한 줄로 합산
+    rollup = (g['name'] + INTER_ROLLUP_SUFFIX) if (
+        jr and all(co == INTER_NO_COMPANY for co, _ in jr)) else None
+    if rollup:
+        for r in rows:
+            r['company'], r['abbr'] = rollup, ''
 
-    def disp(name):
-        return INTER_TEARIM_LABEL if name and _norm_co_local(name) in tearim else name
-
+    # 같은 회사·계정이 여러 약칭으로 들어온 경우 합산
     merged = {}
     for r in rows:
-        d = disp(r['company'])
-        m = merged.get((d, r['code']))
+        m = merged.get((r['company'], r['code']))
         if m is None:
-            m = dict(r, company=d)
-            if d == INTER_TEARIM_LABEL:
-                m['abbr'] = ''
-            merged[(d, r['code'])] = m
+            merged[(r['company'], r['code'])] = dict(r)
             continue
         m['journal'] += r['journal']
-        m['journal_sub'] += r['journal_sub']
         if r['package'] is not None:
             m['package'] = (m['package'] or 0) + r['package']
         m['has_pkg'] = m['has_pkg'] or r['has_pkg']
-    for code, amt in sub_by_code.items():
-        key = (INTER_TEARIM_LABEL, code)
-        if key not in merged:
-            merged[key] = {'abbr': '', 'company': INTER_TEARIM_LABEL, 'code': code,
-                           'account': loan_codes.get(code, ''), 'journal': 0.0,
-                           'journal_sub': 0.0, 'package': None, 'has_pkg': False}
-        merged[key]['journal_sub'] = amt
-
     rows = list(merged.values())
     for r in rows:
-        r['journal_total'] = r['journal'] + r['journal_sub']
-        r['diff'] = (r['journal_total'] - r['package']) if r['package'] is not None else None
+        r['diff'] = (r['journal'] - r['package']) if r['package'] is not None else None
 
     rows.sort(key=lambda r: (-(abs(r['diff']) if r['diff'] is not None else 0),
                              r['company'], r['code']))
     return {
-        'group': g['name'], 'period': period,
+        'group': g['name'], 'period': period, 'rollup': rollup,
         'rows': rows,
         'unresolved': sorted(unresolved),
         'loan_codes': [{'code': c, 'name': n} for c, n in sorted(loan_codes.items())],
-        'sub_group': (tg or {}).get('name') if sub_gid else None,
         'total_journal': sum(r['journal'] for r in rows),
-        'total_journal_sub': sum(sub_by_code.values()),
         'total_package': sum(r['package'] or 0 for r in rows),
         'tol': INTER_DIFF_TOL,
         'ng': sum(1 for r in rows if r['diff'] is None or abs(r['diff']) >= INTER_DIFF_TOL),
@@ -12153,7 +12178,7 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
     lab = labels['bs'] if stmt == 'BS' else labels['pl']
     entity = (mapping.get('entity_names') or {}).get(g['name']) or f"{g['name']} 및 그 종속기업"
     return {
-        'group': g['name'], 'period': period, 'prior_period': prior_period,
+        'group': g['name'], 'period': period, 'rollup': None, 'prior_period': prior_period,
         'stmt': stmt,
         'title': (mapping.get('titles') or {}).get(stmt, stmt),
         'entity': entity,
