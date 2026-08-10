@@ -13863,6 +13863,12 @@ def _default_year4():
     return m.group(1) if m else (_year4_list()[0] if _year4_list() else '')
 
 
+def _default_quarter():
+    """현재 결산기간의 분기 — 배포 화면 초기 선택값."""
+    m = re.match(r'^\d{4}-(\d)Q$', str(YEARS_DATA.get('default') or ''))
+    return m.group(1) if m else '1'
+
+
 def _is_distribute_owner(username, company_name) -> bool:
     """배포용 패키지 권한 — 자회사는 본인이 직접 담당한 회사만 (연결그룹 동료는 제외).
     관리자/무제한 사용자는 항상 True.
@@ -13905,6 +13911,7 @@ def distribute_page():
         mode='user',
         years=_year4_list(),
         default_year=_default_year4(),
+        default_quarter=_default_quarter(),
         username=uname,
         is_admin=_is_admin(uname),
         companies=_accessible_companies_for(uname),
@@ -13940,6 +13947,7 @@ def distribute_admin_page():
         mode='admin',
         years=years4,
         default_year=_default_year4(),
+        default_quarter=_default_quarter(),
         sel_year=sel_year,
         quarters=quarters,
         template_registered=template_registered,
@@ -14046,6 +14054,124 @@ def _strip_sheet_protection_bytes(data: bytes) -> bytes:
                 content = txt.encode('utf-8')
             zout.writestr(item, content)
     return out.getvalue()
+
+
+def _sheet_xml_names(zin):
+    """{워크시트 XML 경로: 시트명} — 보호 제외 시트를 가려내기 위해 필요."""
+    try:
+        wbx = zin.read('xl/workbook.xml').decode('utf-8', 'ignore')
+        rels = zin.read('xl/_rels/workbook.xml.rels').decode('utf-8', 'ignore')
+    except KeyError:
+        return {}
+    tgt = {m.group(1): m.group(2)
+           for m in re.finditer(r'<Relationship[^>]*Id="([^"]+)"[^>]*Target="([^"]+)"', rels)}
+    out = {}
+    for m in re.finditer(r'<sheet\b[^>]*?name="([^"]*)"[^>]*?r:id="([^"]+)"', wbx):
+        t = tgt.get(m.group(2), '')
+        if not t:
+            continue
+        t = t.lstrip('/')
+        nm = m.group(1).replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+        out['xl/' + t if not t.startswith('xl/') else t] = nm
+    return out
+
+
+def _apply_sheet_protection_bytes(data: bytes, password: str,
+                                  skip_sheets=frozenset()) -> tuple[bytes, int]:
+    """xlsx/xlsm(zip)의 각 워크시트 XML에 <sheetProtection>을 직접 써 넣는다.
+
+    배포 생성과 동일한 설정을 쓰되 openpyxl 재저장을 거치지 않으므로
+    입력값·수식·서식·매크로가 그대로 보존된다.
+    """
+    import io as _io, zipfile as _zip
+    from openpyxl.worksheet.protection import SheetProtection
+    from openpyxl.xml.functions import tostring
+
+    prot = SheetProtection(sheet=True, password=password)
+    prot.enable()
+    tag = tostring(prot.to_tree())
+    if isinstance(tag, bytes):
+        tag = tag.decode('utf-8')
+    tag = re.sub(r'\s*xmlns(:\w+)?="[^"]*"', '', tag)
+
+    src, out = _io.BytesIO(data), _io.BytesIO()
+    n = 0
+    with _zip.ZipFile(src, 'r') as zin, _zip.ZipFile(out, 'w', _zip.ZIP_DEFLATED) as zout:
+        names = _sheet_xml_names(zin)
+        for item in zin.infolist():
+            content = zin.read(item.filename)
+            nm = item.filename
+            if nm.startswith('xl/worksheets/') and nm.endswith('.xml'):
+                txt = content.decode('utf-8', 'ignore')
+                txt = re.sub(r'<sheetProtection\b[^>]*?/>', '', txt)
+                if names.get(nm) not in skip_sheets:
+                    # 스키마상 sheetData(및 sheetCalcPr) 바로 뒤에 와야 한다
+                    m = re.search(r'(</sheetData>|<sheetData\s*/>)(\s*<sheetCalcPr\b[^>]*?/>)?', txt)
+                    if m:
+                        txt = txt[:m.end()] + tag + txt[m.end():]
+                        n += 1
+                content = txt.encode('utf-8')
+            elif nm == 'xl/workbook.xml':
+                txt = content.decode('utf-8', 'ignore')
+                content = re.sub(r'<workbookProtection\b[^>]*?/>', '', txt).encode('utf-8')
+            zout.writestr(item, content)
+    return out.getvalue(), n
+
+
+@app.route('/distribute/protect', methods=['POST'])
+@require_permission('distribute.admin')
+def distribute_protect():
+    """업로드한 배포용 파일들에 해당 분기의 시트 보호 암호를 일괄 적용해 ZIP 반환.
+    form: files (여러 개), year, quarter. TB(m) 시트는 자회사 입력용이라 제외한다.
+    """
+    import io as _io, zipfile as _zip
+    files = request.files.getlist('files')
+    year = (request.form.get('year') or '').strip()
+    quarter = (request.form.get('quarter') or '').strip()
+    if not files:
+        return jsonify({'error': '파일이 없습니다.'}), 400
+    if not re.match(r'^\d{4}$', year) or quarter not in ('1', '2', '3', '4'):
+        return jsonify({'error': '결산 연도·분기를 선택하세요.'}), 400
+    pwd = dbuilder.get_quarter_password(year, quarter)
+    if not pwd:
+        return jsonify({'error': f'{year}-{quarter}Q 분기 비밀번호가 등록되어 있지 않습니다. '
+                                 f'위 "분기별 시트 보호 비밀번호"에서 먼저 등록하세요.'}), 400
+
+    results, used_names = [], {}
+    out_zip = _io.BytesIO()
+    with _zip.ZipFile(out_zip, 'w', _zip.ZIP_DEFLATED) as zf:
+        for f in files:
+            name = (f.filename or 'file.xlsm')
+            if not name.lower().endswith(('.xlsm', '.xlsx')):
+                results.append(f'[스킵] {name} — xlsx/xlsm 아님')
+                continue
+            try:
+                locked, cnt = _apply_sheet_protection_bytes(
+                    f.read(), pwd, dbuilder.UNPROTECTED_SHEETS)
+                arc = name
+                if arc in used_names:
+                    used_names[arc] += 1
+                    stem, dot, ext = arc.rpartition('.')
+                    arc = f'{stem}({used_names[name]}){dot}{ext}' if dot else f'{arc}({used_names[name]})'
+                else:
+                    used_names[arc] = 0
+                zf.writestr(arc, locked)
+                results.append(f'[완료] {name} — 시트 {cnt}개 보호')
+            except _zip.BadZipFile:
+                results.append(f'[실패] {name} — 파일 열기암호가 걸렸거나 유효한 엑셀이 아님')
+            except Exception as e:
+                results.append(f'[실패] {name} — {type(e).__name__}: {e}')
+        zf.writestr('_보호설정_결과.txt',
+                    f'{year}-{quarter}Q 분기 비밀번호로 시트 보호 적용 '
+                    f'(제외: {", ".join(sorted(dbuilder.UNPROTECTED_SHEETS))})\n\n'
+                    + '\n'.join(results))
+
+    if not any(r.startswith('[완료]') for r in results):
+        return jsonify({'error': '보호 설정된 파일이 없습니다.', 'results': results}), 400
+    out_zip.seek(0)
+    return send_file(out_zip, as_attachment=True,
+                     download_name=f'배포파일_보호설정_{year}-{quarter}Q.zip',
+                     mimetype='application/zip')
 
 
 @app.route('/distribute/unprotect', methods=['POST'])

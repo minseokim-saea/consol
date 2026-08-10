@@ -171,6 +171,48 @@
       </div>
     </div>
   </div>
+
+  <!-- ⑤ 배포 파일 시트 보호 일괄 설정 (해제의 역방향) -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <i class="bi bi-lock-fill"></i>
+      <span>배포 파일 시트 보호 일괄 설정</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">보호가 풀린 배포용 파일 여러 개를 올리면 <strong>해당 분기에 등록된 시트 보호 비밀번호</strong>로 한 번에 다시 잠급니다.
+        배포 생성과 동일하게 <strong>TB(m) 시트는 제외</strong>되며, 입력값·수식·서식·매크로는 그대로 보존됩니다.</p>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">결산 연도</label>
+          <select class="form-select" id="protectYear">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == default_year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">결산 분기</label>
+          <select class="form-select" id="protectQuarter">
+            {% for q in ['1', '2', '3', '4'] %}
+            <option value="{{ q }}" {% if q == default_quarter %}selected{% endif %}>{{ q }}분기</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-5">
+          <label class="form-label fw-semibold">파일 선택 (.xlsm/.xlsx · 여러 개 가능)</label>
+          <input type="file" class="form-control" id="protectFiles" accept=".xlsm,.xlsx" multiple>
+        </div>
+        <div class="col-md-3">
+          <button type="button" class="btn btn-gradient w-100" id="protectBtn">
+            <i class="bi bi-lock me-1"></i>보호 설정 → ZIP 다운로드
+          </button>
+        </div>
+      </div>
+      <div id="protectStatus" class="alert alert-secondary py-2 mb-0 mt-3 small">
+        분기 비밀번호 확인 중...
+      </div>
+    </div>
+  </div>
   {% endif %}
 
   {% if mode == 'user' %}
@@ -203,10 +245,10 @@
         <div class="col-md-3">
           <label class="form-label fw-semibold" data-i18n="dist.quarter">결산 분기</label>
           <select class="form-select" id="targetQuarter">
-            <option value="1" data-i18n="q.1">1분기</option>
-            <option value="2" data-i18n="q.2">2분기</option>
-            <option value="3" data-i18n="q.3">3분기</option>
-            <option value="4" data-i18n="q.4">4분기</option>
+            {% for q in ['1', '2', '3', '4'] %}
+            <option value="{{ q }}" data-i18n="q.{{ q }}"
+                    {% if q == default_quarter %}selected{% endif %}>{{ q }}분기</option>
+            {% endfor %}
           </select>
         </div>
         <div class="col-md-6">
@@ -614,6 +656,76 @@ document.getElementById('quarterTable')?.addEventListener('click', async (e) => 
 });
 
 // ─── 배포 파일 시트 보호 일괄 해제 (관리자 전용) ─────────────
+function protectMsg(kind, html) {
+  const box = document.getElementById('protectStatus');
+  if (!box) return;
+  box.className = `alert alert-${kind} py-2 mb-0 mt-3 small`;
+  box.innerHTML = html;
+}
+
+async function protectCheckPwd() {
+  const y = document.getElementById('protectYear')?.value;
+  const q = document.getElementById('protectQuarter')?.value;
+  const btn = document.getElementById('protectBtn');
+  if (!y || !q || !btn) return;
+  try {
+    const r = await fetch(`/distribute/quarter-password/check?year=${encodeURIComponent(y)}&quarter=${encodeURIComponent(q)}`);
+    const j = await r.json();
+    if (j.has_password) {
+      btn.disabled = false;
+      protectMsg('success', `<i class="bi bi-key-fill"></i> ${y}-${q}Q 분기 비밀번호로 잠급니다. (TB(m) 시트 제외)`);
+    } else {
+      btn.disabled = true;
+      protectMsg('warning', `<i class="bi bi-exclamation-triangle"></i> <b>${y}-${q}Q 분기 비밀번호가 등록되어 있지 않습니다.</b> `
+        + `위 "분기별 시트 보호 비밀번호"에서 먼저 등록하세요.`);
+    }
+  } catch (e) {
+    btn.disabled = true;
+    protectMsg('danger', '분기 비밀번호 상태 확인 실패: ' + e.message);
+  }
+}
+document.getElementById('protectYear')?.addEventListener('change', protectCheckPwd);
+document.getElementById('protectQuarter')?.addEventListener('change', protectCheckPwd);
+protectCheckPwd();
+
+document.getElementById('protectBtn')?.addEventListener('click', async () => {
+  const input = document.getElementById('protectFiles');
+  const files = Array.from(input.files || []);
+  if (!files.length) { protectMsg('warning', '파일을 선택하세요.'); return; }
+  const fd = new FormData();
+  files.forEach(f => fd.append('files', f));
+  fd.append('year', document.getElementById('protectYear').value);
+  fd.append('quarter', document.getElementById('protectQuarter').value);
+  const btn = document.getElementById('protectBtn');
+  const html0 = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>처리 중...';
+  try {
+    const r = await fetch('/distribute/protect', { method: 'POST', body: fd });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      throw new Error(j.error || '보호 설정 실패');
+    }
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const y = document.getElementById('protectYear').value;
+    const q = document.getElementById('protectQuarter').value;
+    a.href = url; a.download = `배포파일_보호설정_${y}-${q}Q.zip`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    input.value = '';
+    protectMsg('success', `<i class="bi bi-check-circle"></i> ${files.length}개 파일 시트 보호 설정 완료 — ZIP 다운로드됨`);
+    showAlert('success', `<i class="bi bi-check-circle"></i> ${files.length}개 파일 시트 보호 설정 완료 — ZIP 다운로드됨`);
+  } catch (e) {
+    protectMsg('danger', `<i class="bi bi-x-circle"></i> ${e.message}`);
+    showAlert('danger', e.message);
+  } finally {
+    btn.innerHTML = html0;
+    protectCheckPwd();
+  }
+});
+
 document.getElementById('unprotectBtn')?.addEventListener('click', async () => {
   const input = document.getElementById('unprotectFiles');
   const files = input && input.files;
