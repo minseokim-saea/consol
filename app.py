@@ -335,17 +335,42 @@ def _inject_sidebar_perms():
     }
 
 
+def _group_companies_recursive(group_id, _seen=None):
+    """그룹과 모든 하위 그룹에 속한 회사명 (결산기간과 무관 — 접근권한 판정용)."""
+    _seen = _seen if _seen is not None else set()
+    if not group_id or group_id in _seen:
+        return []
+    _seen.add(group_id)
+    g = consol_get_group(group_id)
+    if not g:
+        return []
+    out = [c for c in (g.get('companies') or []) if c]
+    for inc in (g.get('included_groups') or []):
+        out.extend(_group_companies_recursive(inc, _seen))
+    return out
+
+
 def _assigned_companies(username):
-    """담당 회사 목록 반환. 관리자이거나 미지정이면 None (무제한)."""
+    """담당 회사 목록 반환. 관리자이거나 담당회사·담당그룹 모두 미지정이면 None (무제한).
+
+    담당그룹만 지정한 경우, 그 그룹(하위 그룹 포함)에 속한 회사를 담당회사로 본다.
+    그룹별로 회사를 일일이 고르지 않아도 되도록 하기 위함.
+    """
     if _is_admin(username):
         return None
     rec = CREDENTIALS.get(username)
     if not isinstance(rec, dict):
         return None
-    lst = rec.get('assigned_companies')
-    if not lst:          # 빈 리스트 또는 None → 미지정 = 무제한
+    lst = [c for c in (rec.get('assigned_companies') or []) if c]
+    groups = [gid for gid in (rec.get('assigned_groups') or []) if gid]
+    if not lst and not groups:      # 둘 다 미지정 = 무제한
         return None
-    return list(lst)
+    out, seen = [], set()
+    for c in lst + [x for gid in groups for x in _group_companies_recursive(gid)]:
+        k = _norm_co(c)
+        if k not in seen:
+            seen.add(k); out.append(c)
+    return out
 
 
 def _norm_co(s):

@@ -376,8 +376,8 @@
         <div id="companyCheckList" class="company-check-list d-none"></div>
         <div class="mt-3 p-2 rounded" style="background:#f8f9fa;font-size:0.82rem;color:#555;">
           <i class="bi bi-info-circle me-1"></i>
-          미지정(전체 해제) 상태이면 해당 사용자는 모든 회사에 접근할 수 있습니다.
-          특정 회사만 허용하려면 해당 회사를 선택하세요.
+          여기를 비워두더라도 <strong>담당그룹</strong>이 지정돼 있으면 그 그룹(하위 그룹 포함)의 회사만 접근할 수 있습니다.
+          담당회사·담당그룹을 <strong>모두</strong> 비워둔 경우에만 전체 접근입니다.
         </div>
       </div>
       <div class="modal-footer">
@@ -405,7 +405,8 @@
         <div id="groupCheckList" class="company-check-list"></div>
         <div class="mt-3 p-2 rounded" style="background:#f8f9fa;font-size:0.82rem;color:#555;">
           <i class="bi bi-info-circle me-1"></i>
-          선택한 연결그룹의 <strong>연결정산표 조회·실행 및 분개 업로드</strong> 권한이 부여됩니다.
+          선택한 연결그룹의 <strong>분개 업로드</strong> 권한과 함께, 그 그룹(하위 그룹 포함)에 속한
+          <strong>회사 접근 권한</strong>이 부여됩니다. 담당회사를 따로 고르지 않아도 됩니다.
           (실제 분개 업로드는 권한그룹의 <code>연결조정 분개</code> 권한도 함께 필요)
           담당회사·담당그룹 모두 미지정이면 전체 접근입니다.
         </div>
