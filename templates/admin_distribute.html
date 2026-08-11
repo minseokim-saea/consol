@@ -288,8 +288,9 @@
           <div class="company-check-list" id="companyList">
             <div class="text-muted small p-3">로딩 중...</div>
           </div>
+          <div id="companyEmpty" class="text-muted small p-3" style="display:none;">표시할 회사가 없습니다.</div>
           <div class="form-text mt-2">
-            <span id="companyCount">0</span>개 선택됨 / 총 <span id="companyTotal">0</span>개 회사
+            <span id="companyCount">0</span>개 선택됨 / 표시 <span id="companyTotal">0</span>개 회사
           </div>
         </div>
       </div>
@@ -400,7 +401,7 @@ async function loadTemplates() {
 const allCompanies = {{ companies | tojson | safe }};
 function initCompanies() {
   renderCompanyList(allCompanies);
-  document.getElementById('companyTotal').textContent = allCompanies.length;
+  applyCompanyFilter();
 }
 
 function renderCompanyList(list) {
@@ -431,14 +432,27 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// 검색: 재렌더 대신 행 표시/숨김 → 선택(체크) 상태가 검색해도 유지됨
-document.getElementById('companySearch')?.addEventListener('input', e => {
-  const q = e.target.value.trim().toLowerCase();
+// 검색·그룹 필터: 재렌더 대신 행 표시/숨김 → 선택(체크) 상태가 유지됨
+let _distFilterGroup = null;          // 선택된 그룹(없으면 전체)
+
+function applyCompanyFilter() {
+  const q = (document.getElementById('companySearch')?.value || '').trim().toLowerCase();
+  const inGroup = _distFilterGroup
+    ? new Set((_distGroups[_distFilterGroup] || []).map(_dnorm)) : null;
+  let shown = 0;
   document.querySelectorAll('#companyList .form-check').forEach(row => {
-    const co = (row.dataset.company || '').toLowerCase();
-    row.style.display = (!q || co.includes(q)) ? '' : 'none';
+    const co = row.dataset.company || '';
+    const ok = (!q || co.toLowerCase().includes(q))
+            && (!inGroup || inGroup.has(_dnorm(co)));
+    row.style.display = ok ? '' : 'none';
+    if (ok) shown++;
   });
-});
+  const tot = document.getElementById('companyTotal');
+  if (tot) tot.textContent = shown;
+  const empty = document.getElementById('companyEmpty');
+  if (empty) empty.style.display = shown ? 'none' : '';
+}
+document.getElementById('companySearch')?.addEventListener('input', applyCompanyFilter);
 
 // 전체 선택/해제 — 현재 보이는(검색 필터된) 회사에만 적용
 function _visibleCbs() {
@@ -479,23 +493,26 @@ function renderDistGroupButtons() {
     .filter(g => (_distGroups[g] || []).some(c => present.has(_dnorm(c))));
   if (!names.length) { area.style.display = 'none'; return; }
   area.style.display = '';
-  btns.innerHTML = names.map(g =>
-    `<button type="button" class="btn btn-sm btn-outline-secondary dist-group-btn" data-group="${escapeHtml(g)}">`+
-    `${escapeHtml(g)} <span class="badge bg-secondary ms-1" id="${_dgid(g)}">0</span></button>`
-  ).join('');
+  btns.innerHTML =
+    `<button type="button" class="btn btn-sm dist-group-all" data-group="">전체</button>` +
+    names.map(g =>
+      `<button type="button" class="btn btn-sm btn-outline-secondary dist-group-btn" data-group="${escapeHtml(g)}">`+
+      `${escapeHtml(g)} <span class="badge bg-secondary ms-1" id="${_dgid(g)}">0</span></button>`
+    ).join('');
   btns.querySelectorAll('.dist-group-btn').forEach(b =>
     b.addEventListener('click', () => toggleDistGroup(b.dataset.group)));
+  btns.querySelector('.dist-group-all')?.addEventListener('click', () => {
+    _distFilterGroup = null; applyCompanyFilter(); updateDistGroupBadges();
+  });
   updateDistGroupBadges();
 }
 
-// 그룹 클릭: 그룹 소속 회사 일괄 토글(모두 체크돼 있으면 해제, 아니면 체크)
+// 그룹 클릭: 목록을 그 그룹 회사로 좁힌다 (다시 누르면 해제).
+// 선택은 '전체 선택' 버튼이 보이는 회사에만 적용되므로 그룹 일괄선택도 그대로 가능하다.
 function toggleDistGroup(groupName) {
-  const inGroup = new Set((_distGroups[groupName] || []).map(_dnorm));
-  const matching = [...document.querySelectorAll('.company-cb')].filter(c => inGroup.has(_dnorm(c.value)));
-  if (!matching.length) return;
-  const allChecked = matching.every(c => c.checked);
-  matching.forEach(c => { c.checked = !allChecked; });
-  updateCompanyCount();   // 카운트 + 그룹 배지 함께 갱신
+  _distFilterGroup = (_distFilterGroup === groupName) ? null : groupName;
+  applyCompanyFilter();
+  updateDistGroupBadges();
 }
 
 function updateDistGroupBadges() {
@@ -508,12 +525,17 @@ function updateDistGroupBadges() {
     const matching = cbs.filter(c => norm.includes(_dnorm(c.value)));
     const checked = matching.filter(c => c.checked).length;
     badgeEl.textContent = `${checked}/${matching.length}`;
-    const allChecked = matching.length > 0 && checked === matching.length;
-    const anyChecked = checked > 0;
-    btnEl.classList.toggle('btn-primary', allChecked);
-    btnEl.classList.toggle('btn-outline-primary', anyChecked && !allChecked);
-    btnEl.classList.toggle('btn-outline-secondary', !anyChecked);
+    badgeEl.className = 'badge ms-1 ' + (checked === 0 ? 'bg-secondary'
+      : (checked === matching.length ? 'bg-success' : 'bg-primary'));
+    const isFilter = (_distFilterGroup === g);
+    btnEl.classList.toggle('btn-dark', isFilter);
+    btnEl.classList.toggle('btn-outline-secondary', !isFilter);
   });
+  const allBtn = document.querySelector('.dist-group-all');
+  if (allBtn) {
+    allBtn.classList.toggle('btn-dark', !_distFilterGroup);
+    allBtn.classList.toggle('btn-outline-secondary', !!_distFilterGroup);
+  }
 }
 
 // ─── 분기 비밀번호 등록 상태 ─────────────────────────────

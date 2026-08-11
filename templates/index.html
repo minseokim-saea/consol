@@ -1274,9 +1274,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 파일 코멘트 보기/편집
     const cmtBtn = e.target.closest('.btn-comment');
     if (cmtBtn) { openCommentModal(cmtBtn.dataset.fileId); return; }
-    // 그룹 버튼 토글
-    const groupBtn = e.target.closest('.group-btn');
-    if (groupBtn) { toggleGroup(groupBtn.dataset.group); return; }
     // 파일 체크박스 변경
   });
   // 체크박스 변경은 change 이벤트로 위임
@@ -2323,7 +2320,7 @@ async function loadFiles() {
          </button>`
       : '';
     return `
-    <div class="d-flex align-items-center justify-content-between border rounded px-3 py-2 mb-2 bg-white">
+    <div class="d-flex align-items-center justify-content-between border rounded px-3 py-2 mb-2 bg-white" data-file-row>
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <input class="form-check-input file-chk flex-shrink-0" type="checkbox"
                value="${f.id}" data-company="${f.company.replace(/"/g,'&quot;')}"
@@ -2455,6 +2452,7 @@ async function saveComment() {
 
 // ── 그룹 필터 ─────────────────────────────────────────
 let _groups = {};
+let _filterGroup = null;      // 선택된 그룹(없으면 전체) — 파일 목록 표시 필터
 const _norm = s => (s || '').trim().toLowerCase();
 const _gid  = g => 'gbadge_' + g.replace(/[^a-zA-Z0-9가-힣]/g, '_');
 
@@ -2473,26 +2471,43 @@ function renderGroupButtons() {
   const names = Object.keys(_groups);
   if (!names.length) { area.style.display = 'none'; return; }
   area.style.display = '';
-  btns.innerHTML = names.map(g =>
-    `<button class="btn btn-sm btn-outline-secondary group-btn" data-group="${g}">`+
-    `${g} <span class="badge bg-secondary ms-1" id="${_gid(g)}">0</span></button>`
-  ).join('');
+  btns.innerHTML =
+    `<button class="btn btn-sm btn-dark group-btn-all" data-group="">전체</button>` +
+    names.map(g =>
+      `<button class="btn btn-sm btn-outline-secondary group-btn" data-group="${g}">`+
+      `${g} <span class="badge bg-secondary ms-1" id="${_gid(g)}">0</span></button>`
+    ).join('');
+  btns.querySelectorAll('.group-btn').forEach(b =>
+    b.addEventListener('click', () => toggleGroup(b.dataset.group)));
+  btns.querySelector('.group-btn-all')?.addEventListener('click', () => {
+    _filterGroup = null; applyGroupFilter(); updateGroupBadges();
+  });
   updateGroupBadges();
 }
 
+// 그룹 클릭: 파일 목록을 그 그룹 회사로 좁힌다 (다시 누르면 해제).
+function applyGroupFilter() {
+  const inGroup = _filterGroup ? new Set((_groups[_filterGroup] || []).map(_norm)) : null;
+  document.querySelectorAll('.file-chk').forEach(c => {
+    const row = c.closest('[data-file-row]') || c.closest('.d-flex.border');
+    if (!row) return;
+    const show = !inGroup || inGroup.has(_norm(c.dataset.company || ''));
+    // 행에 Bootstrap d-flex(=display:flex !important)가 걸려 있어
+    // 인라인 style.display 로는 숨겨지지 않는다. important 로 지정해야 한다.
+    if (show) row.style.removeProperty('display');
+    else row.style.setProperty('display', 'none', 'important');
+  });
+}
+
 function toggleGroup(groupName) {
-  const companies = new Set((_groups[groupName] || []).map(_norm));
-  const chks = [...document.querySelectorAll('.file-chk')];
-  const matching = chks.filter(c => companies.has(_norm(c.dataset.company || '')));
-  if (!matching.length) { showToast(`"${groupName}" 그룹에 해당하는 파일이 없습니다.`, 'info'); return; }
-  // 모두 체크돼있으면 해제, 아니면 추가 체크
-  const allChecked = matching.every(c => c.checked);
-  matching.forEach(c => c.checked = !allChecked);
-  updateSelectionUI();
+  _filterGroup = (_filterGroup === groupName) ? null : groupName;
+  applyGroupFilter();
   updateGroupBadges();
 }
 
 function clearGroupSelection() {
+  _filterGroup = null;
+  applyGroupFilter();
   document.querySelectorAll('.file-chk').forEach(c => c.checked = false);
   updateSelectionUI();
   updateGroupBadges();
@@ -2513,13 +2528,20 @@ function updateGroupBadges() {
     const matchCount = matchingChks.length;
     badgeEl.textContent = matchCount;
 
-    // 버튼 활성 상태: 매칭 파일이 모두 체크돼 있을 때
-    const allChecked = matchCount > 0 && matchingChks.every(c => c.checked);
-    const anyChecked = matchingChks.some(c => c.checked);
-    btnEl.classList.toggle('btn-primary', allChecked);
-    btnEl.classList.toggle('btn-outline-primary', anyChecked && !allChecked);
-    btnEl.classList.toggle('btn-outline-secondary', !anyChecked);
+    // 배지 = 선택 상태, 버튼 색 = 지금 필터로 걸린 그룹
+    const checked = matchingChks.filter(c => c.checked).length;
+    badgeEl.className = 'badge ms-1 ' + (checked === 0 ? 'bg-secondary'
+      : (checked === matchCount ? 'bg-success' : 'bg-primary'));
+    const isFilter = (_filterGroup === g);
+    btnEl.classList.toggle('btn-dark', isFilter);
+    btnEl.classList.toggle('btn-outline-secondary', !isFilter);
   });
+  const allBtn = document.querySelector('.group-btn-all');
+  if (allBtn) {
+    allBtn.classList.toggle('btn-dark', !_filterGroup);
+    allBtn.classList.toggle('btn-outline-secondary', !!_filterGroup);
+  }
+  applyGroupFilter();
 }
 
 // ── 파일 선택 ─────────────────────────────────────────
