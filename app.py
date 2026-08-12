@@ -8401,8 +8401,10 @@ def get_groups():
                 if row[0] and 'COMPANY' in str(row[0]).upper():
                     header_found = True
                 continue
-            company = str(row[0]).strip() if row[0] not in (None, '') else ''
-            group   = str(row[1]).strip() if len(row) > 1 and row[1] not in (None, '') else ''
+            # 엑셀 셀에 줄바꿈이 섞여 들어오는 경우가 있어 연속 공백을 한 칸으로 정리
+            company = re.sub(r'\s+', ' ', str(row[0])).strip() if row[0] not in (None, '') else ''
+            group   = (re.sub(r'\s+', ' ', str(row[1])).strip()
+                       if len(row) > 1 and row[1] not in (None, '') else '')
             if company and group:
                 groups.setdefault(group, []).append(company)
         wb.close()

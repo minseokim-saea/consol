@@ -472,7 +472,8 @@ document.getElementById('selectNoneBtn')?.addEventListener('click', () => {
 
 // ── 그룹 필터 (패키지 업로드와 동일한 /groups 사용) ──────────
 let _distGroups = {};
-const _dnorm = s => (s || '').trim().toLowerCase();
+// 서버측 _norm_co 와 같은 기준 — 공백·줄바꿈·괄호 차이를 무시한다
+const _dnorm = s => String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]+/g, '');
 const _dgid  = g => 'dgb_' + g.replace(/[^a-zA-Z0-9가-힣]/g, '_');
 
 async function loadDistGroups() {
