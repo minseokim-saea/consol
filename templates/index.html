@@ -2453,6 +2453,10 @@ async function saveComment() {
 // ── 그룹 필터 ─────────────────────────────────────────
 let _groups = {};
 let _filterGroup = null;      // 선택된 그룹(없으면 전체) — 파일 목록 표시 필터
+// 어느 그룹에든 속한 회사 전체. 그룹정보에 없는 회사(Swisstex 계열 등)는 빠진다.
+const CONSOL_ALL = '연결대상 전체';
+const _consolCompanies = () =>
+  new Set(Object.values(_groups).flat().map(_norm));
 // 서버측 _norm_co 와 같은 기준 — 공백·줄바꿈·괄호 차이를 무시한다
 const _norm = s => String(s || '').toLowerCase().replace(/[^0-9a-z가-힣]+/g, '');
 const _gid  = g => 'gbadge_' + g.replace(/[^a-zA-Z0-9가-힣]/g, '_');
@@ -2474,6 +2478,8 @@ function renderGroupButtons() {
   area.style.display = '';
   btns.innerHTML =
     `<button class="btn btn-sm btn-dark group-btn-all" data-group="">전체</button>` +
+    `<button class="btn btn-sm btn-outline-secondary group-btn" data-group="${CONSOL_ALL}">`+
+    `연결대상 전체 <span class="badge bg-secondary ms-1" id="${_gid(CONSOL_ALL)}">0</span></button>` +
     names.map(g =>
       `<button class="btn btn-sm btn-outline-secondary group-btn" data-group="${g}">`+
       `${g} <span class="badge bg-secondary ms-1" id="${_gid(g)}">0</span></button>`
@@ -2488,7 +2494,9 @@ function renderGroupButtons() {
 
 // 그룹 클릭: 파일 목록을 그 그룹 회사로 좁힌다 (다시 누르면 해제).
 function applyGroupFilter() {
-  const inGroup = _filterGroup ? new Set((_groups[_filterGroup] || []).map(_norm)) : null;
+  const inGroup = !_filterGroup ? null
+    : (_filterGroup === CONSOL_ALL ? _consolCompanies()
+                                   : new Set((_groups[_filterGroup] || []).map(_norm)));
   document.querySelectorAll('.file-chk').forEach(c => {
     const row = c.closest('[data-file-row]') || c.closest('.d-flex.border');
     if (!row) return;
@@ -2537,6 +2545,20 @@ function updateGroupBadges() {
     btnEl.classList.toggle('btn-dark', isFilter);
     btnEl.classList.toggle('btn-outline-secondary', !isFilter);
   });
+  // '연결대상 전체' 칩
+  const cBadge = document.getElementById(_gid(CONSOL_ALL));
+  const cBtn = document.querySelector(`.group-btn[data-group="${CONSOL_ALL}"]`);
+  if (cBadge && cBtn) {
+    const inAll = _consolCompanies();
+    const m = chks.filter(c => inAll.has(_norm(c.dataset.company || '')));
+    const ck = m.filter(c => c.checked).length;
+    cBadge.textContent = m.length;
+    cBadge.className = 'badge ms-1 ' + (ck === 0 ? 'bg-secondary'
+      : (ck === m.length ? 'bg-success' : 'bg-primary'));
+    const isF = (_filterGroup === CONSOL_ALL);
+    cBtn.classList.toggle('btn-dark', isF);
+    cBtn.classList.toggle('btn-outline-secondary', !isF);
+  }
   const allBtn = document.querySelector('.group-btn-all');
   if (allBtn) {
     allBtn.classList.toggle('btn-dark', !_filterGroup);
