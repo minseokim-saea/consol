@@ -8387,20 +8387,22 @@ def upload():
     return jsonify({'uploaded': results, 'total': len(uploaded_files)})
 
 
-@app.route('/groups')
-@login_required
-def get_groups():
-    """그룹정보.xlsx를 읽어 {그룹명: [회사명, ...]} 형태로 반환."""
-    group_file = Path('그룹정보.xlsx')
-    if not group_file.exists():
-        return jsonify({'groups': {}})
+GROUP_INFO_PATH = Path('그룹정보.xlsx')
+
+
+def _parse_group_info(path_or_bytes):
+    """그룹정보 엑셀 → {그룹명: [회사명, ...]}. 헤더(A열에 COMPANY) 아래를 읽는다."""
+    import io as _io
+    from openpyxl import load_workbook as _lw
+    src = _io.BytesIO(path_or_bytes) if isinstance(path_or_bytes, bytes) else str(path_or_bytes)
+    wb = _lw(src, data_only=True, read_only=True)
     try:
-        from openpyxl import load_workbook as _lw
-        wb = _lw(str(group_file), data_only=True, read_only=True)
         ws = wb.active
         groups = {}
         header_found = False
         for row in ws.iter_rows(values_only=True):
+            if not row:
+                continue
             # 헤더 행 탐색: A열에 'COMPANY' 포함된 행
             if not header_found:
                 if row[0] and 'COMPANY' in str(row[0]).upper():
@@ -8408,14 +8410,71 @@ def get_groups():
                 continue
             # 엑셀 셀에 줄바꿈이 섞여 들어오는 경우가 있어 연속 공백을 한 칸으로 정리
             company = re.sub(r'\s+', ' ', str(row[0])).strip() if row[0] not in (None, '') else ''
-            group   = (re.sub(r'\s+', ' ', str(row[1])).strip()
-                       if len(row) > 1 and row[1] not in (None, '') else '')
+            group = (re.sub(r'\s+', ' ', str(row[1])).strip()
+                     if len(row) > 1 and row[1] not in (None, '') else '')
             if company and group:
                 groups.setdefault(group, []).append(company)
+        if not header_found:
+            raise ValueError("헤더를 찾지 못했습니다. A열에 'COMPANY'가 들어간 머리글 행이 필요합니다.")
+        return groups
+    finally:
         wb.close()
-        return jsonify({'groups': groups})
+
+
+@app.route('/groups')
+@login_required
+def get_groups():
+    """그룹정보.xlsx를 읽어 {그룹명: [회사명, ...]} 형태로 반환."""
+    if not GROUP_INFO_PATH.exists():
+        return jsonify({'groups': {}})
+    try:
+        return jsonify({'groups': _parse_group_info(GROUP_INFO_PATH)})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/admin/group-info/status')
+@admin_required
+def admin_group_info_status():
+    """현재 등록된 그룹정보 요약 — 화면에서 잘 올라갔는지 바로 확인용."""
+    if not GROUP_INFO_PATH.exists():
+        return jsonify({'exists': False})
+    try:
+        groups = _parse_group_info(GROUP_INFO_PATH)
+        st = GROUP_INFO_PATH.stat()
+        return jsonify({
+            'exists': True,
+            'updated_at': datetime.fromtimestamp(st.st_mtime).strftime('%Y-%m-%d %H:%M'),
+            'size_kb': round(st.st_size / 1024),
+            'total': sum(len(v) for v in groups.values()),
+            'groups': [{'name': g, 'count': len(v)} for g, v in groups.items()],
+        })
+    except Exception as e:
+        return jsonify({'exists': True, 'error': str(e)}), 200
+
+
+@app.route('/admin/group-info', methods=['POST'])
+@admin_required
+def admin_upload_group_info():
+    """그룹정보.xlsx 교체 — 파싱에 성공한 경우에만 반영하고 이전 파일은 백업해 둔다."""
+    f = request.files.get('file')
+    if not f or not (f.filename or '').lower().endswith(('.xlsx', '.xlsm')):
+        return jsonify({'ok': False, 'error': 'xlsx/xlsm 파일을 선택하세요.'}), 400
+    data = f.read()
+    try:
+        groups = _parse_group_info(data)
+    except Exception as e:
+        return jsonify({'ok': False, 'error': f'파일을 읽지 못했습니다 — {e}'}), 400
+    if not groups:
+        return jsonify({'ok': False, 'error': '회사·그룹 데이터가 한 건도 없습니다. A열 회사명, B열 그룹명을 확인하세요.'}), 400
+    try:
+        if GROUP_INFO_PATH.exists():
+            GROUP_INFO_PATH.replace(GROUP_INFO_PATH.with_suffix('.bak.xlsx'))
+        GROUP_INFO_PATH.write_bytes(data)
+    except OSError as e:
+        return jsonify({'ok': False, 'error': f'저장 실패: {e}'}), 500
+    return jsonify({'ok': True, 'total': sum(len(v) for v in groups.values()),
+                    'groups': [{'name': g, 'count': len(v)} for g, v in groups.items()]})
 
 
 @app.route('/submission-status')

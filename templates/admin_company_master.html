@@ -51,6 +51,33 @@
     </div>
   </div>
 
+
+  <!-- 그룹정보 업로드 -->
+  <div class="card mb-4">
+    <div class="card-header d-flex align-items-center gap-2">
+      <span><i class="bi bi-diagram-3 me-2"></i>그룹정보 관리 (그룹정보.xlsx)</span>
+    </div>
+    <div class="card-body">
+      <p class="text-muted small mb-3">
+        패키지 업로드·합산, 배포용 생성 화면의 <strong>그룹 필터</strong>에 쓰이는 파일입니다.
+        A열에 회사명, B열에 그룹명을 적고 <code>COMPANY</code>가 들어간 머리글 행이 있어야 합니다.
+        업로드하면 <strong>즉시 반영</strong>되며 서버 재시작은 필요 없습니다.
+      </p>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label fw-semibold mb-1">그룹정보 파일 (.xlsx)</label>
+          <input type="file" class="form-control form-control-sm" id="groupInfoFile" accept=".xlsx,.xlsm">
+        </div>
+        <div class="col-md-4">
+          <button type="button" class="btn btn-primary btn-sm w-100" id="groupInfoUploadBtn">
+            <i class="bi bi-upload me-1"></i>업로드하여 교체
+          </button>
+        </div>
+      </div>
+      <div id="groupInfoStatus" class="alert alert-secondary py-2 mb-0 mt-3 small">확인 중...</div>
+    </div>
+  </div>
+
   <!-- ① 회사 목록 관리 -->
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center justify-content-between gap-2 flex-wrap">
@@ -268,6 +295,58 @@ document.getElementById('periodSelect').addEventListener('change', e=>loadData(e
   if (pick) await loadData(pick);
   else showAlert('warn', '<i class="bi bi-exclamation-triangle"></i> 선택 가능한 분기가 없습니다.');
 })();
+
+// ── 그룹정보.xlsx 업로드 ────────────────────────────────
+function giMsg(kind, html) {
+  const box = document.getElementById('groupInfoStatus');
+  if (!box) return;
+  box.className = `alert alert-${kind} py-2 mb-0 mt-3 small`;
+  box.innerHTML = html;
+}
+
+function giSummary(d) {
+  const chips = (d.groups || []).map(g =>
+    `<span class="badge bg-light text-dark border me-1">${g.name} <b>${g.count}</b></span>`).join('');
+  return `총 <b>${d.total}</b>개사 · ${chips}`;
+}
+
+async function loadGroupInfoStatus() {
+  try {
+    const r = await fetch('/admin/group-info/status');
+    const d = await r.json();
+    if (!d.exists) { giMsg('warning', '<i class="bi bi-exclamation-triangle"></i> 등록된 그룹정보 파일이 없습니다.'); return; }
+    if (d.error) { giMsg('danger', `<i class="bi bi-x-circle"></i> 파일을 읽지 못했습니다 — ${d.error}`); return; }
+    giMsg('secondary', `<i class="bi bi-file-earmark-excel"></i> 최종 수정 ${d.updated_at} (${d.size_kb}KB) · ${giSummary(d)}`);
+  } catch (e) {
+    giMsg('danger', '상태 확인 실패: ' + e.message);
+  }
+}
+
+document.getElementById('groupInfoUploadBtn')?.addEventListener('click', async () => {
+  const input = document.getElementById('groupInfoFile');
+  const f = (input.files || [])[0];
+  if (!f) { giMsg('warning', '파일을 선택하세요.'); return; }
+  const btn = document.getElementById('groupInfoUploadBtn');
+  const html0 = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>업로드 중...';
+  try {
+    const fd = new FormData();
+    fd.append('file', f);
+    const r = await fetch('/admin/group-info', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || '업로드 실패');
+    input.value = '';
+    giMsg('success', `<i class="bi bi-check-circle"></i> 교체 완료 — ${giSummary(d)}`);
+  } catch (e) {
+    giMsg('danger', `<i class="bi bi-x-circle"></i> ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.innerHTML = html0;
+  }
+});
+
+loadGroupInfoStatus();
+
 </script>
 </body>
 </html>
