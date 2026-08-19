@@ -8453,6 +8453,17 @@ def admin_group_info_status():
         return jsonify({'exists': True, 'error': str(e)}), 200
 
 
+@app.route('/admin/group-info/download')
+@admin_required
+def admin_download_group_info():
+    """현재 등록된 그룹정보 파일 내려받기 — 고쳐서 다시 올릴 수 있도록."""
+    if not GROUP_INFO_PATH.exists():
+        return jsonify({'error': '등록된 그룹정보 파일이 없습니다.'}), 404
+    return send_file(GROUP_INFO_PATH.resolve(), as_attachment=True,
+                     download_name='그룹정보.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+
+
 @app.route('/admin/group-info', methods=['POST'])
 @admin_required
 def admin_upload_group_info():

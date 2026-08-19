@@ -61,14 +61,20 @@
       <p class="text-muted small mb-3">
         패키지 업로드·합산, 배포용 생성 화면의 <strong>그룹 필터</strong>에 쓰이는 파일입니다.
         A열에 회사명, B열에 그룹명을 적고 <code>COMPANY</code>가 들어간 머리글 행이 있어야 합니다.
-        업로드하면 <strong>즉시 반영</strong>되며 서버 재시작은 필요 없습니다.
+        <strong>현재 파일을 내려받아</strong> 수정한 뒤 다시 올리면 되고, 업로드 즉시 반영되어 서버 재시작은 필요 없습니다.
       </p>
       <div class="row g-3 align-items-end">
-        <div class="col-md-8">
+        <div class="col-md-6">
           <label class="form-label fw-semibold mb-1">그룹정보 파일 (.xlsx)</label>
           <input type="file" class="form-control form-control-sm" id="groupInfoFile" accept=".xlsx,.xlsm">
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+          <a class="btn btn-outline-secondary btn-sm w-100" id="groupInfoDownloadBtn"
+             href="/admin/group-info/download">
+            <i class="bi bi-download me-1"></i>현재 파일 다운로드
+          </a>
+        </div>
+        <div class="col-md-3">
           <button type="button" class="btn btn-primary btn-sm w-100" id="groupInfoUploadBtn">
             <i class="bi bi-upload me-1"></i>업로드하여 교체
           </button>
@@ -314,6 +320,8 @@ async function loadGroupInfoStatus() {
   try {
     const r = await fetch('/admin/group-info/status');
     const d = await r.json();
+    const dl = document.getElementById('groupInfoDownloadBtn');
+    if (dl) dl.classList.toggle('disabled', !d.exists);
     if (!d.exists) { giMsg('warning', '<i class="bi bi-exclamation-triangle"></i> 등록된 그룹정보 파일이 없습니다.'); return; }
     if (d.error) { giMsg('danger', `<i class="bi bi-x-circle"></i> 파일을 읽지 못했습니다 — ${d.error}`); return; }
     giMsg('secondary', `<i class="bi bi-file-earmark-excel"></i> 최종 수정 ${d.updated_at} (${d.size_kb}KB) · ${giSummary(d)}`);
