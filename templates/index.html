@@ -2452,7 +2452,7 @@ async function saveComment() {
 
 // ── 그룹 필터 ─────────────────────────────────────────
 let _groups = {};
-let _filterGroup = null;      // 선택된 그룹(없으면 전체) — 파일 목록 표시 필터
+let _filterGroups = new Set();   // 선택된 그룹들(비어 있으면 전체) — 여러 그룹 동시 선택 가능
 // 어느 그룹에든 속한 회사 전체. 그룹정보에 없는 회사(Swisstex 계열 등)는 빠진다.
 const CONSOL_ALL = '연결대상 전체';
 const _consolCompanies = () =>
@@ -2487,16 +2487,15 @@ function renderGroupButtons() {
   btns.querySelectorAll('.group-btn').forEach(b =>
     b.addEventListener('click', () => toggleGroup(b.dataset.group)));
   btns.querySelector('.group-btn-all')?.addEventListener('click', () => {
-    _filterGroup = null; applyGroupFilter(); updateGroupBadges();
+    _filterGroups = new Set(); applyGroupFilter(); updateGroupBadges();
   });
   updateGroupBadges();
 }
 
-// 그룹 클릭: 파일 목록을 그 그룹 회사로 좁힌다 (다시 누르면 해제).
+// 그룹 클릭: 선택한 그룹들의 회사만 보이게 한다 (여러 개 동시 선택, 다시 누르면 해제).
 function applyGroupFilter() {
-  const inGroup = !_filterGroup ? null
-    : (_filterGroup === CONSOL_ALL ? _consolCompanies()
-                                   : new Set((_groups[_filterGroup] || []).map(_norm)));
+  const inGroup = _filterGroups.size === 0 ? null
+    : new Set([..._filterGroups].flatMap(g => (_groups[g] || []).map(_norm)));
   document.querySelectorAll('.file-chk').forEach(c => {
     const row = c.closest('[data-file-row]') || c.closest('.d-flex.border');
     if (!row) return;
@@ -2504,18 +2503,43 @@ function applyGroupFilter() {
     // 행에 Bootstrap d-flex(=display:flex !important)가 걸려 있어
     // 인라인 style.display 로는 숨겨지지 않는다. important 로 지정해야 한다.
     if (show) row.style.removeProperty('display');
-    else row.style.setProperty('display', 'none', 'important');
+    else { row.style.setProperty('display', 'none', 'important'); c.checked = false; }
   });
+  updateSelectionUI();     // 숨겨진 행 해제분을 합산 대상 수에 반영
 }
 
 function toggleGroup(groupName) {
-  _filterGroup = (_filterGroup === groupName) ? null : groupName;
+  const names = Object.keys(_groups);
+  let added = [];
+  if (groupName === CONSOL_ALL) {
+    // 연결대상 전체 = 모든 그룹을 한 번에 선택 / 이미 전부면 해제
+    const allOn = names.length > 0 && names.every(g => _filterGroups.has(g));
+    if (allOn) {
+      _filterGroups = new Set();
+    } else {
+      added = names.filter(g => !_filterGroups.has(g));
+      _filterGroups = new Set(names);
+    }
+  } else if (_filterGroups.has(groupName)) {
+    _filterGroups.delete(groupName);
+  } else {
+    _filterGroups.add(groupName);
+    added = [groupName];
+  }
   applyGroupFilter();
+  // 새로 추가한 그룹의 회사는 바로 선택 — 필터와 합산 대상이 어긋나지 않도록
+  if (added.length) {
+    const set = new Set(added.flatMap(g => (_groups[g] || []).map(_norm)));
+    document.querySelectorAll('.file-chk').forEach(c => {
+      if (set.has(_norm(c.dataset.company || ''))) c.checked = true;
+    });
+    updateSelectionUI();
+  }
   updateGroupBadges();
 }
 
 function clearGroupSelection() {
-  _filterGroup = null;
+  _filterGroups = new Set();
   applyGroupFilter();
   document.querySelectorAll('.file-chk').forEach(c => c.checked = false);
   updateSelectionUI();
@@ -2541,7 +2565,7 @@ function updateGroupBadges() {
     const checked = matchingChks.filter(c => c.checked).length;
     badgeEl.className = 'badge ms-1 ' + (checked === 0 ? 'bg-secondary'
       : (checked === matchCount ? 'bg-success' : 'bg-primary'));
-    const isFilter = (_filterGroup === g);
+    const isFilter = _filterGroups.has(g);
     btnEl.classList.toggle('btn-dark', isFilter);
     btnEl.classList.toggle('btn-outline-secondary', !isFilter);
   });
@@ -2555,14 +2579,15 @@ function updateGroupBadges() {
     cBadge.textContent = m.length;
     cBadge.className = 'badge ms-1 ' + (ck === 0 ? 'bg-secondary'
       : (ck === m.length ? 'bg-success' : 'bg-primary'));
-    const isF = (_filterGroup === CONSOL_ALL);
+    const gNames = Object.keys(_groups);
+    const isF = gNames.length > 0 && gNames.every(g => _filterGroups.has(g));
     cBtn.classList.toggle('btn-dark', isF);
     cBtn.classList.toggle('btn-outline-secondary', !isF);
   }
   const allBtn = document.querySelector('.group-btn-all');
   if (allBtn) {
-    allBtn.classList.toggle('btn-dark', !_filterGroup);
-    allBtn.classList.toggle('btn-outline-secondary', !!_filterGroup);
+    allBtn.classList.toggle('btn-dark', _filterGroups.size === 0);
+    allBtn.classList.toggle('btn-outline-secondary', _filterGroups.size > 0);
   }
   applyGroupFilter();
 }
@@ -2601,15 +2626,23 @@ function onCheckChange() {
   updateGroupBadges();
 }
 
+// 그룹 필터가 걸려 있으면 '보이는 행'만 대상으로 한다
+function _visibleChks() {
+  return [...document.querySelectorAll('.file-chk')].filter(c => {
+    const row = c.closest('[data-file-row]') || c.closest('.d-flex.border');
+    return !row || row.style.display !== 'none';
+  });
+}
+
 function toggleSelectAll(checked) {
-  document.querySelectorAll('.file-chk').forEach(c => c.checked = checked);
+  _visibleChks().forEach(c => c.checked = checked);
   updateSelectionUI();
   updateGroupBadges();
 }
 
 function updateSelectionUI() {
-  const all = document.querySelectorAll('.file-chk');
-  const checked = document.querySelectorAll('.file-chk:checked');
+  const all = _visibleChks();
+  const checked = all.filter(c => c.checked);
   const selAllChk = document.getElementById('selectAllChk');
   const selCount = document.getElementById('selectedCount');
   const badge = document.getElementById('aggregateBadge');
