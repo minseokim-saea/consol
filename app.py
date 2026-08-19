@@ -825,6 +825,10 @@ def _smtp_send(cfg, msg):
             s.send_message(msg)
 
 
+# 연결 시스템 접속 주소 — smtp_config.json 에 login_url 이 없을 때 쓰는 기본값
+SYSTEM_LOGIN_URL = 'https://consol.sae-a.com/'
+
+
 def _send_credentials_email(to_addr, username, password):
     """계정 정보(아이디·비번) + OTP 매뉴얼 첨부 메일 발송. (ok, 메시지) 반환."""
     cfg = _load_smtp_config()
@@ -840,15 +844,16 @@ def _send_credentials_email(to_addr, username, password):
         msg['From'] = (f"{cfg['from_name']} <{from_addr}>" if cfg.get('from_name') else from_addr)
         msg['To'] = to_addr
         msg['Subject'] = '[연결 재무보고 통합 시스템] 계정 정보 안내'
-        login_url = cfg.get('login_url') or ''
+        # smtp_config.json 은 서버별 파일이라 값이 비어 있을 수 있어 기본 주소를 둔다
+        login_url = cfg.get('login_url') or SYSTEM_LOGIN_URL
         body = (
             "안녕하세요. 글로벌세아 연결 담당자입니다.\n\n"
             "귀하의 연결 재무보고 통합 시스템 계정이 생성되었습니다.\n\n"
             "[ 계정 정보 ]\n"
             f"· 아이디: {username}\n"
             f"· 임시 비밀번호: {password}\n"
-            + (f"· 접속 주소: {login_url}\n" if login_url else "")
-            + "\n"
+            f"· 접속 주소: {login_url}\n"
+            "\n"
             "──────────────────────────────────────\n"
             "[ 최초 로그인 안내 ]\n"
             "· 위 비밀번호는 최초 접속용 임시 비밀번호입니다.\n"
