@@ -373,6 +373,12 @@ def _assigned_companies(username):
     return out
 
 
+# 차입금 집계 기준 — 패키지 합산 미리보기와 계열사별 실적이 공유한다
+BORROWING_CODES = ['2100201', '2100202', '2100203', '2100204', '2100205',
+                   '2100301', '2100391', '2200101', '2200201', '2200291']
+CASH_CODE = '1110101'          # 현금및현금등가물
+
+
 def _norm_co(s):
     """회사명 정규화 — 비알파벳·언더스코어 제거 + casefold."""
     import re as _re
@@ -8957,9 +8963,8 @@ def run_aggregate():
             row['dash_row'] = 0  # 윗줄
         bs_preview = [total_assets, total_liab, total_eq]
 
-        # 차입금총계
-        DEBT_CODES = ['2100201', '2100202', '2100203', '2100204', '2100205',
-                      '2100301', '2100391', '2200101', '2200201', '2200291']
+        # 차입금총계 (기준은 BORROWING_CODES 한 곳에서 관리 — 계열사별 실적과 공유)
+        DEBT_CODES = BORROWING_CODES
         debt_by_co     = {c: 0.0 for c in companies}
         debt_cmp_by_co = {c: 0.0 for c in companies}
         debt_total     = 0.0
@@ -11363,9 +11368,12 @@ AFFIL_AMORT_CODE  = '4300302'   # 무형자산상각비 (판관비)
 AFFIL_EQM_GAIN_CODE = '4401201'  # 지분법평가이익
 AFFIL_EQM_LOSS_CODE = '4501201'  # 지분법평가손실
 AFFIL_DIV_INCOME_CODE = '4400203'  # 배당수익
-AFFIL_METRICS = [('sales', '매출액', AFFIL_SALES_CODE),
-                 ('op',    '영업이익', AFFIL_OP_CODE),
-                 ('ni',    '당기순이익', AFFIL_NI_CODE)]
+# (key, 표시명, [계정코드…]) — 차입금처럼 여러 코드를 합치는 지표가 있어 리스트로 둔다
+AFFIL_METRICS = [('sales', '매출액',   [AFFIL_SALES_CODE]),
+                 ('op',    '영업이익',  [AFFIL_OP_CODE]),
+                 ('ni',    '당기순이익', [AFFIL_NI_CODE]),
+                 ('debt',  '차입금',   BORROWING_CODES),
+                 ('cash',  '현금',     [CASH_CODE])]
 
 AFFIL_SWISSTEX_COMPANIES = ['UNIQUE, S.A. DE C.V.',
                             'SWISSTEX DIRECT, LLC',
@@ -11418,27 +11426,38 @@ AFFIL_COLUMNS = [
 ]
 
 
-def _affil_pkg_pl(period, company_name, code):
-    """(기간, 회사)의 패키지 PL_MF에서 코드 KRW 환산값. 없으면 0."""
+def _affil_pkg_value(period, company_name, code):
+    """(기간, 회사)의 패키지에서 코드 KRW 환산값. 없으면 0.
+
+    손익 지표는 PL_MF, 차입금·현금 같은 잔액 지표는 BS 에 있다. 계정코드가
+    두 시트에서 겹치지 않으므로 PL_MF 를 먼저 보고 없으면 BS 를 본다.
+    """
     f = _find_uploaded_for(period, company_name)
     if not f:
         return 0.0
-    pl = ((f.get('extracted') or {}).get('sheets') or {}).get('PL_MF') or {}
-    v = (pl.get(str(code)) or {}).get('value')
-    try:
-        return float(v or 0)
-    except (TypeError, ValueError):
-        return 0.0
+    sheets = (f.get('extracted') or {}).get('sheets') or {}
+    for sheet in ('PL_MF', 'BS'):
+        info = (sheets.get(sheet) or {}).get(str(code))
+        if info is None:
+            continue
+        try:
+            return float(info.get('value') or 0)
+        except (TypeError, ValueError):
+            return 0.0
+    return 0.0
 
 
-def _affil_pkg_sum(period, company_names, code):
-    """여러 회사 패키지의 같은 코드 합계 + 실제로 찾은 회사 목록."""
+def _affil_pkg_sum(period, company_names, codes):
+    """여러 회사 패키지에서 코드(하나 또는 여러 개) 합계 + 실제로 찾은 회사 목록."""
+    if isinstance(codes, str):
+        codes = [codes]
     total = 0.0
     found = []
     for name in company_names:
         if _find_uploaded_for(period, name):
             found.append(name)
-        total += _affil_pkg_pl(period, name, code)
+        for code in codes:
+            total += _affil_pkg_value(period, name, code)
     return total, found
 
 
@@ -11513,8 +11532,8 @@ def _compute_affiliate_performance(period):
             continue
         vals = {}
         found_any = []
-        for mkey, _label, code in AFFIL_METRICS:
-            s, found = _affil_pkg_sum(period, col['companies'], code)
+        for mkey, _label, codes in AFFIL_METRICS:
+            s, found = _affil_pkg_sum(period, col['companies'], codes)
             # 컬럼별 특수 조정 (예: 세아상역 당기순이익 지분법 가감)
             adj = (col.get('adjust') or {}).get(mkey) or {}
             for acode in adj.get('add') or []:
@@ -11533,8 +11552,8 @@ def _compute_affiliate_performance(period):
     # 2) SWISSTEX — 3개사 합 + 무형자산상각비(영업이익·당기순이익에 가산)
     sw = {}
     sw_amort, sw_found = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, AFFIL_AMORT_CODE)
-    for mkey, _label, code in AFFIL_METRICS:
-        base, _f = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, code)
+    for mkey, _label, codes in AFFIL_METRICS:
+        base, _f = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, codes)
         sw[mkey] = base + (sw_amort if mkey in ('op', 'ni') else 0.0)
     values['swisstex'] = sw
     sw_miss = [c for c in AFFIL_SWISSTEX_COMPANIES if c not in sw_found]
@@ -11547,12 +11566,12 @@ def _compute_affiliate_performance(period):
         notes.append(ded_note)
     tg = {}
     tg_found = []
-    for mkey, _label, code in AFFIL_METRICS:
-        base, tg_found = _affil_pkg_sum(period, AFFIL_TEGRA_COMPANIES, code)
+    for mkey, _label, codes in AFFIL_METRICS:
+        base, tg_found = _affil_pkg_sum(period, AFFIL_TEGRA_COMPANIES, codes)
         v = base - sw.get(mkey, 0.0)
         if mkey == 'sales':
             v -= ded
-        else:
+        elif mkey in ('op', 'ni'):      # 상각비 재가산은 손익 지표에만
             v += sw_amort
         tg[mkey] = v
     values['tegra'] = tg
@@ -11569,12 +11588,13 @@ def _compute_affiliate_performance(period):
             notes.append(err)
             values[col['key']] = {m[0]: 0.0 for m in AFFIL_METRICS}
             continue
-        values[col['key']] = {mkey: finals.get(code, 0.0) for mkey, _l, code in AFFIL_METRICS}
+        values[col['key']] = {mkey: sum(finals.get(c, 0.0) for c in codes)
+                              for mkey, _l, codes in AFFIL_METRICS}
 
     # 5) 기타 = 계 − (1~14)
     total_vals = values.get('total') or {}
     etc = {}
-    for mkey, _label, _code in AFFIL_METRICS:
+    for mkey, _label, _codes in AFFIL_METRICS:
         others = sum((values.get(c['key']) or {}).get(mkey, 0.0)
                      for c in AFFIL_COLUMNS if c['kind'] not in ('etc',) and c['key'] != 'total')
         etc[mkey] = (total_vals.get(mkey, 0.0) or 0.0) - others
@@ -11584,7 +11604,7 @@ def _compute_affiliate_performance(period):
                 'missing': missing.get(c['key']) or []} for c in AFFIL_COLUMNS]
     return {
         'columns': columns,
-        'metrics': [{'key': m[0], 'label': m[1], 'code': m[2]} for m in AFFIL_METRICS],
+        'metrics': [{'key': m[0], 'label': m[1], 'codes': m[2]} for m in AFFIL_METRICS],
         'values': values,
         'notes': notes,
         'tegra_sales_deduction': ded,
