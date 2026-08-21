@@ -843,9 +843,12 @@ def _send_credentials_email(to_addr, username, password):
         from_addr = cfg.get('from_addr') or cfg.get('username') or ''
         msg['From'] = (f"{cfg['from_name']} <{from_addr}>" if cfg.get('from_name') else from_addr)
         msg['To'] = to_addr
-        msg['Subject'] = '[연결 재무보고 통합 시스템] 계정 정보 안내'
+        msg['Subject'] = ('[연결 재무보고 통합 시스템] 계정 정보 안내 / '
+                          'Your Account Information')
         # smtp_config.json 은 서버별 파일이라 값이 비어 있을 수 있어 기본 주소를 둔다
         login_url = cfg.get('login_url') or SYSTEM_LOGIN_URL
+        line = "──────────────────────────────────────\n"
+        # 해외 법인 담당자도 받으므로 국문 아래에 영문본을 함께 싣는다
         body = (
             "안녕하세요. 글로벌세아 연결 담당자입니다.\n\n"
             "귀하의 연결 재무보고 통합 시스템 계정이 생성되었습니다.\n\n"
@@ -854,15 +857,38 @@ def _send_credentials_email(to_addr, username, password):
             f"· 임시 비밀번호: {password}\n"
             f"· 접속 주소: {login_url}\n"
             "\n"
-            "──────────────────────────────────────\n"
+            + line +
             "[ 최초 로그인 안내 ]\n"
             "· 위 비밀번호는 최초 접속용 임시 비밀번호입니다.\n"
             "  로그인하신 후 상단 메뉴 [비밀번호 변경]에서 본인만 아는\n"
             "  비밀번호로 변경해 주시기 바랍니다.\n"
             "· 2단계 인증(OTP) 등록 방법은 첨부된 매뉴얼을 참고해 주세요.\n"
-            "──────────────────────────────────────\n\n"
+            + line + "\n"
             "이용 중 궁금하신 점이 있으시면 본 메일로 회신해 주시기 바랍니다.\n\n"
             "감사합니다.\n"
+            "\n\n"
+            "══════════════════════════════════════\n"
+            "[ English ]\n"
+            "══════════════════════════════════════\n\n"
+            "Hello,\n\n"
+            "This is the Global Sae-A consolidation team.\n"
+            "Your account for the Consolidated Financial Reporting System "
+            "has been created.\n\n"
+            "[ Account Information ]\n"
+            f"- User ID: {username}\n"
+            f"- Temporary password: {password}\n"
+            f"- System URL: {login_url}\n"
+            "\n"
+            + line +
+            "[ First Login ]\n"
+            "- The password above is temporary and for your first login only.\n"
+            "  After signing in, please change it to a password only you know\n"
+            "  from [Change Password] in the top menu.\n"
+            "- For two-factor authentication (OTP) setup, please refer to the\n"
+            "  attached manual.\n"
+            + line + "\n"
+            "If you have any questions, please reply to this email.\n\n"
+            "Thank you.\n"
         )
         msg.set_content(body)
         manual = _otp_manual_file()
