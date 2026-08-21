@@ -382,7 +382,7 @@
     <div class="modal-content">
       <div class="modal-header modal-header--brand">
         <h5 class="modal-title" id="confirmModalTitle">
-          <i class="bi bi-question-circle me-2" aria-hidden="true"></i><span id="confirmModalTitleText">확인</span>
+          <i class="bi bi-question-circle me-2" aria-hidden="true"></i><span id="confirmModalTitleText" data-i18n="up.confirm">확인</span>
         </h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
       </div>
@@ -390,8 +390,8 @@
         <p id="confirmModalBody" class="mb-0" style="white-space:pre-line;"></p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancel">취소</button>
-        <button type="button" class="btn btn-danger" id="confirmModalOk">확인</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="confirmModalCancel" data-i18n="up.cancel">취소</button>
+        <button type="button" class="btn btn-danger" id="confirmModalOk" data-i18n="up.confirm">확인</button>
       </div>
     </div>
   </div>
@@ -400,7 +400,7 @@
 <!-- Sticky 하단 액션 바: 합산 카드까지 스크롤되면 노출 (합산 전/후 모두) -->
 <div class="sticky-actionbar" id="stickyActionBar" role="toolbar" aria-label="빠른 액션">
   <button class="btn btn-sm btn-primary" id="stickyAggregate" style="display:none;">
-    <i class="bi bi-calculator me-1" aria-hidden="true"></i>합산 실행
+    <i class="bi bi-calculator me-1" aria-hidden="true"></i><span data-i18n="step3.btn">합산 실행</span>
     <span class="badge bg-light text-primary ms-1" id="stickyAggregateBadge" style="display:none;"></span>
   </button>
   <a id="stickyDownload" class="btn btn-sm btn-success" href="#" style="display:none;">
@@ -475,7 +475,7 @@
       <button id="btnSubmissionStatus" class="btn btn-sm btn-outline-success ms-2">
         <i class="bi bi-clipboard-check me-1" aria-hidden="true"></i><span data-i18n="period.status">제출현황</span>
       </button>
-      <span class="text-muted small ms-2">(마감된 기간은 업로드 불가 · 결산기간 <strong>추가·마감·환율</strong>은 <strong>마스터 관리 → 결산기간 관리</strong>에서)</span>
+      <span class="text-muted small ms-2" data-i18n="up.lock_note">(마감된 기간은 업로드 불가 · 결산기간 추가·마감·환율은 마스터 관리 → 결산기간 관리에서)</span>
     </div>
   </div>
 
@@ -486,41 +486,41 @@
       <div class="modal-content">
         <div class="modal-header modal-header--brand">
           <h5 class="modal-title" id="submissionModalTitle">
-            <i class="bi bi-clipboard-check me-2" aria-hidden="true"></i>제출현황
+            <i class="bi bi-clipboard-check me-2" aria-hidden="true"></i><span data-i18n="period.status">제출현황</span>
           </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
         </div>
         <div class="modal-body">
-          <div id="submissionSummary" class="alert alert-info small mb-3">조회 중...</div>
+          <div id="submissionSummary" class="alert alert-info small mb-3" data-i18n="up.checking">조회 중...</div>
           <div class="d-flex align-items-center gap-2 mb-3">
-            <span class="small fw-semibold text-secondary">필터</span>
+            <span class="small fw-semibold text-secondary" data-i18n="up.filter">필터</span>
             <div class="btn-group btn-group-sm" role="group" aria-label="제출현황 필터">
-              <button type="button" class="btn btn-primary" id="submissionFilterAll">전체</button>
-              <button type="button" class="btn btn-outline-success" id="submissionFilterSubmitted">제출</button>
-              <button type="button" class="btn btn-outline-danger" id="submissionFilterMissing">미제출</button>
+              <button type="button" class="btn btn-primary" id="submissionFilterAll" data-i18n="up.all">전체</button>
+              <button type="button" class="btn btn-outline-success" id="submissionFilterSubmitted" data-i18n="up.submitted">제출</button>
+              <button type="button" class="btn btn-outline-danger" id="submissionFilterMissing" data-i18n="up.missing">미제출</button>
             </div>
           </div>
           <div class="table-responsive" style="max-height:520px;">
             <table class="table table-sm table-hover align-middle mb-0">
               <thead class="table-light" style="position:sticky;top:0;z-index:1;">
                 <tr>
-                  <th scope="col" style="width:90px;">상태</th>
-                  <th scope="col">필수제출회사</th>
-                  <th scope="col">업로드 파일</th>
-                  <th scope="col" style="width:170px;">업로드 일시</th>
+                  <th scope="col" style="width:90px;" data-i18n="up.state">상태</th>
+                  <th scope="col" data-i18n="up.req_co">필수제출회사</th>
+                  <th scope="col" data-i18n="up.file">업로드 파일</th>
+                  <th scope="col" style="width:170px;" data-i18n="up.uploaded_at">업로드 일시</th>
                 </tr>
               </thead>
               <tbody id="submissionList">
-                <tr><td colspan="4" class="text-muted text-center py-4">조회 중...</td></tr>
+                <tr><td colspan="4" class="text-muted text-center py-4" data-i18n="up.checking">조회 중...</td></tr>
               </tbody>
             </table>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" id="btnSubmissionRefresh" class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>새로고침
+            <i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i><span data-i18n="step2.refresh">새로고침</span>
           </button>
-          <button type="button" class="btn btn-primary" data-bs-dismiss="modal">확인</button>
+          <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-i18n="up.confirm">확인</button>
         </div>
       </div>
     </div>
@@ -579,12 +579,12 @@
       <div class="modal-content">
         <div class="modal-header modal-header--brand">
           <h5 class="modal-title" id="reanalyzeModalTitle">
-            <i class="bi bi-arrow-repeat me-2" aria-hidden="true"></i>재분석 진행 중
+            <i class="bi bi-arrow-repeat me-2" aria-hidden="true"></i><span data-i18n="up.reanalyzing">재분석 진행 중</span>
           </h5>
         </div>
         <div class="modal-body">
           <div class="d-flex justify-content-between mb-2">
-            <span class="small text-muted"><span id="raCurFileName">준비 중...</span></span>
+            <span class="small text-muted"><span id="raCurFileName" data-i18n="up.preparing">준비 중...</span></span>
             <span class="small fw-bold" id="raCounter">0 / 0</span>
           </div>
           <div class="progress mb-3" style="height:10px;">
@@ -592,18 +592,18 @@
                  id="raProgressBar" style="width:0%"></div>
           </div>
           <div class="d-flex gap-3 mb-3 small">
-            <span class="text-success"><i class="bi bi-check-circle-fill"></i> 성공 <b id="raDoneCount">0</b></span>
-            <span class="text-danger"><i class="bi bi-x-circle-fill"></i> 실패 <b id="raErrorCount">0</b></span>
-            <span class="text-warning"><i class="bi bi-hourglass-split"></i> 대기 <b id="raPendingCount">0</b></span>
+            <span class="text-success"><i class="bi bi-check-circle-fill"></i> <span data-i18n="up.ok">성공</span> <b id="raDoneCount">0</b></span>
+            <span class="text-danger"><i class="bi bi-x-circle-fill"></i> <span data-i18n="up.fail">실패</span> <b id="raErrorCount">0</b></span>
+            <span class="text-warning"><i class="bi bi-hourglass-split"></i> <span data-i18n="up.waiting">대기</span> <b id="raPendingCount">0</b></span>
           </div>
           <div class="upload-modal-list" id="raFileList"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-outline-danger" id="raCancelBtn">
-            <i class="bi bi-x-circle me-1"></i>중단
+            <i class="bi bi-x-circle me-1"></i><span data-i18n="up.stopped">중단</span>
           </button>
           <button type="button" class="btn btn-primary" id="raCloseBtn" disabled data-bs-dismiss="modal">
-            <i class="bi bi-check-lg me-1"></i>완료
+            <i class="bi bi-check-lg me-1"></i><span data-i18n="up.done">완료</span>
           </button>
         </div>
       </div>
@@ -618,12 +618,12 @@
       <div class="modal-content">
         <div class="modal-header modal-header--brand">
           <h5 class="modal-title" id="uploadModalTitle">
-            <i class="bi bi-cloud-upload me-2" aria-hidden="true"></i>파일 업로드 진행 중
+            <i class="bi bi-cloud-upload me-2" aria-hidden="true"></i><span data-i18n="up.uploading">파일 업로드 진행 중</span>
           </h5>
         </div>
         <div class="modal-body">
           <div class="d-flex justify-content-between mb-2">
-            <span class="small text-muted"><span id="modalCurFileName">준비 중...</span></span>
+            <span class="small text-muted"><span id="modalCurFileName" data-i18n="up.preparing">준비 중...</span></span>
             <span class="small fw-bold" id="modalCounter">0 / 0</span>
           </div>
           <div class="progress mb-3" style="height:10px;">
@@ -633,9 +633,9 @@
           </div>
 
           <div class="d-flex gap-3 mb-3 small">
-            <span class="text-success"><i class="bi bi-check-circle-fill"></i> 성공 <b id="modalDoneCount">0</b></span>
-            <span class="text-danger"><i class="bi bi-x-circle-fill"></i> 실패 <b id="modalErrorCount">0</b></span>
-            <span class="text-warning"><i class="bi bi-hourglass-split"></i> 처리 중 <b id="modalPendingCount">0</b></span>
+            <span class="text-success"><i class="bi bi-check-circle-fill"></i> <span data-i18n="up.ok">성공</span> <b id="modalDoneCount">0</b></span>
+            <span class="text-danger"><i class="bi bi-x-circle-fill"></i> <span data-i18n="up.fail">실패</span> <b id="modalErrorCount">0</b></span>
+            <span class="text-warning"><i class="bi bi-hourglass-split"></i> <span data-i18n="up.processing">처리 중</span> <b id="modalPendingCount">0</b></span>
           </div>
 
           <div class="upload-modal-list" id="modalFileList"></div>
@@ -643,7 +643,7 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-primary" id="modalCloseBtn" disabled
                   data-bs-dismiss="modal">
-            <i class="bi bi-check-lg me-1"></i>완료
+            <i class="bi bi-check-lg me-1"></i><span data-i18n="up.done">완료</span>
           </button>
         </div>
       </div>
@@ -657,7 +657,7 @@
       <div class="modal-content">
         <div class="modal-header modal-header--brand">
           <h5 class="modal-title" id="commentModalTitle">
-            <i class="bi bi-chat-left-text me-2" aria-hidden="true"></i>파일 코멘트
+            <i class="bi bi-chat-left-text me-2" aria-hidden="true"></i><span data-i18n="up.comment">파일 코멘트</span>
           </h5>
           <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="닫기"></button>
         </div>
@@ -668,15 +668,15 @@
                     placeholder="이번 분기 특이사항·재무 변동 사유·검토자 메모 등을 자유롭게 기록하세요. (최대 4,000자)"></textarea>
           <div class="d-flex justify-content-between mt-1">
             <small class="text-muted" id="commentReadOnlyNote" style="display:none;">
-              <i class="bi bi-eye"></i> 보기 전용 — 업로드한 본인 또는 관리자만 수정할 수 있습니다.
+              <i class="bi bi-eye"></i> <span data-i18n="up.readonly">보기 전용 — 업로드한 본인 또는 관리자만 수정할 수 있습니다.</span>
             </small>
             <small class="text-muted ms-auto"><span id="commentCharCount">0</span> / 4,000</small>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-i18n="up.close">닫기</button>
           <button type="button" class="btn btn-primary" id="commentSaveBtn">
-            <i class="bi bi-save me-1"></i>저장
+            <i class="bi bi-save me-1"></i><span data-i18n="up.save">저장</span>
           </button>
         </div>
       </div>
@@ -688,7 +688,7 @@
     <div class="card-body p-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="card-title mb-0">
-          <span class="step-badge me-2">2</span>업로드된 파일 <span class="badge bg-primary" id="fileCount">0</span>개사
+          <span class="step-badge me-2">2</span><span data-i18n="step2.title">업로드된 파일</span> <span class="badge bg-primary" id="fileCount">0</span><span data-i18n="up.co_unit">개사</span>
         </h5>
         <div>
           <button id="btnLoadFiles" class="btn btn-sm btn-outline-secondary me-1">
@@ -713,10 +713,10 @@
       <!-- 그룹 필터 -->
       <div id="groupFilterArea" class="mb-3 p-3 rounded" style="display:none; background:#f8f9fa;">
         <div class="d-flex align-items-center gap-2 flex-wrap">
-          <span class="small fw-bold text-secondary me-1"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i>그룹 선택</span>
+          <span class="small fw-bold text-secondary me-1"><i class="bi bi-diagram-3 me-1" aria-hidden="true"></i><span data-i18n="group.label">그룹 선택</span></span>
           <div id="groupBtns" class="d-flex flex-wrap gap-1"></div>
           <button id="btnClearGroupSelection" class="btn btn-sm btn-link text-muted text-decoration-none ms-1 p-0">
-            <i class="bi bi-x-circle me-1" aria-hidden="true"></i><span class="small">초기화</span>
+            <i class="bi bi-x-circle me-1" aria-hidden="true"></i><span class="small" data-i18n="group.reset">초기화</span>
           </button>
         </div>
       </div>
@@ -730,9 +730,9 @@
               <input class="form-check-input" type="checkbox" id="selectAllChk">
               <label class="form-check-label small fw-semibold" for="selectAllChk" data-i18n="step2.selectAll">전체 선택</label>
             </div>
-            <span class="small text-muted"><span id="selectedCount">0</span>개 선택됨</span>
+            <span class="small text-muted"><span id="selectedCount">0</span><span data-i18n="step2.selected">개 선택됨</span></span>
             <span class="small text-muted ms-auto" id="fileListHint">
-              <i class="bi bi-arrow-down-up me-1"></i>스크롤
+              <i class="bi bi-arrow-down-up me-1"></i><span data-i18n="up.scroll">스크롤</span>
             </span>
           </div>
           <div id="fileList"></div>
@@ -749,7 +749,7 @@
         <span class="step-badge flex-shrink-0">3</span>
         <div class="flex-grow-1" style="min-width:220px;">
           <div class="fw-bold" style="color:var(--brand-900); font-size:1.05rem;" data-i18n="step3.title">통합 합산 실행</div>
-          <div class="small text-muted" id="aggregateSelInfo">선택 없음 → 전체 파일 합산</div>
+          <div class="small text-muted" id="aggregateSelInfo" data-i18n="up.nosel">선택 없음 → 전체 파일 합산</div>
         </div>
         {% if perms and perms.aggregate_run %}
         <button class="btn btn-primary btn-lg px-4" id="aggregateBtn">
@@ -775,7 +775,7 @@
         <div class="d-flex gap-2">
           <a id="downloadCompareBtn" class="btn btn-outline-success d-none" href="#"
              title="회사별 전기 비교 (동기 환율 기준)">
-            <i class="bi bi-files me-1" aria-hidden="true"></i>회사별 전기비교
+            <i class="bi bi-files me-1" aria-hidden="true"></i><span data-i18n="up.py_compare">회사별 전기비교</span>
           </a>
           <a id="downloadBtn" class="btn btn-success" href="#">
             <i class="bi bi-file-earmark-excel me-1" aria-hidden="true"></i><span data-i18n="step4.download">Excel 다운로드</span>
@@ -893,6 +893,40 @@ const I18N = {
     'side.note':      '주석합산',
     'side.coa':       'COA Audit',
     'period.label':   '결산기간',
+    'up.checking':    '조회 중...',
+    'up.filter':      '필터',
+    'up.all':         '전체',
+    'up.submitted':   '제출',
+    'up.missing':     '미제출',
+    'up.state':       '상태',
+    'up.req_co':      '필수제출회사',
+    'up.file':        '업로드 파일',
+    'up.uploaded_at': '업로드 일시',
+    'up.reanalyzing': '재분석 진행 중',
+    'up.preparing':   '준비 중...',
+    'up.ok':          '성공',
+    'up.fail':        '실패',
+    'up.waiting':     '대기',
+    'up.stopped':     '중단',
+    'up.done':        '완료',
+    'up.uploading':   '파일 업로드 진행 중',
+    'up.processing':  '처리 중',
+    'up.retrans':     '재환산',
+    'up.up_summary': (d,e)=>`업로드 완료 — 성공 ${d}건, 실패 ${e}건`,
+    'up.n_ok':       (n)=>`성공 ${n}건`,
+    'up.n_fail':     (n)=>`실패 ${n}건`,
+    'up.reanalyze2':  '재분석',
+    'up.comment':     '파일 코멘트',
+    'up.readonly':    '보기 전용 — 업로드한 본인 또는 관리자만 수정할 수 있습니다.',
+    'up.close':       '닫기',
+    'up.save':        '저장',
+    'up.co_unit':     '개사',
+    'up.scroll':      '스크롤',
+    'up.nosel':       '선택 없음 → 전체 파일 합산',
+    'up.py_compare':  '회사별 전기비교',
+    'up.confirm':     '확인',
+    'up.cancel':      '취소',
+    'up.lock_note':   '(마감된 기간은 업로드 불가 · 결산기간 추가·마감·환율은 마스터 관리 → 결산기간 관리에서)',
     'period.status':  '제출현황',
     'period.add':     '기간 추가',
     'period.delete':  '현재 기간 삭제',
@@ -971,6 +1005,40 @@ const I18N = {
     'side.note':      'Notes Aggregate',
     'side.coa':       'COA Audit',
     'period.label':   'Fiscal Period',
+    'up.checking':    'Loading...',
+    'up.filter':      'Filter',
+    'up.all':         'All',
+    'up.submitted':   'Submitted',
+    'up.missing':     'Not submitted',
+    'up.state':       'Status',
+    'up.req_co':      'Required Company',
+    'up.file':        'Uploaded File',
+    'up.uploaded_at': 'Uploaded At',
+    'up.reanalyzing': 'Re-analysis in progress',
+    'up.preparing':   'Preparing...',
+    'up.ok':          'Succeeded',
+    'up.fail':        'Failed',
+    'up.waiting':     'Waiting',
+    'up.stopped':     'Stopped',
+    'up.done':        'Done',
+    'up.uploading':   'Upload in progress',
+    'up.processing':  'Processing',
+    'up.retrans':     'Re-translation',
+    'up.up_summary': (d,e)=>`Upload complete — ${d} succeeded, ${e} failed`,
+    'up.n_ok':       (n)=>`${n} succeeded`,
+    'up.n_fail':     (n)=>`${n} failed`,
+    'up.reanalyze2':  'Re-analysis',
+    'up.comment':     'File Comment',
+    'up.readonly':    'View only — editable by the uploader or an administrator.',
+    'up.close':       'Close',
+    'up.save':        'Save',
+    'up.co_unit':     ' cos.',
+    'up.scroll':      'Scroll',
+    'up.nosel':       'Nothing selected — all files will be aggregated',
+    'up.py_compare':  'Prior-year comparison by company',
+    'up.confirm':     'OK',
+    'up.cancel':      'Cancel',
+    'up.lock_note':   '(closed periods cannot be uploaded · add/close periods and FX rates under Master Admin → Settlement Periods)',
     'period.status':  'Submission Status',
     'period.add':     'Add Period',
     'period.delete':  'Delete Period',
@@ -1471,8 +1539,8 @@ function renderSubmissionStatus() {
   list.innerHTML = items.map(item => {
     const uploads = item.uploads || [];
     const status = item.submitted
-      ? '<span class="badge bg-success">제출</span>'
-      : '<span class="badge bg-danger">미제출</span>';
+      ? `<span class="badge bg-success">${t('up.submitted')}</span>`
+      : `<span class="badge bg-danger">${t('up.missing')}</span>`;
     const fileText = uploads.length
       ? uploads.map(u => escapeHtml(u.name || u.company || '')).join('<br>')
       : '<span class="text-muted">-</span>';
@@ -1841,7 +1909,7 @@ async function reapplyFxRates() {
         <span class="status-icon" id="raIcon${i}"><i class="bi bi-clock-history text-muted"></i></span>
         <span class="filename">${f.name}</span>
         <span class="company-tag" id="raCompany${i}">${f.company}</span>
-        <span class="small text-muted" id="raMsg${i}">대기</span>
+        <span class="small text-muted" id="raMsg${i}">${t('up.waiting')}</span>
         <div class="small mt-1" id="raSignWarn${i}" style="display:none;"></div>
       </div>`;
   }
@@ -1893,7 +1961,7 @@ async function reapplyFxRates() {
         err++;
         item.classList.add('error');
         document.getElementById('raIcon' + i).innerHTML = '<i class="bi bi-x-circle-fill text-danger"></i>';
-        document.getElementById('raMsg'  + i).textContent = (data.error || '실패');
+        document.getElementById('raMsg'  + i).textContent = (data.error || t('up.fail'));
       } else if (data.updated > 0) {
         done++;
         item.classList.add('done');
@@ -1937,11 +2005,11 @@ async function reapplyFxRates() {
 
   ctl.teardown();
   const summary = `갱신 ${done}, 스킵 ${skipped}, 실패 ${err}` + (cancelled ? `, 취소 ${cancelled}` : '');
-  curName.textContent = `재환산 ${ctl.aborted ? '중단' : '완료'} — ${summary}`;
+  curName.textContent = `${t('up.retrans')} ${ctl.aborted ? t('up.stopped') : t('up.done')} — ${summary}`;
   bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
   closeBtn.disabled  = false;
   closeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>완료';
-  showToast(`재환산 ${ctl.aborted ? '중단' : '완료'} — ${summary}`,
+  showToast(`${t('up.retrans')} ${ctl.aborted ? t('up.stopped') : t('up.done')} — ${summary}`,
             (err || ctl.aborted) ? 'warning' : 'success', 4500);
   loadFiles();
 }
@@ -2173,7 +2241,7 @@ async function uploadFiles(files) {
         <span class="status-icon" id="upIcon${i}"><i class="bi bi-clock-history text-muted"></i></span>
         <span class="filename">${f.name}</span>
         <span class="company-tag" id="upCompany${i}"></span>
-        <span class="small text-muted" id="upMsg${i}">대기</span>
+        <span class="small text-muted" id="upMsg${i}">${t('up.waiting')}</span>
         <div class="small mt-1" id="upSignWarn${i}" style="display:none;"></div>
       </div>`;
   }
@@ -2260,7 +2328,7 @@ async function uploadFiles(files) {
         const sheetInfo = Object.entries(r.sheets || {}).map(([s, n]) => `${s}:${n}`).join(' · ');
         const fx = r.currency ? ` · ${r.currency} @ ${Number(r.fx_rate).toFixed(4)}` : '';
         const warnSuffix = r.warning ? ` · ⚠ ${r.warning}` : '';
-        document.getElementById('upMsg' + i).textContent = (sheetInfo || '완료') + fx + warnSuffix;
+        document.getElementById('upMsg' + i).textContent = (sheetInfo || t('up.done')) + fx + warnSuffix;
         // 부호 경고 상세 표시 — 펼치기 details 로
         if (hasSignWarn) {
           renderSignWarnings('upSignWarn' + i, r.sign_warnings);
@@ -2285,7 +2353,7 @@ async function uploadFiles(files) {
   }
 
   // 완료 처리
-  curName.textContent = `업로드 완료 — 성공 ${done}건, 실패 ${err}건`;
+  curName.textContent = t('up.up_summary', done, err);
   bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
   closeBtn.disabled = false;
   closeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>완료';
@@ -2495,7 +2563,7 @@ function renderGroupButtons() {
   if (!names.length) { area.style.display = 'none'; return; }
   area.style.display = '';
   btns.innerHTML =
-    `<button class="btn btn-sm btn-dark group-btn-all" data-group="">전체</button>` +
+    `<button class="btn btn-sm btn-dark group-btn-all" data-group="" data-i18n="up.all">전체</button>` +
     `<button class="btn btn-sm btn-outline-secondary group-btn" data-group="${CONSOL_ALL}">`+
     `연결대상 전체 <span class="badge bg-secondary ms-1" id="${_gid(CONSOL_ALL)}">0</span></button>` +
     names.map(g =>
@@ -2794,7 +2862,7 @@ async function reanalyzeAll() {
         <span class="status-icon" id="raIcon${i}"><i class="bi bi-clock-history text-muted"></i></span>
         <span class="filename">${f.name}</span>
         <span class="company-tag" id="raCompany${i}">${f.company}</span>
-        <span class="small text-muted" id="raMsg${i}">대기</span>
+        <span class="small text-muted" id="raMsg${i}">${t('up.waiting')}</span>
         <div class="small mt-1" id="raSignWarn${i}" style="display:none;"></div>
       </div>`;
   }
@@ -2854,7 +2922,7 @@ async function reanalyzeAll() {
         document.getElementById('raCompany' + i).textContent = data.company || f.company;
         const sheetInfo = Object.entries(data.sheets || {}).map(([s, n]) => `${s}:${n}`).join(' · ');
         const fx = data.currency ? ` · ${data.currency} @ ${Number(data.fx_rate).toFixed(4)}` : '';
-        document.getElementById('raMsg' + i).textContent = (sheetInfo || '완료') + fx;
+        document.getElementById('raMsg' + i).textContent = (sheetInfo || t('up.done')) + fx;
         if (hasSignWarn) {
           renderSignWarnings('raSignWarn' + i, data.sign_warnings);
         }
@@ -2883,9 +2951,9 @@ async function reanalyzeAll() {
   }
 
   ctl.teardown();
-  const summaryParts = [`성공 ${done}건`, `실패 ${err}건`];
+  const summaryParts = [t('up.n_ok', done), t('up.n_fail', err)];
   if (cancelled > 0) summaryParts.push(`취소 ${cancelled}건`);
-  curName.textContent = `재분석 ${ctl.aborted ? '중단' : '완료'} — ` + summaryParts.join(', ');
+  curName.textContent = `${t('up.reanalyze2')} ${ctl.aborted ? t('up.stopped') : t('up.done')} — ` + summaryParts.join(', ');
   bar.classList.remove('progress-bar-animated', 'progress-bar-striped');
   closeBtn.disabled  = false;
   closeBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>완료';
@@ -2913,7 +2981,7 @@ function setupRaCancel(total) {
     const ok = await confirmModal({
       title: '중단 확인',
       body: '진행 중인 작업을 중단하시겠습니까?\n\n· 이미 처리된 파일은 그대로 유지됩니다\n· 처리 중인 파일은 취소를 시도합니다',
-      okText: '중단', okClass: 'btn-danger'
+      okText: t('up.stopped'), okClass: 'btn-danger'
     });
     if (!ok) return;
     state.aborted = true;
