@@ -1044,6 +1044,19 @@ def admin_create_user():
     # 신규: 권한그룹 선택 (없으면 finance_member 기본)
     pg_id = (request.form.get('permission_group_create') or '').strip()
 
+    # 생성 화면에서 바로 지정한 담당회사·담당그룹 (선택). 생성 후 다시 찾아
+    # 지정하지 않아도 되도록 한 번에 받는다.
+    def _json_list(field):
+        try:
+            v = json.loads(request.form.get(field) or '[]')
+            return [str(x).strip() for x in v if str(x).strip()] if isinstance(v, list) else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    companies = _json_list('assigned_companies')
+    valid_gids = {g.get('id') for g in consol_list_groups()}
+    groups = [g for g in _json_list('assigned_groups') if g in valid_gids]
+
     if not re.fullmatch(r'[A-Za-z0-9_\-\.]{3,30}', username):
         return redirect(url_for('admin_users', error='아이디는 3~30자의 영문/숫자/_-. 만 사용 가능합니다.'))
     if len(password) < 6:
@@ -1059,23 +1072,36 @@ def admin_create_user():
     if pg_id == 'system_admin' and not _is_admin(session.get('username')):
         return redirect(url_for('admin_users', error='시스템관리자 계정 생성은 시스템관리자만 할 수 있습니다.'))
 
+    is_admin_acct = (pg_id == 'system_admin')
     CREDENTIALS[username] = {
         'password': generate_password_hash(password),
-        'is_admin': (pg_id == 'system_admin'),
+        'is_admin': is_admin_acct,
         'permission_group': pg_id,
-        'assigned_companies': [],
+        # 관리자 계정은 전 회사·전 그룹 접근이라 담당 지정이 의미 없다
+        'assigned_companies': [] if is_admin_acct else companies,
+        'assigned_groups': [] if is_admin_acct else groups,
         'email': email,
         'name': name,
     }
     _save_credentials()
     pg_name = (pg_groups.get(pg_id) or {}).get('name', pg_id)
+    scope = ''
+    if not is_admin_acct and (companies or groups):
+        parts = []
+        if companies:
+            parts.append(f'담당회사 {len(companies)}개사')
+        if groups:
+            gmap = {g['id']: g.get('name', g['id']) for g in consol_list_groups()}
+            parts.append('담당그룹 ' + ', '.join(gmap.get(g, g) for g in groups))
+        scope = ' · ' + ' / '.join(parts)
 
     # 이메일 입력 시 계정정보(아이디·비번) + OTP 매뉴얼 자동 발송
     mail_note = ''
     if email:
         ok, m = _send_credentials_email(email, username, password)
         mail_note = f' · 메일 {"✅" if ok else "⚠"} {m}'
-    return redirect(url_for('admin_users', msg=f'계정 생성 완료: {username} (권한그룹: {pg_name}){mail_note}'))
+    return redirect(url_for('admin_users',
+                            msg=f'계정 생성 완료: {username} (권한그룹: {pg_name}){scope}{mail_note}'))
 
 
 @app.route('/admin/users/<username>/name', methods=['POST'])

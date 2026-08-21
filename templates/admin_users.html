@@ -100,10 +100,32 @@
           </select>
           <div class="form-text">생성 후에도 변경 가능</div>
         </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">담당회사 <span class="text-muted small fw-normal">(선택)</span></label>
+          <button type="button" class="btn btn-outline-secondary w-100 text-start" id="newCoBtn"
+                  onclick="openCompanyModal(null, _newCompanies)">
+            <i class="bi bi-building me-1"></i><span id="newCoLabel">지정 안 함 (전체)</span>
+          </button>
+          <input type="hidden" name="assigned_companies" id="newCoInput">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label fw-semibold">담당그룹 <span class="text-muted small fw-normal">(선택)</span></label>
+          <button type="button" class="btn btn-outline-secondary w-100 text-start" id="newGrpBtn"
+                  onclick="openGroupModal(null, _newGroups)">
+            <i class="bi bi-diagram-3 me-1"></i><span id="newGrpLabel">지정 안 함</span>
+          </button>
+          <input type="hidden" name="assigned_groups" id="newGrpInput">
+        </div>
         <div class="col-md-2 d-flex align-items-end">
           <button type="submit" class="btn btn-gradient w-100">
             <i class="bi bi-plus-circle me-1"></i>생성
           </button>
+        </div>
+        <div class="col-12">
+          <div class="form-text mt-0">
+            담당회사·담당그룹을 모두 비워두면 <strong>모든 회사에 접근</strong>합니다.
+            담당그룹만 지정하면 그 그룹(하위 그룹 포함)의 회사만 접근합니다.
+          </div>
         </div>
       </form>
     </div>
@@ -425,12 +447,28 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 let _modalUsername = '';
+// 계정 생성 폼용 — username 없이 모달을 열면 여기에 담아 hidden input 으로 넘긴다
+let _newCompanies = [];
+let _newGroups = [];
+
+function _syncNewPicks() {
+  document.getElementById('newCoInput').value = JSON.stringify(_newCompanies);
+  document.getElementById('newGrpInput').value = JSON.stringify(_newGroups);
+  document.getElementById('newCoLabel').textContent =
+    _newCompanies.length ? `${_newCompanies.length}개사 선택됨` : '지정 안 함 (전체)';
+  const gn = _newGroups.map(id => (ALL_GROUPS.find(g => g.id === id) || {}).name).filter(Boolean);
+  document.getElementById('newGrpLabel').textContent = gn.length ? gn.join(', ') : '지정 안 함';
+  document.getElementById('newCoBtn').classList.toggle('btn-outline-primary', _newCompanies.length > 0);
+  document.getElementById('newCoBtn').classList.toggle('btn-outline-secondary', _newCompanies.length === 0);
+  document.getElementById('newGrpBtn').classList.toggle('btn-outline-primary', _newGroups.length > 0);
+  document.getElementById('newGrpBtn').classList.toggle('btn-outline-secondary', _newGroups.length === 0);
+}
 let _allCompanies  = [];  // 전체 회사 목록 (서버에서 1회 로드)
 let _modal = null;
 
 async function openCompanyModal(username, currentList) {
-  _modalUsername = username;
-  document.getElementById('modalUsername').textContent = username;
+  _modalUsername = username;                       // null 이면 계정 생성 폼용
+  document.getElementById('modalUsername').textContent = username || '새 계정';
   document.getElementById('companySearchInput').value = '';
   document.getElementById('companyLoadMsg').classList.remove('d-none');
   document.getElementById('companyCheckList').classList.add('d-none');
@@ -541,6 +579,12 @@ async function saveCompanies() {
   const companies = [...document.querySelectorAll('#companyCheckList .company-chk:checked')]
     .map(c => c.value);
 
+  if (!_modalUsername) {          // 계정 생성 폼 — 서버 저장 없이 폼에만 담는다
+    _newCompanies = companies;
+    _syncNewPicks();
+    _modal.hide();
+    return;
+  }
   const res = await fetch(`/admin/users/${encodeURIComponent(_modalUsername)}/companies`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -563,8 +607,8 @@ let _groupModalUsername = '';
 let _groupModal = null;
 
 function openGroupModal(username, currentIds) {
-  _groupModalUsername = username;
-  document.getElementById('groupModalUsername').textContent = username;
+  _groupModalUsername = username;                  // null 이면 계정 생성 폼용
+  document.getElementById('groupModalUsername').textContent = username || '새 계정';
   const checkedSet = new Set(currentIds || []);
   const list = document.getElementById('groupCheckList');
   if (!ALL_GROUPS.length) {
@@ -594,6 +638,12 @@ function updateGroupCount() {
 
 async function saveGroups() {
   const groups = [...document.querySelectorAll('#groupCheckList .group-chk:checked')].map(c => c.value);
+  if (!_groupModalUsername) {     // 계정 생성 폼 — 서버 저장 없이 폼에만 담는다
+    _newGroups = groups;
+    _syncNewPicks();
+    _groupModal.hide();
+    return;
+  }
   const res = await fetch(`/admin/users/${encodeURIComponent(_groupModalUsername)}/groups`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -608,6 +658,7 @@ async function saveGroups() {
   location.href = '/admin/users?msg=' + encodeURIComponent(
     `${_groupModalUsername} 담당 연결그룹 저장 완료 (${groups.length}개)`);
 }
+_syncNewPicks();
 </script>
 </body>
 </html>
