@@ -221,7 +221,7 @@
     <i class="bi bi-info-circle-fill"></i>
     <div>
       <span data-i18n="dist.sub_info">본인 담당 회사의 배포용 패키지 파일을 직접 생성할 수 있습니다. 생성된 파일의 시트 보호 비밀번호는 관리자만 알고 있으며, 자회사는 입력허용된 셀만 입력할 수 있습니다.</span>
-      <span class="ms-2"><span data-i18n="dist.registered_tpls_inline">등록된 템플릿:</span> <span id="templateList" class="d-inline-flex gap-2 flex-wrap"><span class="text-muted small">로딩 중...</span></span></span>
+      <span class="ms-2"><span data-i18n="dist.registered_tpls_inline">등록된 템플릿:</span> <span id="templateList" class="d-inline-flex gap-2 flex-wrap"><span class="text-muted small" data-i18n="dist.loading">로딩 중...</span></span></span>
     </div>
   </div>
 
@@ -261,11 +261,11 @@
 
       <div class="row g-3 mb-3">
         <div class="col-md-12">
-          <label class="form-label fw-semibold">배포 상태
-            <span class="text-muted fw-normal small">(환율 확정 후 관리자가 열어야 자회사가 생성·다운로드 가능)</span>
+          <label class="form-label fw-semibold"><span data-i18n="dist.open_state">배포 상태</span>
+            <span class="text-muted fw-normal small" data-i18n="dist.open_state_hint">(환율 확정 후 관리자가 열어야 자회사가 생성·다운로드 가능)</span>
           </label>
           <div id="openStatusBox" class="alert alert-secondary py-2 mb-0 small">
-            <span><i class="bi bi-hourglass-split me-1"></i>배포 상태 확인 중...</span>
+            <span><i class="bi bi-hourglass-split me-1"></i><span data-i18n="dist.open_checking">배포 상태 확인 중...</span></span>
           </div>
         </div>
       </div>
@@ -282,15 +282,15 @@
             </span>
           </label>
           <div id="distGroupArea" class="dist-group-area mb-2" style="display:none;">
-            <span class="small text-muted me-1"><i class="bi bi-collection"></i> 그룹:</span>
+            <span class="small text-muted me-1"><i class="bi bi-collection"></i> <span data-i18n="dist.group_label">그룹:</span></span>
             <span id="distGroupBtns" class="d-inline-flex flex-wrap gap-1"></span>
           </div>
           <div class="company-check-list" id="companyList">
-            <div class="text-muted small p-3">로딩 중...</div>
+            <div class="text-muted small p-3" data-i18n="dist.loading">로딩 중...</div>
           </div>
-          <div id="companyEmpty" class="text-muted small p-3" style="display:none;">표시할 회사가 없습니다.</div>
+          <div id="companyEmpty" class="text-muted small p-3" style="display:none;" data-i18n="dist.co_none">표시할 회사가 없습니다.</div>
           <div class="form-text mt-2">
-            <span id="companyCount">0</span>개 선택됨 / 표시 <span id="companyTotal">0</span>개 회사
+            <span id="companySelInfo"></span>
           </div>
         </div>
       </div>
@@ -304,11 +304,11 @@
 
       <div class="mt-3" id="progressArea" style="display:none">
         <div class="d-flex justify-content-between align-items-center small mb-1">
-          <span id="progressLabel">생성 중...</span>
+          <span id="progressLabel" data-i18n="dist.generating">생성 중...</span>
           <span class="d-flex align-items-center gap-2">
             <span id="progressNum"></span>
             <button type="button" class="btn btn-sm btn-outline-danger py-0 px-2" id="cancelBtn" style="display:none">
-              <i class="bi bi-x-circle me-1"></i>취소
+              <i class="bi bi-x-circle me-1"></i><span data-i18n="dist.cancel">취소</span>
             </button>
           </span>
         </div>
@@ -334,7 +334,7 @@
         </label>
         <button type="button" class="btn btn-sm btn-light fw-semibold" id="batchZipBtn"
                 style="display:none" onclick="downloadBatchZip()">
-          <i class="bi bi-file-earmark-zip-fill me-1"></i>일괄 다운로드 (ZIP)
+          <i class="bi bi-file-earmark-zip-fill me-1"></i><span data-i18n="dist.dl_zip">일괄 다운로드 (ZIP)</span>
         </button>
       </div>
     </div>
@@ -423,9 +423,15 @@ function renderCompanyList(list) {
 }
 
 function updateCompanyCount() {
-  const n = document.querySelectorAll('.company-cb:checked').length;
-  document.getElementById('companyCount').textContent = n;
+  _selInfo();
   updateDistGroupBadges();
+}
+
+// '3개 선택됨 / 표시 12개 회사' — 언어별 어순이 달라 함수형 번역을 쓴다
+function _selInfo() {
+  const n = document.querySelectorAll('.company-cb:checked').length;
+  const el = document.getElementById('companySelInfo');
+  if (el) el.textContent = window.t ? t('dist.sel_of', n, _shownCount) : `${n} / ${_shownCount}`;
 }
 
 function escapeHtml(s) {
@@ -434,6 +440,7 @@ function escapeHtml(s) {
 
 // 검색·그룹 필터: 재렌더 대신 행 표시/숨김 → 선택(체크) 상태가 유지됨
 let _distFilterGroup = null;          // 선택된 그룹(없으면 전체)
+let _shownCount = 0;                  // 현재 표시 중인 회사 수
 
 function applyCompanyFilter() {
   const q = (document.getElementById('companySearch')?.value || '').trim().toLowerCase();
@@ -447,8 +454,8 @@ function applyCompanyFilter() {
     row.style.display = ok ? '' : 'none';
     if (ok) shown++;
   });
-  const tot = document.getElementById('companyTotal');
-  if (tot) tot.textContent = shown;
+  _shownCount = shown;
+  _selInfo();
   const empty = document.getElementById('companyEmpty');
   if (empty) empty.style.display = shown ? 'none' : '';
 }
@@ -495,7 +502,7 @@ function renderDistGroupButtons() {
   if (!names.length) { area.style.display = 'none'; return; }
   area.style.display = '';
   btns.innerHTML =
-    `<button type="button" class="btn btn-sm dist-group-all" data-group="">전체</button>` +
+    `<button type="button" class="btn btn-sm dist-group-all" data-group="" data-i18n="dist.group_all">전체</button>` +
     names.map(g =>
       `<button type="button" class="btn btn-sm btn-outline-secondary dist-group-btn" data-group="${escapeHtml(g)}">`+
       `${escapeHtml(g)} <span class="badge bg-secondary ms-1" id="${_dgid(g)}">0</span></button>`
@@ -580,10 +587,10 @@ async function refreshOpenStatus() {
   } catch (e) { _distOpen = false; }
   if (_distOpen) {
     box.className = 'alert alert-success py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
-    statusSpan.innerHTML = `<i class="bi bi-unlock-fill me-1"></i><strong>${y}-${q}Q 배포 열림</strong> — 자회사가 파일을 생성·다운로드할 수 있습니다.`;
+    statusSpan.innerHTML = `<i class="bi bi-unlock-fill me-1"></i><strong>${t('dist.open_yes', `${y}-${q}Q`)}</strong>${t('dist.open_yes_sfx')}`;
   } else {
     box.className = 'alert alert-danger py-2 mb-0 small d-flex align-items-center justify-content-between flex-wrap gap-2';
-    statusSpan.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${y}-${q}Q 배포 닫힘</strong> — 환율 확정 후 관리자가 열어야 자회사가 생성·다운로드할 수 있습니다.`;
+    statusSpan.innerHTML = `<i class="bi bi-lock-fill me-1"></i><strong>${t('dist.open_no', `${y}-${q}Q`)}</strong>${t('dist.open_no_sfx')}`;
   }
   applyOpenGate();
 }
@@ -881,7 +888,7 @@ document.getElementById('cancelBtn')?.addEventListener('click', () => {
   const cb = document.getElementById('cancelBtn');
   cb.disabled = true;
   cb.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>취소 중...';
-  document.getElementById('progressLabel').textContent = '취소 요청됨 — 현재 회사까지 마치고 중단합니다...';
+  document.getElementById('progressLabel').textContent = t('dist.cancel_req');
 });
 
 document.getElementById('generateBtn')?.addEventListener('click', async () => {
@@ -889,7 +896,7 @@ document.getElementById('generateBtn')?.addEventListener('click', async () => {
   const quarter = document.getElementById('targetQuarter').value;
 
   if (!IS_ADMIN && !_distOpen) {
-    showAlert('warn', `<i class="bi bi-lock-fill"></i> 배포가 닫혀 있어 파일을 생성할 수 없습니다. 관리자에게 문의하세요.`); return;
+    showAlert('warn', `<i class="bi bi-lock-fill"></i> ${t('dist.closed_err')}`); return;
   }
 
   const companies = [...document.querySelectorAll('.company-cb:checked')].map(cb => cb.value);
@@ -963,8 +970,8 @@ document.getElementById('generateBtn')?.addEventListener('click', async () => {
   document.getElementById('progressNum').textContent = `${done} / ${total}`;
   if (cancelBtn) cancelBtn.style.display = 'none';
   if (cancelledAt >= 0) {
-    document.getElementById('progressLabel').textContent = `취소됨 — ${done}개사 생성 후 중단 (${total - done}개사 미생성)`;
-    showAlert('warn', `<i class="bi bi-x-circle"></i> 생성을 취소했습니다. 성공 ${okN}건 · 실패 ${failN}건 (${total - done}개사는 생성하지 않음). 이미 만든 파일은 다운로드할 수 있습니다.`);
+    document.getElementById('progressLabel').textContent = t('dist.cancelled', done, total - done);
+    showAlert('warn', `<i class="bi bi-x-circle"></i> ${t('dist.cancel_sum', okN, failN, total - done)}`);
   } else {
     document.getElementById('progressLabel').textContent = window.t('dist.done_sec', elapsed);
     showAlert(failN ? 'warn' : 'success',
