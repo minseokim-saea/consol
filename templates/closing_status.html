@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>마감현황 대시보드 — 연결 재무보고 시스템</title>
+<!-- 본문 문구는 _i18n.html 사전(cs.*)으로 번역된다 -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
@@ -115,23 +116,24 @@ body {
   <!-- 다크 상단바 -->
   <div class="topbar">
     <div class="tb-title">
-      <i class="bi bi-clipboard-check"></i> 마감현황 대시보드
-      <span class="tb-badge">{{ current_period or '결산기간 미설정' }}</span>
-      <span class="tb-unit">현재 결산기간</span>
+      <i class="bi bi-clipboard-check"></i> <span data-i18n="cs.title">마감현황 대시보드</span>
+      <span class="tb-badge">{{ current_period or '' }}<span data-i18n="cs.no_period" {% if current_period %}hidden{% endif %}>결산기간 미설정</span></span>
+      <span class="tb-unit" data-i18n="cs.cur_period">현재 결산기간</span>
     </div>
     <div class="tb-right">
-      <span class="tb-label"><i class="bi bi-calendar3"></i> 현재 결산기간</span>
+      <span class="tb-label"><i class="bi bi-calendar3"></i> <span data-i18n="cs.cur_period">현재 결산기간</span></span>
       {% if perms.years_manage %}
-      <select id="periodSelect" class="tb-select" title="결산기간을 변경하면 전체에 반영됩니다">
+      <select id="periodSelect" class="tb-select" data-i18n-title="cs.period_hint" title="결산기간을 변경하면 전체에 반영됩니다">
         {% for y in years %}
-        <option value="{{ y }}" {% if y == current_period %}selected{% endif %}>{{ y }}{% if y in locked_years %} · 마감{% endif %}</option>
+        <option value="{{ y }}" {% if y == current_period %}selected{% endif %}
+                {% if y in locked_years %}data-locked="1"{% endif %}>{{ y }}{% if y in locked_years %} · 마감{% endif %}</option>
         {% endfor %}
       </select>
       {% else %}
       {# 변경 권한이 없으면 선택 상자가 아니라 '읽기 전용 값'으로 보여준다.
          disabled select 는 화살표가 그대로 보여 고를 수 있는 것처럼 오해를 준다. #}
-      <span class="tb-readonly" title="결산기간 변경은 관리자만 가능합니다">
-        {{ current_period or '미설정' }}{% if current_period in locked_years %} · 마감{% endif %}
+      <span class="tb-readonly" data-i18n-title="cs.period_readonly" title="결산기간 변경은 관리자만 가능합니다">
+        {% if current_period %}{{ current_period }}{% else %}<span data-i18n="cs.unset">미설정</span>{% endif %}{% if current_period in locked_years %} · <span data-i18n="cs.closed">마감</span>{% endif %}
       </span>
       {% endif %}
     </div>
@@ -140,7 +142,7 @@ body {
   {% if not current_period %}
   <div class="panel" style="margin-top:14px"><div class="empty">
     <i class="bi bi-exclamation-triangle d-block fs-3 mb-2"></i>
-    설정된 결산기간이 없습니다. 관리자에게 문의하세요.
+    <span data-i18n="cs.no_period_msg">설정된 결산기간이 없습니다. 관리자에게 문의하세요.</span>
   </div></div>
   {% else %}
 
@@ -148,33 +150,34 @@ body {
   <div class="kpi-row">
     <!-- 1. 현재 결산기간 -->
     <div class="kpi-card">
-      <div class="kpi-label"><i class="bi bi-calendar3"></i> 현재 결산기간</div>
+      <div class="kpi-label"><i class="bi bi-calendar3"></i> <span data-i18n="cs.cur_period">현재 결산기간</span></div>
       <div class="kpi-value">{{ current_period }}</div>
       <div class="kpi-sub">
-        {% if current_period in locked_years %}<i class="bi bi-lock-fill"></i> 마감됨{% else %}<i class="bi bi-unlock"></i> 진행 중{% endif %}
-        {% if perms.years_manage %} · 상단에서 변경 가능{% endif %}
+        {% if current_period in locked_years %}<i class="bi bi-lock-fill"></i> <span data-i18n="cs.closed_done">마감됨</span>{% else %}<i class="bi bi-unlock"></i> <span data-i18n="cs.in_progress">진행 중</span>{% endif %}
+        {% if perms.years_manage %} · <span data-i18n="cs.changeable">상단에서 변경 가능</span>{% endif %}
       </div>
     </div>
     <!-- 2. 환율 입력 여부 -->
     <div class="kpi-card {% if not fx_entered %}alert{% endif %}">
-      <div class="kpi-label"><i class="bi bi-currency-exchange"></i> 환율 입력 여부</div>
+      <div class="kpi-label"><i class="bi bi-currency-exchange"></i> <span data-i18n="cs.fx">환율 입력 여부</span></div>
       <div class="kpi-value"><span class="bigflag {{ 'o' if fx_entered else 'x' }}">{{ 'O' if fx_entered else 'X' }}</span></div>
-      <div class="kpi-sub">{{ '해당 결산기간 환율이 입력되어 있습니다.' if fx_entered else '환율이 입력되지 않았습니다.' }}</div>
+      <div class="kpi-sub" data-i18n="{{ 'cs.fx_ok' if fx_entered else 'cs.fx_no' }}">{{ '해당 결산기간 환율이 입력되어 있습니다.' if fx_entered else '환율이 입력되지 않았습니다.' }}</div>
     </div>
     <!-- 3. 패키지 제출 현황 -->
     {% set submit_rate = (submitted_count * 100 / total_companies) | round | int if total_companies else 0 %}
     <div class="kpi-card {% if missing_count > 0 %}alert{% endif %}">
-      <div class="kpi-label"><i class="bi bi-box-seam"></i> 패키지 제출</div>
-      <div class="kpi-value">{{ submitted_count }}<span class="u">/ {{ total_companies }}개사</span>
-        <span class="u" style="color:{{ '#15803d' if submit_rate == 100 else '#c0392b' }};font-weight:700;">· 제출율 {{ submit_rate }}%</span>
+      <div class="kpi-label"><i class="bi bi-box-seam"></i> <span data-i18n="cs.pkg">패키지 제출</span></div>
+      <div class="kpi-value">{{ submitted_count }}<span class="u" data-fn="cs.of_co" data-a1="{{ total_companies }}">/ {{ total_companies }}개사</span>
+        <span class="u" style="color:{{ '#15803d' if submit_rate == 100 else '#c0392b' }};font-weight:700;"
+              data-fn="cs.rate" data-a1="{{ submit_rate }}">· 제출율 {{ submit_rate }}%</span>
       </div>
-      <div class="kpi-sub">미제출 <strong style="color:{{ '#c0392b' if missing_count else '#15803d' }}">{{ missing_count }}</strong>개사</div>
+      <div class="kpi-sub" data-fn="cs.missing_n" data-a1="{{ missing_count }}">미제출 {{ missing_count }}개사</div>
     </div>
     <!-- 4. 연결조정분개 업로드 -->
     <div class="kpi-card {% if journal_total and journal_done < journal_total %}alert{% endif %}">
-      <div class="kpi-label"><i class="bi bi-journal-arrow-up"></i> 연결조정분개 업로드</div>
-      <div class="kpi-value">{{ journal_done }}<span class="u">/ {{ journal_total }}그룹</span></div>
-      <div class="kpi-sub">미업로드 <strong style="color:{{ '#c0392b' if (journal_total - journal_done) else '#15803d' }}">{{ journal_total - journal_done }}</strong>그룹</div>
+      <div class="kpi-label"><i class="bi bi-journal-arrow-up"></i> <span data-i18n="cs.jr">연결조정분개 업로드</span></div>
+      <div class="kpi-value">{{ journal_done }}<span class="u" data-fn="cs.of_grp" data-a1="{{ journal_total }}">/ {{ journal_total }}그룹</span></div>
+      <div class="kpi-sub" data-fn="cs.notup_n" data-a1="{{ journal_total - journal_done }}">미업로드 {{ journal_total - journal_done }}그룹</div>
     </div>
   </div>
 
@@ -184,13 +187,13 @@ body {
     <!-- 좌: 패키지 제출 현황 -->
     <div class="panel">
       <div class="panel-head">
-        <span class="panel-title"><i class="bi bi-box-seam"></i> 패키지 미제출 회사</span>
-        <span class="panel-count">미제출 {{ missing_count }} / {{ total_companies }}개사</span>
+        <span class="panel-title"><i class="bi bi-box-seam"></i> <span data-i18n="cs.pkg_missing_co">패키지 미제출 회사</span></span>
+        <span class="panel-count" data-fn="cs.missing_of" data-a1="{{ missing_count }}" data-a2="{{ total_companies }}">미제출 {{ missing_count }} / {{ total_companies }}개사</span>
       </div>
       {% if missing_count > 0 %}
       <div class="tbl-scroll">
         <table class="tbl">
-          <thead><tr><th>회사명</th><th class="r">제출</th></tr></thead>
+          <thead><tr><th data-i18n="cs.company">회사명</th><th class="r" data-i18n="cs.submitted">제출</th></tr></thead>
           <tbody>
             {% for nm in missing_companies %}
             <tr>
@@ -202,19 +205,19 @@ body {
         </table>
       </div>
       {% else %}
-      <div class="allclear" style="margin:0 16px 16px"><i class="bi bi-check2-circle"></i> 모든 회사가 패키지를 제출했습니다.</div>
+      <div class="allclear" style="margin:0 16px 16px"><i class="bi bi-check2-circle"></i> <span data-i18n="cs.allclear">모든 회사가 패키지를 제출했습니다.</span></div>
       {% endif %}
     </div>
 
     <!-- 우: 연결조정분개 업로드 현황 -->
     <div class="panel">
       <div class="panel-head">
-        <span class="panel-title"><i class="bi bi-journal-arrow-up"></i> 연결조정분개 업로드 현황</span>
-        <span class="panel-count">연결그룹별 · {{ journal_done }} / {{ journal_total }}</span>
+        <span class="panel-title"><i class="bi bi-journal-arrow-up"></i> <span data-i18n="cs.jr_status">연결조정분개 업로드 현황</span></span>
+        <span class="panel-count"><span data-i18n="cs.by_group">연결그룹별</span> · {{ journal_done }} / {{ journal_total }}</span>
       </div>
       <div class="tbl-scroll">
         <table class="tbl">
-          <thead><tr><th>연결그룹</th><th class="r">업로드</th></tr></thead>
+          <thead><tr><th data-i18n="cs.group">연결그룹</th><th class="r" data-i18n="cs.uploaded">업로드</th></tr></thead>
           <tbody>
             {% for r in journal_rows %}
             <tr>
@@ -222,7 +225,7 @@ body {
               <td class="r"><span class="ox {{ 'o' if r.uploaded else 'x' }}">{{ 'O' if r.uploaded else 'X' }}</span></td>
             </tr>
             {% else %}
-            <tr><td colspan="2" class="empty">등록된 연결그룹이 없습니다.</td></tr>
+            <tr><td colspan="2" class="empty" data-i18n="cs.no_groups">등록된 연결그룹이 없습니다.</td></tr>
             {% endfor %}
           </tbody>
         </table>
@@ -255,12 +258,35 @@ body {
         body: JSON.stringify({ period }),
       });
       const j = await r.json();
-      if (!r.ok) { alert(j.error || '변경 실패'); sel.value = CUR; return; }
+      if (!r.ok) { alert(j.error || t('cs.change_fail')); sel.value = CUR; return; }
       location.reload();
     } catch (e) {
-      alert('요청 실패: ' + e); sel.value = CUR;
+      alert(t('cs.req_fail', e)); sel.value = CUR;
     }
   });
+})();
+</script>
+<script>
+// ── 공용 i18n 엔진이 다루지 않는 부분 (인자 있는 문구·title·option) ──
+(function () {
+  function applyPageI18n() {
+    if (typeof t !== 'function') return;
+    document.querySelectorAll('[data-fn]').forEach(el => {
+      const args = [el.dataset.a1, el.dataset.a2].filter(v => v !== undefined);
+      const v = t(el.dataset.fn, ...args);
+      if (typeof v === 'string') el.textContent = v;
+    });
+    document.querySelectorAll('[data-i18n-title]').forEach(el => {
+      const v = t(el.getAttribute('data-i18n-title'));
+      if (typeof v === 'string') el.title = v;
+    });
+    // '2026-2Q · 마감' 처럼 값 뒤에 붙는 표기
+    document.querySelectorAll('#periodSelect option[data-locked]').forEach(op => {
+      op.textContent = `${op.value} · ${t('cs.closed')}`;
+    });
+  }
+  window.onI18nChange = applyPageI18n;
+  document.addEventListener('DOMContentLoaded', applyPageI18n);
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
