@@ -55,6 +55,14 @@
     white-space: nowrap;
     transition: background .15s;
   }
+  /* 라벨이 사이드바 밖으로 삐져나오지 않게 — 넘치면 말줄임(전체 문구는 title 로 표시).
+     플라이아웃 안의 링크는 폭에 여유가 있어 그대로 둔다. */
+  .side-nav > .side-link .side-label,
+  .side-nav > .side-group > .side-link .side-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .side-nav .side-link:hover { background: #EBF0FA; }
   .side-nav .side-link.active { background: #EBF0FA; color: #1F3864; }
   .side-nav .side-link i { font-size: 1.25rem; flex-shrink: 0; width: 24px; text-align: center; }
