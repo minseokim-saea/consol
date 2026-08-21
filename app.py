@@ -8626,8 +8626,7 @@ def list_files():
             'comment_updated_at': f.get('comment_updated_at', '') or '',
             'comment_updated_by': f.get('comment_updated_by', '') or '',
             # 클라이언트가 편집 버튼 노출 여부를 결정할 수 있도록 권한 플래그 동봉
-            'can_edit_comment': (is_admin_user
-                                 or (f.get('uploaded_by') == username and bool(username))),
+            'can_edit_comment': _can_edit_comment(f, username),
         }
         for f in visible
     ])
@@ -8824,11 +8823,20 @@ def delete_file(uid):
 # 동일 (회사, 연도) 재업로드 시 코멘트는 업로드 핸들러에서 자동 인계됨.
 
 def _can_edit_comment(entry: dict, username: str) -> bool:
+    """코멘트 수정 권한.
+
+    업로더 본인만 쓸 수 있으면, 담당자가 바뀌거나 연결담당자가 대신 올려준
+    경우 정작 그 회사 담당자가 메모를 남길 수 없다. 그 회사 패키지에 접근할
+    수 있고 업로드 권한이 있는 사용자면 쓸 수 있게 한다(조회전용 제외).
+    """
     if not entry or not username:
         return False
     if _is_admin(username):
         return True
-    return (entry.get('uploaded_by') or '') == username
+    if (entry.get('uploaded_by') or '') == username:
+        return True
+    return (_has_permission(username, 'files.upload')
+            and _can_access_company(username, entry.get('company', '')))
 
 
 @app.route('/files/<uid:uid>/comment', methods=['PUT'])
