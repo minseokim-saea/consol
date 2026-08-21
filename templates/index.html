@@ -466,8 +466,9 @@
           const sel = document.getElementById('yearSelect');
           if (!sel) return;
           [...sel.options].forEach(o => {
+            const lang = localStorage.getItem('lang') || 'ko';
             const m = o.value.match(/^(\d{4})-([1-4])Q$/);
-            const base = m ? `${m[1]}년 ${m[2]}분기` : o.value;
+            const base = m ? (lang === 'en' ? `${m[1]} Q${m[2]}` : `${m[1]}년 ${m[2]}분기`) : o.value;
             o.textContent = (window._lockedYears || []).includes(o.value) ? `🔒 ${base}` : base;
           });
         })();
@@ -912,6 +913,7 @@ const I18N = {
     'up.uploading':   '파일 업로드 진행 중',
     'up.processing':  '처리 중',
     'up.retrans':     '재환산',
+    'up.period':      (y,q)=>`${y}년 ${q}분기`,
     'up.up_summary': (d,e)=>`업로드 완료 — 성공 ${d}건, 실패 ${e}건`,
     'up.n_ok':       (n)=>`성공 ${n}건`,
     'up.n_fail':     (n)=>`실패 ${n}건`,
@@ -1024,6 +1026,7 @@ const I18N = {
     'up.uploading':   'Upload in progress',
     'up.processing':  'Processing',
     'up.retrans':     'Re-translation',
+    'up.period':      (y,q)=>`${y} Q${q}`,
     'up.up_summary': (d,e)=>`Upload complete — ${d} succeeded, ${e} failed`,
     'up.n_ok':       (n)=>`${n} succeeded`,
     'up.n_fail':     (n)=>`${n} failed`,
@@ -1121,6 +1124,7 @@ function setLanguage(lang) {
   _lang = lang;
   localStorage.setItem('lang', lang);
   applyI18n();
+  if (typeof refreshPeriodOptions === 'function') refreshPeriodOptions();
   // 이미 렌더된 결과가 있으면 다시 렌더
   if (_lastRenderData) renderResult(_lastRenderData);
 }
@@ -1395,14 +1399,7 @@ function refreshLockUI() {
   if (badge) badge.classList.toggle('d-none', !locked);
 
   // 옵션 텍스트(자물쇠 prefix) 갱신
-  const sel = document.getElementById('yearSelect');
-  if (sel) {
-    [...sel.options].forEach(o => {
-      const m = o.value.match(/^(\d{4})-([1-4])Q$/);
-      const base = m ? `${m[1]}년 ${m[2]}분기` : o.value;
-      o.textContent = isYearLocked(o.value) ? `🔒 ${base}` : base;
-    });
-  }
+  refreshPeriodOptions();
 
   // 관리자 토글 버튼 라벨/스타일
   const btn = document.getElementById('btnToggleLock');
@@ -1484,7 +1481,17 @@ async function toggleLockCurrentYear() {
 
 function formatPeriod(p) {
   const m = (p || '').match(/^(\d{4})-([1-4])Q$/);
-  return m ? `${m[1]}년 ${m[2]}분기` : p;
+  return m ? t('up.period', m[1], m[2]) : p;
+}
+
+// 결산기간 select 의 옵션 라벨을 현재 언어로 다시 그린다 (자물쇠 표시 포함)
+function refreshPeriodOptions() {
+  const sel = document.getElementById('yearSelect');
+  if (!sel) return;
+  [...sel.options].forEach(o => {
+    const base = formatPeriod(o.value);
+    o.textContent = isYearLocked(o.value) ? `🔒 ${base}` : base;
+  });
 }
 
 function escapeHtml(value) {
