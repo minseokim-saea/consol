@@ -11396,10 +11396,10 @@ AFFIL_COLUMNS = [
      'adjust': {'ni': {'sub': [AFFIL_EQM_GAIN_CODE], 'add': [AFFIL_EQM_LOSS_CODE]}}},
     {'key': 'ssangyong', 'label': '쌍용건설',   'kind': 'group', 'group': '쌍용'},
     # 태림페이퍼·태림포장·JJP·JOP 는 당기순이익에서 배당수익을 차감
-    # 티앤제이인베스트먼트는 차입금만 태림페이퍼로 묶어서 본다
+    # 티앤제이인베스트먼트는 차입금·현금만 태림페이퍼로 묶어서 본다
     {'key': 'trpaper',   'label': '태림페이퍼', 'kind': 'pkg',
      'companies': ['태림페이퍼', '동원페이퍼'],
-     'extra': {'debt': ['티앤제이인베스트먼트']},
+     'extra': {'debt': ['티앤제이인베스트먼트'], 'cash': ['티앤제이인베스트먼트']},
      'adjust': {'ni': {'sub': [AFFIL_DIV_INCOME_CODE]}}},
     {'key': 'trpack',    'label': '태림포장',   'kind': 'pkg',
      'companies': ['태림포장', '동림로지스틱', '태림판지'],
