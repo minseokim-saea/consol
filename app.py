@@ -11396,8 +11396,10 @@ AFFIL_COLUMNS = [
      'adjust': {'ni': {'sub': [AFFIL_EQM_GAIN_CODE], 'add': [AFFIL_EQM_LOSS_CODE]}}},
     {'key': 'ssangyong', 'label': '쌍용건설',   'kind': 'group', 'group': '쌍용'},
     # 태림페이퍼·태림포장·JJP·JOP 는 당기순이익에서 배당수익을 차감
+    # 티앤제이인베스트먼트는 차입금만 태림페이퍼로 묶어서 본다
     {'key': 'trpaper',   'label': '태림페이퍼', 'kind': 'pkg',
      'companies': ['태림페이퍼', '동원페이퍼'],
+     'extra': {'debt': ['티앤제이인베스트먼트']},
      'adjust': {'ni': {'sub': [AFFIL_DIV_INCOME_CODE]}}},
     {'key': 'trpack',    'label': '태림포장',   'kind': 'pkg',
      'companies': ['태림포장', '동림로지스틱', '태림판지'],
@@ -11534,6 +11536,11 @@ def _compute_affiliate_performance(period):
         found_any = []
         for mkey, _label, codes in AFFIL_METRICS:
             s, found = _affil_pkg_sum(period, col['companies'], codes)
+            # 특정 지표에만 합치는 회사 (예: 티앤제이인베스트먼트 차입금 → 태림페이퍼)
+            for xco in (col.get('extra') or {}).get(mkey) or []:
+                x, xf = _affil_pkg_sum(period, [xco], codes)
+                s += x
+                found = found + xf
             # 컬럼별 특수 조정 (예: 세아상역 당기순이익 지분법 가감)
             adj = (col.get('adjust') or {}).get(mkey) or {}
             for acode in adj.get('add') or []:
