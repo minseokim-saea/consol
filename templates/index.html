@@ -3122,6 +3122,13 @@ function fmtKpiValue(row) {
   if (row.is_ratio)    return v.toFixed(1) + '%';
   return fmtN(Math.round(v / EOK));
 }
+// 전기 비교 자료가 없는 지표는 '전기 0억' 대신 사유를 표시한다
+function cmpNote(row) {
+  const note = _lang === 'en' ? (row.cmp_note_en || row.cmp_note) : row.cmp_note;
+  if (!note) return '';
+  return `<span class="text-muted"><i class="bi bi-info-circle me-1"></i>${escapeHtml(note)}</span>`;
+}
+
 function fmtKpiCmp(row) {
   const v = row.compare_total;
   if (v == null || !isFinite(v)) return '-';
@@ -3169,11 +3176,11 @@ function renderKpiCards(container, rows) {
         <div class="kpi-card-name">${rowName(row)}</div>
         <div class="kpi-card-value">${valStr}<span class="kpi-card-unit">${unit}</span></div>
         <div class="kpi-card-cmp">
-          ${priorLbl} <b>${cmpStr}${unit ? ' ' + unit : ''}</b>
+          ${cmpNote(row) || `${priorLbl} <b>${cmpStr}${unit ? ' ' + unit : ''}</b>
           &nbsp;
           <span class="dashboard-delta ${delta.cls}" style="font-size:.72rem;padding:1px 6px">
             <i class="bi ${delta.icon}" aria-hidden="true"></i>${delta.text}
-          </span>
+          </span>`}
         </div>
       </div>
     </div>`;
@@ -3624,8 +3631,8 @@ function renderChartGrid(containerId, rows, chartStore, options = {}) {
           <span class="dashboard-chart-subtitle">${curLbl} ${cur}</span>
         </div>
         <div class="dashboard-chart-meta">
-          <span>${priorLbl} ${cmp}</span>
-          <span class="dashboard-delta ${delta.cls}"><i class="bi ${delta.icon}" aria-hidden="true"></i>${delta.text}</span>
+          ${cmpNote(row) || `<span>${priorLbl} ${cmp}</span>
+          <span class="dashboard-delta ${delta.cls}"><i class="bi ${delta.icon}" aria-hidden="true"></i>${delta.text}</span>`}
         </div>
         <div class="dashboard-chart-canvas">
           <canvas id="${canvasId}" role="img" aria-label="${ariaLabel.replace(/"/g,'&quot;')}"></canvas>

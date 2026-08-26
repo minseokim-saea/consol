@@ -9125,6 +9125,14 @@ def run_aggregate():
         ocf_cmp   = (ocf_info.get('compare_total', 0) or 0) if ocf_info else 0
         ocf_by_co = dict(ocf_info.get('by_company', {}) or {}) if ocf_info else {c: 0 for c in companies}
 
+        # 시스템 첫 결산연도에는 패키지에 전기 현금흐름표가 없어 비교값이 전부 0이다.
+        # 0원 실적처럼 보이지 않도록 비교값을 비우고 사유를 함께 내려준다.
+        cf_has_compare = any((_i.get('compare_total') or 0) for _i in cf_data.values())
+        ocf_note = None
+        if not cf_has_compare:
+            ocf_cmp = None
+            ocf_note = '첫 결산연도라 전기 현금흐름 자료가 없습니다.'
+
         # 2. 감가상각 합계 (EBITDA 구성 — CF 시트 코드 기반)
         DEPR_CODES = ['4300301', '5300301', '4300302', '5300302', '4300303', '5300303']
         depr_by_co = {c: 0.0 for c in companies}
@@ -9227,7 +9235,10 @@ def run_aggregate():
             # 현금흐름
             'cashflow': [
                 _mk('OCF', '영업활동현금흐름', 'Operating Cash Flow',
-                    ocf_by_co, ocf_total, ocf_cmp, dash_row=0),
+                    ocf_by_co, ocf_total, ocf_cmp, dash_row=0,
+                    **({'cmp_note': ocf_note,
+                        'cmp_note_en': 'No prior-period cash flow data (first closing year).'}
+                       if ocf_note else {})),
                 _mk('이자보상배율', '이자보상배율', 'Interest Coverage (x)',
                     icr_by_co, icr_total, icr_cmp,
                     is_multiple=True, derived=True, dash_row=0),
