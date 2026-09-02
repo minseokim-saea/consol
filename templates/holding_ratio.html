@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지주비율 현황 — 연결 재무보고 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root {
+  --brand-900:#1F3864; --brand-700:#2F5597; --brand-500:#4472C4; --brand-050:#EBF0FA;
+  --surface:#f0f4f8; --card-bg:#fff; --text-body:#1a202c; --text-muted:#6c757d;
+  --border:#dee2e6; --xl-grid:#c9c9c9; --xl-head:#DDEBF7; --xl-total:#FFF2CC;
+  --ok:#15803d; --warn:#b45309;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-900:#4472C4; --brand-700:#5A8DD6; --brand-500:#6FA1E0; --brand-050:#1a2942;
+    --surface:#0f172a; --card-bg:#1e293b; --text-body:#e2e8f0; --text-muted:#94a3b8;
+    --border:#334155; --xl-grid:#44506a; --xl-head:#22354f; --xl-total:#4a3a1a;
+    --ok:#6fcf8b; --warn:#e0b062;
+  }
+  body { color-scheme: dark; }
+  .card { background:var(--card-bg); color:var(--text-body); }
+  .form-select { background:#0f172a; color:var(--text-body); border-color:var(--border); }
+}
+body { background:var(--surface); color:var(--text-body);
+       font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+                   'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif; }
+.navbar { background:var(--brand-900) !important; }
+.section-card { border:1px solid var(--border); border-radius:10px; }
+
+.xl-wrap { background:var(--card-bg); border-radius:8px; padding:14px 16px 18px; }
+.xl-scroll { overflow-x:auto; }
+.xl-title { font-size:1.05rem; font-weight:700; margin:0 0 .6rem; }
+.xl-table { border-collapse:collapse; font-size:.9rem; white-space:nowrap; }
+.xl-table th, .xl-table td { border:1px solid var(--xl-grid); padding:7px 14px; }
+.xl-table thead th { background:var(--xl-head); text-align:center; font-weight:700; }
+.xl-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.xl-table td.neg { color:#dc3545; }
+.xl-table tr.sum td { background:var(--xl-total); font-weight:700; }
+.xl-table tr.hr-ratio td { background:var(--brand-050); font-weight:700; font-size:1rem; }
+.xl-unit { text-align:left !important; background:transparent !important; font-weight:400 !important;
+           font-size:.78rem; color:var(--text-muted); }
+
+.kpi { display:flex; gap:26px; flex-wrap:wrap; }
+.kpi .k-label { font-size:.78rem; color:var(--text-muted); }
+.kpi .k-val { font-size:1.35rem; font-weight:700; font-variant-numeric:tabular-nums; }
+.kpi .k-sub { font-size:.76rem; color:var(--text-muted); }
+.hr-bar { height:16px; border-radius:8px; background:var(--brand-050); position:relative; }
+.hr-bar > i { display:block; height:100%; border-radius:8px 0 0 8px; background:var(--brand-500); }
+/* 50% 기준선 — 막대 위에서 묻히지 않게 흰 테두리를 두르고 위아래로 튀어나오게 한다 */
+.hr-bar .hr-mark { position:absolute; top:-7px; bottom:-7px; width:3px; background:#dc3545;
+                   box-shadow:0 0 0 2px var(--card-bg); border-radius:2px; }
+.hr-bar .hr-mark::after { content:''; position:absolute; left:50%; top:-5px; width:9px; height:9px;
+                          margin-left:-4.5px; border-radius:50%; background:#dc3545;
+                          box-shadow:0 0 0 2px var(--card-bg); }
+.hr-axis { font-size:.72rem; color:var(--text-muted); }
+.hr-axis .at50 { color:#dc3545; font-weight:700; }
+.note { font-size:.8rem; color:var(--text-muted); margin-top:12px; }
+
+/* 표 + 조정 필요액 패널 나란히 */
+.hr-cols { display:flex; gap:26px; align-items:flex-start; flex-wrap:wrap; }
+.hr-cols > .hr-tbl { flex:0 0 auto; }
+.hr-gap { flex:1 1 340px; min-width:320px; border:1px solid var(--border); border-radius:10px;
+          padding:18px 22px; background:var(--surface); }
+.hr-gap h6 { font-size:.9rem; font-weight:700; margin:0 0 4px; }
+.hr-gap .lead-sub { font-size:.78rem; color:var(--text-muted); margin-bottom:16px; }
+.hr-gap .item { padding:12px 0; border-top:1px solid var(--border); }
+.hr-gap .item:first-of-type { border-top:none; }
+.hr-gap .item-lab { font-size:.82rem; color:var(--text-muted); }
+.hr-gap .item-val { font-size:1.75rem; font-weight:800; font-variant-numeric:tabular-nums;
+                    line-height:1.25; }
+.hr-gap .item-raw { font-size:.78rem; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.hr-gap .item-how { font-size:.76rem; color:var(--text-muted); margin-top:2px; }
+.hr-gap.over  .item-val { color:var(--warn); }
+.hr-gap.under .item-val { color:var(--ok); }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'holding_ratio' %}
+{% include '_sidebar.html' %}
+{% include '_topbar.html' %}
+
+<div class="container-fluid mt-3">
+
+  <div class="card section-card mb-3">
+    <div class="card-body d-flex align-items-center gap-3 flex-wrap">
+      <label class="fw-bold mb-0"><i class="bi bi-calendar3"></i> 결산기간</label>
+      <select id="periodSelect" class="form-select" style="max-width:170px" onchange="load()">
+        {% for y in years %}
+        <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-outline-secondary btn-sm" onclick="copyTable()">
+        <i class="bi bi-clipboard"></i> 전체 복사
+      </button>
+    </div>
+  </div>
+
+  <div class="card section-card mb-3" id="kpiCard" style="display:none">
+    <div class="card-body">
+      <div class="kpi mb-3">
+        <div>
+          <div class="k-label">자회사 주식가액 합계</div>
+          <div class="k-val" id="kEquity">–</div>
+          <div class="k-sub">지분법적용투자주식</div>
+        </div>
+        <div>
+          <div class="k-label">자산총계</div>
+          <div class="k-val" id="kAssets">–</div>
+          <div class="k-sub" id="kAssetsSub">글로벌세아 패키지</div>
+        </div>
+        <div>
+          <div class="k-label">지주비율</div>
+          <div class="k-val" id="kRatio">–</div>
+          <div class="k-sub" id="kRatioSub"></div>
+        </div>
+      </div>
+      <div class="hr-bar"><i id="ratioBar" style="width:0%"></i><span class="hr-mark" style="left:50%"></span></div>
+      <div class="d-flex justify-content-between hr-axis mt-2">
+        <span>0%</span><span class="at50">50% · 지주회사 요건</span><span>100%</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="warn"></div>
+
+  <div class="xl-wrap">
+    <div class="xl-title"><i class="bi bi-pie-chart-fill"></i> <span id="title">지주비율 현황</span></div>
+    <div class="hr-cols">
+      <div class="hr-tbl xl-scroll"><div id="area" class="text-muted py-4">불러오는 중…</div></div>
+      <div id="gapPanel" class="hr-gap" style="display:none"></div>
+    </div>
+    <div class="note">
+      · 자회사 주식가액 = 글로벌세아 <b>연결조정분개</b>의 지분법적용투자주식(1210107) 대변 금액을 회사별로 합산한 값입니다.<br>
+      · 자산총계 = 글로벌세아 <b>패키지 BS의 자산총계(1000000)</b> 입니다.<br>
+      · 지주비율 = 자회사 주식가액 합계 ÷ 자산총계. <b>50% 이상이면 지주회사 요건에 해당</b>하므로 주황색으로 표시합니다.<br>
+      · 조정 필요액은 <b>한 쪽만 움직였을 때</b>의 금액입니다. 자산을 늘리는 경우 주식가액은 그대로, 주식을 줄이는 경우(현금 등으로 교환) 자산총계는 그대로로 봅니다.
+    </div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const period = () => document.getElementById('periodSelect').value;
+const EOK = 100000000;
+const fmt = v => (v === null || v === undefined) ? '–'
+  : (Math.round(v) === 0 ? '-' : Math.round(v).toLocaleString('ko-KR'));
+const fmtEok = v => (v === null || v === undefined) ? '–'
+  : Math.round(v / EOK).toLocaleString('ko-KR') + '억';
+
+async function load() {
+  const area = document.getElementById('area');
+  document.getElementById('kpiCard').style.display = 'none';
+  document.getElementById('warn').innerHTML = '';
+  area.innerHTML = '<div class="text-muted py-4">불러오는 중…</div>';
+  try {
+    const r = await fetch('/holding-ratio/data?year=' + encodeURIComponent(period()));
+    const j = await r.json();
+    if (j.error) { area.innerHTML = `<div class="alert alert-danger mb-0">${esc(j.error)}</div>`; return; }
+    DATA = j;
+    render();
+  } catch (e) {
+    area.innerHTML = `<div class="alert alert-danger mb-0">조회 실패: ${esc(e.message)}</div>`;
+  }
+}
+
+function render() {
+  const d = DATA;
+  document.getElementById('title').textContent = `${d.period} ${d.group} 지주비율 현황`;
+
+  if (d.notes && d.notes.length) {
+    document.getElementById('warn').innerHTML = d.notes.map(n =>
+      `<div class="alert alert-warning py-2 mb-3"><i class="bi bi-exclamation-triangle"></i> ${esc(n)}</div>`
+    ).join('');
+  }
+
+  document.getElementById('kpiCard').style.display = '';
+  document.getElementById('kEquity').textContent = fmtEok(d.equity_total);
+  document.getElementById('kAssets').textContent = fmtEok(d.total_assets);
+  document.getElementById('kAssetsSub').textContent = `${d.group} 패키지`;
+  const rt = document.getElementById('kRatio');
+  if (d.ratio === null) {
+    rt.textContent = '–';
+    document.getElementById('kRatioSub').textContent = '자산총계 없음';
+    document.getElementById('ratioBar').style.width = '0%';
+  } else {
+    const over = d.ratio >= 50;      // 50% 이상이면 지주회사 요건에 해당
+    rt.textContent = d.ratio.toFixed(2) + '%';
+    rt.style.color = over ? 'var(--warn)' : 'var(--ok)';
+    document.getElementById('kRatioSub').textContent =
+      over ? '50% 이상 — 지주회사 요건에 해당' : '50% 미만';
+    const bar = document.getElementById('ratioBar');
+    bar.style.width = Math.min(100, d.ratio).toFixed(1) + '%';
+    bar.style.background = over ? 'var(--warn)' : 'var(--brand-500)';
+  }
+
+  const area = document.getElementById('area');
+  area.className = '';        // 로딩 문구용 py-4 를 떼야 옆 패널과 윗선이 맞는다
+  const body = d.rows.map(r => `
+    <tr>
+      <td>${esc(r.company)}</td>
+      <td class="num ${r.amount < 0 ? 'neg' : ''}">${fmt(r.amount)}</td>
+      <td class="num">${fmt(Math.round(r.amount / EOK))}</td>
+      <td class="num">${r.share.toFixed(1)}%</td>
+    </tr>`).join('');
+
+  renderGap(d);
+  const ratioTxt = d.ratio === null ? '–' : d.ratio.toFixed(2) + '%';
+  area.innerHTML = `
+    <table class="xl-table" id="hrTable">
+      <thead>
+        <tr><th class="xl-unit" colspan="4">[단위 : 원 / 억원]</th></tr>
+        <tr><th style="min-width:120px">자회사</th><th style="min-width:180px">지분법적용투자주식</th>
+            <th style="min-width:110px">억원</th><th style="min-width:90px">구성비</th></tr>
+      </thead>
+      <tbody>
+        ${body}
+        <tr class="sum"><td>합계</td><td class="num">${fmt(d.equity_total)}</td>
+            <td class="num">${fmt(Math.round(d.equity_total / EOK))}</td><td class="num">100.0%</td></tr>
+        <tr><td>자산총계</td><td class="num">${fmt(d.total_assets)}</td>
+            <td class="num">${fmt(Math.round(d.total_assets / EOK))}</td><td class="num"></td></tr>
+        <tr class="hr-ratio"><td>지주비율</td><td class="num" colspan="3">${ratioTxt}</td></tr>
+      </tbody>
+    </table>`;
+}
+
+// 50% 요건까지 남은 거리 — 자산을 얼마나 늘리거나 주식을 얼마나 줄여야 하는지
+function renderGap(d) {
+  const el = document.getElementById('gapPanel');
+  if (!d.gap || d.ratio === null) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  const over = d.ratio >= d.threshold;
+  el.className = 'hr-gap ' + (over ? 'over' : 'under');
+  const a = Math.abs(d.gap.asset_increase);
+  const e = Math.abs(d.gap.equity_decrease);
+  const head = over
+    ? { t: `지주비율이 ${d.threshold}%를 넘었습니다`,
+        s: `${d.threshold}% 아래로 내리려면 둘 중 하나가 필요합니다.`,
+        l1: '자산총계를 늘린다면', l2: '자회사 주식가액을 줄인다면', sign: '+', sign2: '−' }
+    : { t: `지주비율이 ${d.threshold}% 아래입니다`,
+        s: `${d.threshold}%에 닿기까지 남은 여유입니다.`,
+        l1: '자산총계 감소 여력', l2: '자회사 주식가액 증가 여력', sign: '−', sign2: '+' };
+  el.innerHTML = `
+    <h6>${esc(head.t)}</h6>
+    <div class="lead-sub">${esc(head.s)}</div>
+    <div class="item">
+      <div class="item-lab">${esc(head.l1)}</div>
+      <div class="item-val">${head.sign} ${fmtEok(a)}</div>
+      <div class="item-raw">${fmt(a)} 원</div>
+      <div class="item-how">자산총계 = 주식가액 × 2 (주식가액 고정)</div>
+    </div>
+    <div class="item">
+      <div class="item-lab">${esc(head.l2)}</div>
+      <div class="item-val">${head.sign2} ${fmtEok(e)}</div>
+      <div class="item-raw">${fmt(e)} 원</div>
+      <div class="item-how">주식가액 = 자산총계 ÷ 2 (자산총계 고정)</div>
+    </div>`;
+}
+
+// 표를 서식 없이 복사 — 엑셀에 그대로 붙는다
+function copyTable() {
+  const t = document.getElementById('hrTable');
+  if (!t) return;
+  const lines = [...t.querySelectorAll('tr')].map(tr =>
+    [...tr.children].map(td => {
+      const raw = td.textContent.trim();
+      const n = raw.replace(/,/g, '');
+      return /^-?\d+(\.\d+)?$/.test(n) ? n : raw;
+    }).join('\t')).join('\n');
+  navigator.clipboard.writeText(lines).then(() => {
+    const b = event.target.closest('button');
+    const h = b.innerHTML;
+    b.innerHTML = '<i class="bi bi-check-lg"></i> 복사됨';
+    setTimeout(() => { b.innerHTML = h; }, 1500);
+  });
+}
+
+load();
+</script>
+</body>
+</html>

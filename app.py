@@ -11640,6 +11640,113 @@ def _affil_period_label(period):
     return f'{y}. {q}Q', f'{y}년 {q}분기'
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 지주비율 현황 — 자회사 주식가액 ÷ 자산총계
+# ─────────────────────────────────────────────────────────────────────────────
+HOLDING_GROUP_NAME = '글로벌세아'      # 연결조정분개를 볼 연결그룹 = 지주회사
+HOLDING_EQUITY_CODE = '1210107'        # 지분법적용투자주식
+HOLDING_ASSET_CODE = '1000000'         # 자산총계 (지주회사 패키지 BS)
+# 지분법적용투자회사 — 연결조정분개의 회사 표기 기준
+HOLDING_SUBSIDIARIES = ['상역', 'KIF', 'KSA', 'KSS', 'SSY']
+HOLDING_START_PERIOD = '2025-4Q'       # 조회 가능 최초 결산기간
+
+
+def _holding_periods():
+    """지주비율 조회 가능 결산기간 (YEARS_DATA 정렬 유지 = 최신순)."""
+    return [y for y in (YEARS_DATA.get('years') or [])
+            if str(y) >= HOLDING_START_PERIOD]
+
+
+def _compute_holding_ratio(period):
+    """지주비율 = 자회사 지분법적용투자주식 합계 ÷ 지주회사 자산총계."""
+    grp = next((g for g in consol_list_groups()
+                if _norm_co_local(g.get('name')) == _norm_co_local(HOLDING_GROUP_NAME)), None)
+    if not grp:
+        raise ValueError(f'연결그룹 "{HOLDING_GROUP_NAME}"을 찾을 수 없습니다.')
+
+    rec = consol_get_journal(grp['id'], period) or {}
+    entries = rec.get('adjustment_entries') or []
+
+    # 투자-자본 상계에서 지분법적용투자주식은 대변에 온다. 회사별로 합산한다.
+    by_co = {c: 0.0 for c in HOLDING_SUBSIDIARIES}
+    for e in entries:
+        co = str(e.get('credit_company') or '').strip()
+        if co not in by_co:
+            continue
+        if str(e.get('credit_code') or '').strip() != HOLDING_EQUITY_CODE:
+            continue
+        by_co[co] += float(e.get('credit_amt') or 0)
+
+    f = _find_uploaded_for(period, HOLDING_GROUP_NAME)
+    bs = ((f.get('extracted') or {}).get('sheets') or {}).get('BS') if f else None
+    total_assets = float(((bs or {}).get(HOLDING_ASSET_CODE) or {}).get('value') or 0)
+
+    notes = []
+    if not entries:
+        notes.append(f'{period} {HOLDING_GROUP_NAME} 연결조정분개가 업로드되지 않았습니다.')
+    elif not any(by_co.values()):
+        notes.append('연결조정분개에서 지분법적용투자주식(대변)을 찾지 못했습니다. '
+                     '분개에 대변회사 표기가 있는지 확인하세요.')
+    if not f:
+        notes.append(f'{HOLDING_GROUP_NAME} 패키지가 업로드되지 않아 자산총계를 계산할 수 없습니다.')
+
+    equity_total = sum(by_co.values())
+    ratio = (equity_total / total_assets * 100) if total_assets else None
+
+    # 지주회사 요건(50%)을 벗어나려면 얼마가 필요한지.
+    #   자산 증액: 주식가액 고정, E / (A + x) = 50%  →  x = 2E − A
+    #   주식 감액: 주식을 현금 등으로 바꿔 자산총계는 그대로, (E − y) / A = 50%  →  y = E − 0.5A
+    gap = None
+    if total_assets:
+        gap = {'asset_increase': 2 * equity_total - total_assets,
+               'equity_decrease': equity_total - 0.5 * total_assets}
+
+    return {
+        'period': period,
+        'group': HOLDING_GROUP_NAME,
+        'rows': [{'company': c, 'amount': by_co[c],
+                  'share': (by_co[c] / equity_total * 100) if equity_total else 0.0}
+                 for c in HOLDING_SUBSIDIARIES],
+        'equity_total': equity_total,
+        'total_assets': total_assets,
+        'ratio': ratio,
+        'gap': gap,
+        'threshold': 50.0,
+        'notes': notes,
+    }
+
+
+@app.route('/holding-ratio')
+@login_required
+@require_permission('affiliate.performance')
+def holding_ratio_page():
+    """지주비율 현황 페이지."""
+    periods = _holding_periods()
+    year = request.args.get('year') or YEARS_DATA.get('default')
+    if year not in periods:
+        year = periods[0] if periods else YEARS_DATA.get('default')
+    return render_template('holding_ratio.html',
+                           year=year,
+                           years=periods,
+                           username=session.get('username'),
+                           is_admin=_is_admin(session.get('username')))
+
+
+@app.route('/holding-ratio/data')
+@login_required
+@require_permission('affiliate.performance')
+def holding_ratio_data():
+    period = (request.args.get('year') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    try:
+        return jsonify(_compute_holding_ratio(period))
+    except (ValueError, RuntimeError) as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return _json_error(e)
+
+
 @app.route('/affiliate-performance')
 @login_required
 @require_permission('affiliate.performance')

@@ -259,10 +259,23 @@
   </a>
   {% endif %}
   {% if perms and perms.affiliate_perf %}
-  <a href="/affiliate-performance" class="side-link {% if active_menu == 'affiliate_perf' %}active{% endif %}" title="계열사별 실적">
-    <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i>
-    <span class="side-label" data-i18n="side.affiliate">계열사별 실적</span>
-  </a>
+  <div class="side-group">
+    <button type="button" class="side-link side-group-toggle {% if active_menu in ['affiliate_perf', 'holding_ratio'] %}active{% endif %}" title="주요 경영보고">
+      <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i>
+      <span class="side-label" data-i18n="side.mgmt_report">주요 경영보고</span>
+      <i class="bi bi-chevron-right side-caret" aria-hidden="true"></i>
+    </button>
+    <div class="side-flyout">
+      <a href="/affiliate-performance" class="side-link {% if active_menu == 'affiliate_perf' %}active{% endif %}" title="계열사별 실적">
+        <i class="bi bi-bar-chart-line-fill" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="side.affiliate">계열사별 실적</span>
+      </a>
+      <a href="/holding-ratio" class="side-link {% if active_menu == 'holding_ratio' %}active{% endif %}" title="지주비율 현황">
+        <i class="bi bi-pie-chart-fill" aria-hidden="true"></i>
+        <span class="side-label" data-i18n="side.holding_ratio">지주비율 현황</span>
+      </a>
+    </div>
+  </div>
   {% endif %}
   {% if perms and perms.note_aggregate %}
   <a href="/admin/note-aggregate" class="side-link {% if active_menu == 'note_aggregate' %}active{% endif %}" title="주석 합산">
