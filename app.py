@@ -11379,10 +11379,17 @@ AFFIL_AMORT_CODE  = '4300302'   # 무형자산상각비 (판관비)
 AFFIL_EQM_GAIN_CODE = '4401201'  # 지분법평가이익
 AFFIL_EQM_LOSS_CODE = '4501201'  # 지분법평가손실
 AFFIL_DIV_INCOME_CODE = '4400203'  # 배당수익
+# EBITDA 가산 상각비 — 손익계산서가 아니라 현금흐름(패키지 CF 시트 / 현금정산표)에서 가져온다.
+# 각 쌍은 판관비(43xxxxx) · 제조원가(53xxxxx).
+AFFIL_DEPR_CODES = ['4300301', '5300301',   # 감가상각비
+                    '4300302', '5300302',   # 무형자산상각비
+                    '4300303', '5300303']   # 사용권자산상각비
 # (key, 표시명, [계정코드…]) — 차입금처럼 여러 코드를 합치는 지표가 있어 리스트로 둔다
 AFFIL_METRICS = [('sales', '매출액',   [AFFIL_SALES_CODE]),
                  ('op',    '영업이익',  [AFFIL_OP_CODE]),
                  ('ni',    '당기순이익', [AFFIL_NI_CODE]),
+                 ('ebitda', 'EBITDA',  None),   # 파생 — 영업이익 + 상각비
+
                  ('debt',  '차입금',   BORROWING_CODES),
                  ('cash',  '현금',     [CASH_CODE])]
 
@@ -11460,6 +11467,22 @@ def _affil_pkg_value(period, company_name, code):
     return 0.0
 
 
+def _affil_pkg_depr(period, company_names):
+    """여러 회사 패키지의 CF 시트에서 EBITDA 가산 상각비 합계."""
+    total = 0.0
+    for name in company_names:
+        f = _find_uploaded_for(period, name)
+        if not f:
+            continue
+        cf = ((f.get('extracted') or {}).get('sheets') or {}).get('CF') or {}
+        for code in AFFIL_DEPR_CODES:
+            try:
+                total += float((cf.get(code) or {}).get('value') or 0)
+            except (TypeError, ValueError):
+                pass
+    return total
+
+
 def _affil_pkg_sum(period, company_names, codes):
     """여러 회사 패키지에서 코드(하나 또는 여러 개) 합계 + 실제로 찾은 회사 목록."""
     if isinstance(codes, str):
@@ -11475,7 +11498,10 @@ def _affil_pkg_sum(period, company_names, codes):
 
 
 def _affil_group_finals(period, group_name):
-    """연결그룹 이름으로 연결정산표를 실행해 {코드: 최종값} 반환. 실패 시 (None, 사유)."""
+    """연결그룹의 {코드: 연결정산표 최종값} 과 현금정산표 상각비 합계.
+
+    반환 (finals, depr, None) / 실패 시 (None, 0.0, 사유).
+    """
     target = _norm_co_local(group_name)
     gid = None
     for g in consol_list_groups():
@@ -11483,17 +11509,29 @@ def _affil_group_finals(period, group_name):
             gid = g.get('id')
             break
     if not gid:
-        return None, f'연결그룹 "{group_name}"을 찾을 수 없습니다.'
+        return None, 0.0, f'연결그룹 "{group_name}"을 찾을 수 없습니다.'
     try:
         ctx = _compute_group_internal(gid, period)
     except Exception as e:
-        return None, f'{group_name} 연결실행 실패: {e}'
+        return None, 0.0, f'{group_name} 연결실행 실패: {e}'
     finals = {}
     for row in (ctx.get('result') or {}).get('rows') or []:
         code = str(row.get('code') or '').strip()
         if code:
             finals[code] = float(row.get('final') or 0)
-    return finals, None
+
+    # 상각비는 손익이 아니라 현금정산표에서 — 패키지 쪽과 같은 기준
+    depr = 0.0
+    try:
+        cash = _make_cash_result(ctx, period)
+        want = set(AFFIL_DEPR_CODES)
+        for sec in cash.get('sections') or []:
+            for row in sec.get('rows') or []:
+                if str(row.get('cf_code') or '').strip() in want:
+                    depr += float(row.get('final') or 0)
+    except Exception:
+        depr = 0.0
+    return finals, depr, None
 
 
 def _affil_tegra_sales_deduction(period):
@@ -11546,6 +11584,8 @@ def _compute_affiliate_performance(period):
         vals = {}
         found_any = []
         for mkey, _label, codes in AFFIL_METRICS:
+            if codes is None:          # 파생 지표는 아래에서 따로 계산
+                continue
             s, found = _affil_pkg_sum(period, col['companies'], codes)
             # 특정 지표에만 합치는 회사 (예: 티앤제이인베스트먼트 차입금 → 태림페이퍼)
             for xco in (col.get('extra') or {}).get(mkey) or []:
@@ -11562,6 +11602,9 @@ def _compute_affiliate_performance(period):
                 s -= a
             vals[mkey] = s
             found_any = found
+        # EBITDA = 영업이익 + 상각비(패키지 CF 시트)
+        depr_cos = list(col['companies']) + list((col.get('extra') or {}).get('ebitda') or [])
+        vals['ebitda'] = vals.get('op', 0.0) + _affil_pkg_depr(period, depr_cos)
         values[col['key']] = vals
         miss = [c for c in col['companies'] if c not in found_any]
         if miss:
@@ -11571,8 +11614,14 @@ def _compute_affiliate_performance(period):
     sw = {}
     sw_amort, sw_found = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, AFFIL_AMORT_CODE)
     for mkey, _label, codes in AFFIL_METRICS:
+        if codes is None:
+            continue
         base, _f = _affil_pkg_sum(period, AFFIL_SWISSTEX_COMPANIES, codes)
         sw[mkey] = base + (sw_amort if mkey in ('op', 'ni') else 0.0)
+    # 이 열의 영업이익에는 이미 무형자산상각비(sw_amort)가 가산돼 있다.
+    # EBITDA 는 영업이익 + 상각비이므로 그만큼 빼지 않으면 두 번 더해진다.
+    sw_depr = _affil_pkg_depr(period, AFFIL_SWISSTEX_COMPANIES)
+    sw['ebitda'] = sw.get('op', 0.0) + sw_depr - sw_amort
     values['swisstex'] = sw
     sw_miss = [c for c in AFFIL_SWISSTEX_COMPANIES if c not in sw_found]
     if sw_miss:
@@ -11585,6 +11634,8 @@ def _compute_affiliate_performance(period):
     tg = {}
     tg_found = []
     for mkey, _label, codes in AFFIL_METRICS:
+        if codes is None:
+            continue
         base, tg_found = _affil_pkg_sum(period, AFFIL_TEGRA_COMPANIES, codes)
         v = base - sw.get(mkey, 0.0)
         if mkey == 'sales':
@@ -11592,6 +11643,11 @@ def _compute_affiliate_performance(period):
         elif mkey in ('op', 'ni'):      # 상각비 재가산은 손익 지표에만
             v += sw_amort
         tg[mkey] = v
+    # TEGRA 도 SWISSTEX 를 뺀 구조라 상각비도 같은 방식으로 빼고,
+    # 영업이익에 재가산된 무형자산상각비는 이중 계상되지 않게 차감한다.
+    tg['ebitda'] = (tg.get('op', 0.0)
+                    + (_affil_pkg_depr(period, AFFIL_TEGRA_COMPANIES) - sw_depr)
+                    - sw_amort)
     values['tegra'] = tg
     tg_miss = [c for c in AFFIL_TEGRA_COMPANIES if c not in tg_found]
     if tg_miss:
@@ -11601,13 +11657,16 @@ def _compute_affiliate_performance(period):
     for col in AFFIL_COLUMNS:
         if col['kind'] != 'group':
             continue
-        finals, err = _affil_group_finals(period, col['group'])
+        finals, depr, err = _affil_group_finals(period, col['group'])
         if err:
             notes.append(err)
             values[col['key']] = {m[0]: 0.0 for m in AFFIL_METRICS}
             continue
-        values[col['key']] = {mkey: sum(finals.get(c, 0.0) for c in codes)
-                              for mkey, _l, codes in AFFIL_METRICS}
+        gv = {mkey: sum(finals.get(c, 0.0) for c in codes)
+              for mkey, _l, codes in AFFIL_METRICS if codes is not None}
+        # EBITDA = 영업이익 + 상각비(현금정산표)
+        gv['ebitda'] = gv.get('op', 0.0) + depr
+        values[col['key']] = gv
 
     # 5) 기타 = 계 − (1~14)
     total_vals = values.get('total') or {}
