@@ -6654,7 +6654,8 @@ def admin_fx_rates_data(year):
     prior_rates = _get_prior_fx_for_period(year)
     pkg_currencies = _get_currencies_from_packages(year)
     all_currencies = sorted(
-        (set(current_rates.keys()) | set(pkg_currencies) | set(prior_rates.keys())) - {'KRW'}
+        (set(current_rates.keys()) | set(pkg_currencies) | set(prior_rates.keys())
+         | _known_currencies_before(year)) - {'KRW'}
     )
 
     return jsonify({
@@ -7505,6 +7506,22 @@ def _get_prior_fx_for_period(year):
     if prior_year:
         return (fx.get(prior_year) or {}).get('current') or {}
     return {}
+
+
+def _known_currencies_before(year):
+    """해당 기간 이전에 한 번이라도 환율을 등록한 통화들.
+
+    저장 시 값이 빈 통화는 아예 기록되지 않아, 직전 분기만 보면 한 분기만
+    비워도 목록에서 사라진다. 이전 기간 전체를 모아 한 번 쓴 통화는 다음
+    분기 기본 목록에 계속 남게 한다.
+    """
+    out = set()
+    for period, sections in (_load_fx_rates() or {}).items():
+        if not isinstance(sections, dict) or str(period) >= str(year):
+            continue
+        for key in ('current', 'prior'):
+            out |= {str(c).strip().upper() for c in (sections.get(key) or {})}
+    return {c for c in out if c and c != 'KRW'}
 
 
 def _get_currencies_from_packages(year):
