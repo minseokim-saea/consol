@@ -126,6 +126,11 @@
         <i class="bi bi-info-circle me-1"></i>
         중앙 관리 환율은 패키지 파일의 환율보다 <strong>우선 적용</strong>됩니다. (WCE 자동 환산: 당기순이익·보험수리적손익 등)
       </div>
+      <div id="fxLockedNotice" class="alert alert-warning small mb-3 d-none">
+        <i class="bi bi-lock-fill me-1"></i>
+        <span id="fxLockedText"></span> 결산기간이 <strong>마감</strong>되어 환율을 수정할 수 없습니다.
+        수정하려면 위 결산기간 관리에서 <strong>마감 해제</strong> 후 진행하세요.
+      </div>
 
       <!-- 당기 환율 -->
       <div class="d-flex align-items-center justify-content-between mb-2">
@@ -268,6 +273,9 @@ document.querySelector('.table')?.addEventListener('click', async (e) => {
 // 환율 관리 (당기·전기 환율)
 // ─────────────────────────────────────────────────────────────
 const CAN_MANAGE_FX = {{ 'true' if (perms and perms.fx_manage) else 'false' }};
+// 마감된 결산기간은 환율도 수정할 수 없다 (서버에서도 403 으로 막는다)
+const LOCKED_PERIODS = new Set({{ locked | tojson }});
+const fxIsLocked = y => LOCKED_PERIODS.has(y);
 const CURRENT_PERIOD = "{{ current_period or '' }}";
 
 function fxToast(msg, kind) {
@@ -334,8 +342,29 @@ async function populateFxPeriodSelect(initialYear) {
 function applyFxModeForYear(year) {
   const isFxOnly = __fxOnlySet.has(year);
   document.getElementById('fxRatesYearBadge')?.classList.toggle('d-none', !isFxOnly);
+  const locked = fxIsLocked(year);
+
+  const notice = document.getElementById('fxLockedNotice');
+  if (notice) {
+    notice.classList.toggle('d-none', !locked);
+    document.getElementById('fxLockedText').textContent = locked ? formatPeriod(year) : '';
+  }
+  // 수정 경로를 모두 막는다 (저장·업로드·통화추가·재환산)
+  ['btnFxSave', 'btnFxUpload', 'btnFxAddRow', 'btnFxPriorAddRow'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = locked;
+  });
   const reBtn = document.getElementById('btnFxReapply');
-  if (reBtn) reBtn.disabled = isFxOnly;
+  if (reBtn) reBtn.disabled = isFxOnly || locked;
+}
+
+// 표를 그린 뒤 입력칸까지 잠근다
+function applyFxLockToInputs(year) {
+  if (!fxIsLocked(year)) return;
+  document.querySelectorAll('#fxCurrentTbody input, #fxPriorTbody input')
+    .forEach(el => { el.readOnly = true; el.classList.add('bg-light'); });
+  document.querySelectorAll('#fxCurrentTbody button, #fxPriorTbody button')
+    .forEach(el => { el.disabled = true; });
 }
 async function loadFxData(year) {
   __fxYear = year; applyFxModeForYear(year);
@@ -346,6 +375,7 @@ async function loadFxData(year) {
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || '환율 정보를 불러오지 못했습니다.');
     renderFx(data);
+    applyFxLockToInputs(year);
   } catch (e) {
     fxToast(e.message, 'danger');
     document.getElementById('fxCurrentTbody').innerHTML = `<tr><td colspan="4" class="text-danger text-center py-3">조회 실패: ${esc(e.message)}</td></tr>`;

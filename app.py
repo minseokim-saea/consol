@@ -6675,6 +6675,9 @@ def admin_fx_rates_save(year):
     """환율 저장 API."""
     if not _valid_fx_year(year):
         return jsonify({'error': '유효하지 않은 기간'}), 400
+    if _is_locked(year):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 환율을 저장할 수 없습니다. '
+                                 f'(수정하려면 결산기간 관리에서 마감 해제)'}), 403
 
     payload = request.get_json(silent=True) or {}
 
@@ -6733,6 +6736,9 @@ def admin_fx_rates_reapply(year):
     """
     if not _valid_fx_year(year):
         return jsonify({'error': '유효하지 않은 기간'}), 400
+    if _is_locked(year):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 재환산할 수 없습니다. '
+                                 f'(수정하려면 결산기간 관리에서 마감 해제)'}), 403
 
     payload = request.get_json(silent=True) or {}
     selected_ids = payload.get('ids') or []
@@ -6860,6 +6866,9 @@ def admin_fx_rates_upload(year):
     """
     if not _valid_fx_year(year):
         return jsonify({'error': '유효하지 않은 기간'}), 400
+    if _is_locked(year):
+        return jsonify({'error': f'{year} 결산기간은 마감되어 환율을 업로드할 수 없습니다. '
+                                 f'(수정하려면 결산기간 관리에서 마감 해제)'}), 403
 
     file = request.files.get('file')
     if not file or not file.filename:
