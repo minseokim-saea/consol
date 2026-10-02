@@ -14614,6 +14614,20 @@ def distribute_unprotect():
                      mimetype='application/zip')
 
 
+@app.route('/distribute/template/<year>/download')
+@admin_required
+def distribute_download_template(year):
+    """등록된 빈 패키지 템플릿 내려받기 — 고쳐서 다시 등록할 수 있도록."""
+    if not re.match(r'^\d{4}$', year or ''):
+        return jsonify({'error': '결산연도가 올바르지 않습니다.'}), 400
+    path = dbuilder.get_template_path(year)
+    if not path:
+        return jsonify({'error': f'{year}년 템플릿이 등록되어 있지 않습니다.'}), 404
+    return send_file(Path(path).resolve(), as_attachment=True,
+                     download_name=f'빈패키지템플릿_{year}.xlsm',
+                     mimetype='application/vnd.ms-excel.sheet.macroEnabled.12')
+
+
 @app.route('/distribute/template', methods=['POST'])
 @admin_required
 def distribute_upload_template():

@@ -80,7 +80,10 @@
       <p class="text-muted small mb-3">자회사가 결산 데이터를 입력할 빈 패키지 양식(.xlsm)을 연도별 1개 등록합니다. 등록된 템플릿이 배포용 파일의 원본이 됩니다.</p>
       <div class="mb-3">
         <span class="me-1">현재 <strong>{{ sel_year }}년</strong> 템플릿:</span>
-        {% if template_registered %}<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>등록됨</span>{% else %}<span class="badge bg-secondary"><i class="bi bi-exclamation-triangle me-1"></i>미등록</span>{% endif %}
+        {% if template_registered %}<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>등록됨</span>
+        <a class="btn btn-sm btn-outline-secondary ms-2" href="/distribute/template/{{ sel_year }}/download">
+          <i class="bi bi-download me-1"></i>현재 템플릿 다운로드
+        </a>{% else %}<span class="badge bg-secondary"><i class="bi bi-exclamation-triangle me-1"></i>미등록</span>{% endif %}
       </div>
       <form id="templateForm" class="row g-3 align-items-end" enctype="multipart/form-data">
         <input type="hidden" id="templateYear" value="{{ sel_year }}">
