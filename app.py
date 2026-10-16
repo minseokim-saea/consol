@@ -335,6 +335,15 @@ def _inject_sidebar_perms():
     }
 
 
+# 연결그룹 회사 목록에는 없지만 담당자 접근권한상 그 그룹에 속하는 회사.
+# Swisstex 3사는 Tegra 패키지 안에서 이미 연결되므로 연결그룹 멤버로 넣으면
+# 이중 연결된다. 접근권한 판정에만 쓰고 연결 계산에는 쓰지 않는다.
+GROUP_ACCESS_EXTRA = {
+    '상역': ['UNIQUE, S.A. DE C.V.', 'SWISSTEX DIRECT, LLC',
+             'SWISSTEX EL SALVADOR, S.A. DE C.V.'],
+}
+
+
 def _group_companies_recursive(group_id, _seen=None):
     """그룹과 모든 하위 그룹에 속한 회사명 (결산기간과 무관 — 접근권한 판정용)."""
     _seen = _seen if _seen is not None else set()
@@ -345,6 +354,7 @@ def _group_companies_recursive(group_id, _seen=None):
     if not g:
         return []
     out = [c for c in (g.get('companies') or []) if c]
+    out.extend(GROUP_ACCESS_EXTRA.get(g.get('name') or '', []))
     for inc in (g.get('included_groups') or []):
         out.extend(_group_companies_recursive(inc, _seen))
     return out
