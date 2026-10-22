@@ -1017,6 +1017,12 @@ def _scan_other_transfer_one_sheet(zf, shared, sheet_name):
 
     cols = (COT_NAME_COL, COT_COUNTER_COL, COT_CODE_COL, COT_AMT_COL, COT_DETAIL_COL)
     in_section = False
+    # 블록 구조: 코드행(B=7자리) → 한글명행 → 영문명행 → 입력행… → Total.
+    # 사용자가 코드행·한글명행에 바로 입력하기도 해서, 입력한 행의 B열만 보면
+    # 회사마다 계정명 칸이 코드/이름/빈칸으로 들쭉날쭉해진다. 블록의 코드와
+    # 한글명을 따라가며 기억해 두고 항목마다 그 값을 붙인다.
+    cur_code, cur_name, expect_name = '', '', False
+    pending = []   # 한글명이 나오기 전에(=코드행에) 입력된 항목 — 이름이 나오면 채운다
     with zf.open(sheet_path) as f:
         for _ev, elem in ET.iterparse(f, events=('end',)):
             if elem.tag != _TAG_ROW:
@@ -1054,7 +1060,18 @@ def _scan_other_transfer_one_sheet(zf, shared, sheet_name):
             if '계정명' in b_str:
                 continue
             if b_str == 'Total':
+                cur_code, cur_name, expect_name, pending = '', '', False, []
                 continue
+
+            # 블록 코드행 / 한글명행 추적 (그 행에 입력이 있어도 아래에서 항목으로 잡힌다)
+            b_code = b_str[:-2] if b_str.endswith('.0') else b_str
+            if b_code.isdigit() and len(b_code) == 7:
+                cur_code, cur_name, expect_name, pending = b_code, '', True, []
+            elif expect_name and b_str:
+                cur_name, expect_name = b_str, False
+                for e in pending:
+                    e['name'] = cur_name
+                pending = []
 
             counter = vals.get(COT_COUNTER_COL)
             code    = vals.get(COT_CODE_COL)
@@ -1072,14 +1089,18 @@ def _scan_other_transfer_one_sheet(zf, shared, sheet_name):
             if not (has_text or has_amt):
                 continue
 
-            entries.append({
+            entry = {
                 'row': r,
-                'name': b_str,
+                'name': cur_name or b_str,   # 코드행 입력이면 일단 코드, 한글명이 나오면 교체
+                'account_code': cur_code,
                 'counter': counter_s,
                 'code': code_s,
                 'amount': amt_f,
                 'detail': detail_s,
-            })
+            }
+            entries.append(entry)
+            if not cur_name:
+                pending.append(entry)
 
     return True, entries
 

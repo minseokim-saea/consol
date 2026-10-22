@@ -1205,7 +1205,7 @@ function renderCfOtherTransferResult(data) {
                 ${rows.map(r => `
                   <tr>
                     <td class="text-muted"><code>r${r.row}</code></td>
-                    <td>${escHtml(r.name || '')}</td>
+                    <td>${r.account_code ? `<code class="me-1">${escHtml(r.account_code)}</code>` : ''}${escHtml(r.name || '')}</td>
                     <td>${escHtml(r.counter || '')}</td>
                     <td>${r.code ? `<code>${escHtml(r.code)}</code>` : ''}</td>
                     <td class="num">${r.amount == null ? '' : fmtNum(r.amount)}</td>
