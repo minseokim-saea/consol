@@ -193,6 +193,7 @@ body {
 {% include '_sidebar.html' %}
 
 {% include '_topbar.html' %}
+{% include '_unclosed.html' %}
 
 <!-- 전년 연결값 입력 모달 (구조·기능 유지) -->
 <div class="modal fade" id="priorModal" tabindex="-1">
@@ -381,12 +382,18 @@ async function loadDashboard() {
 
   const r = await fetch(`/consolidation/dashboard/${gid}/data?period=${encodeURIComponent(period)}`);
   const j = await r.json();
+  if (j.unclosed) {                         // 마감 전 — 숫자·차트 대신 안내
+    _clearChrome();
+    body.innerHTML = `<div style="margin-top:14px">${unclosedHTML(j.period, j.message)}</div>`;
+    return;
+  }
   if (!r.ok) {
     _clearChrome();
     body.innerHTML = `<div class="alert alert-danger mt-3">${escapeHtml(j.error || '오류')}</div>`;
     return;
   }
   renderDashboard(j);
+  if (j.provisional) body.insertAdjacentHTML('afterbegin', `<div style="margin-top:14px">${provisionalHTML(period)}</div>`);
   if (xlBtn) xlBtn.style.display = 'inline-flex';
 }
 

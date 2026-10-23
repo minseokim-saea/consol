@@ -176,6 +176,7 @@ body {
 {% include '_sidebar.html' %}
 
 {% include '_topbar.html' %}
+{% include '_unclosed.html' %}
 
 <div class="container-fluid ts-wrap">
 
@@ -593,9 +594,25 @@ function loadSeries() {
           + `<i class="bi bi-exclamation-triangle ico"></i>${d.error || '오류'}</div>`;
         return;
       }
-      render(d.columns || []);
-      renderKpis(d.columns || []);
-      renderChart(d.columns || []);
+      const cols = d.columns || [];
+      const excluded = d.excluded_unclosed || [];
+      if (!cols.length && excluded.length) {   // 선택 범위 전체가 마감 전
+        hideChart(); hideKpis();
+        body.innerHTML = unclosedHTML(excluded.join(', '), d.unclosed_message);
+        return;
+      }
+      render(cols);
+      renderKpis(cols);
+      renderChart(cols);
+      // 마감 전 분기는 빼고 보여준다 (조회전용 사용자)
+      if (excluded.length) {
+        body.insertAdjacentHTML('afterbegin',
+          `<div class="provisional-banner" style="background:#eef2f8;border-color:#c9d3e3;color:#334155">`
+          + `<i class="bi bi-info-circle-fill"></i><span>${excluded.join(', ')}는 결산이 마감되지 않아 제외했습니다.</span></div>`);
+      }
+      // 잠정치 조회 권한자에게는 마감 전 분기가 포함됐음을 알린다
+      const prov = cols.filter(c => c.provisional).map(c => c.period);
+      if (prov.length) body.insertAdjacentHTML('afterbegin', provisionalHTML(prov.join(', ')));
     })
     .catch(e => {
       hideChart(); hideKpis();

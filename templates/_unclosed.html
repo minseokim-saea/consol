@@ -1,0 +1,31 @@
+{# 마감 전 분기 안내 — 연결 대시보드·시계열·보고용 재무제표·주요 경영보고 공용.
+   서버가 {'unclosed': true} 를 주면 숫자 대신 unclosedHTML(), 잠정치 조회 권한자가
+   마감 전 분기를 보면 숫자 위에 provisionalHTML() 배너를 띄운다. #}
+<style>
+  .unclosed-box { text-align:center; padding:56px 20px; border:1px dashed #c9d3e3;
+                  border-radius:12px; background:#f8fafc; color:#475569; margin:8px 0; }
+  .unclosed-box .u-ico { font-size:2.2rem; color:#94a3b8; }
+  .unclosed-box .u-title { font-size:1.15rem; font-weight:700; color:#1F3864; margin-top:8px; }
+  .unclosed-box .u-sub { font-size:.85rem; margin-top:4px; }
+  .provisional-banner { display:flex; align-items:center; gap:8px; padding:10px 14px;
+                        border-radius:8px; background:#fff7e6; border:1px solid #f5c26b;
+                        color:#8a5300; font-size:.88rem; font-weight:600; margin-bottom:12px; }
+  @media (prefers-color-scheme: dark) {
+    .unclosed-box { background:#1e293b; border-color:#334155; color:#cbd5e1; }
+    .unclosed-box .u-title { color:#93b4e8; }
+    .provisional-banner { background:#3a2a0c; border-color:#8a5a12; color:#f3c77a; }
+  }
+</style>
+<script>
+  window.unclosedHTML = (period, msg) => `
+    <div class="unclosed-box">
+      <div class="u-ico"><i class="bi bi-hourglass-split"></i></div>
+      <div class="u-title">${msg || '결산이 마감되지 않았습니다.'}</div>
+      <div class="u-sub">${period ? period + ' ' : ''}결산이 마감되면 확정 수치가 표시됩니다.</div>
+    </div>`;
+  window.provisionalHTML = (period) => `
+    <div class="provisional-banner">
+      <i class="bi bi-exclamation-triangle-fill"></i>
+      <span>${period ? period + ' ' : ''}결산 마감 전 <u>잠정 수치</u>입니다. 마감 전까지 변동될 수 있으며, 조회전용 사용자에게는 표시되지 않습니다.</span>
+    </div>`;
+</script>

@@ -83,6 +83,7 @@ body { background:var(--surface); color:var(--text-body);
 {% set active_menu = 'holding_ratio' %}
 {% include '_sidebar.html' %}
 {% include '_topbar.html' %}
+{% include '_unclosed.html' %}
 
 <div class="container-fluid mt-3">
 
@@ -162,9 +163,16 @@ async function load() {
   try {
     const r = await fetch('/holding-ratio/data?year=' + encodeURIComponent(period()));
     const j = await r.json();
+    if (j.unclosed) {                       // 마감 전 — 숫자·KPI 대신 안내
+      area.className = '';
+      area.innerHTML = unclosedHTML(j.period, j.message);
+      document.getElementById('gapPanel').style.display = 'none';
+      return;
+    }
     if (j.error) { area.innerHTML = `<div class="alert alert-danger mb-0">${esc(j.error)}</div>`; return; }
     DATA = j;
     render();
+    if (j.provisional) document.getElementById('warn').insertAdjacentHTML('afterbegin', provisionalHTML(j.period));
   } catch (e) {
     area.innerHTML = `<div class="alert alert-danger mb-0">조회 실패: ${esc(e.message)}</div>`;
   }

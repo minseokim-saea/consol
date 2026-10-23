@@ -479,6 +479,9 @@ def _ensure_permission_catalog():
         # 내부거래 검토 — 관리자·연결담당자만
         ('inter.review', '내부거래 검토 (분개 적정성)', 'consol.journal',
          {'system_admin', 'finance_lead'}, '연결정산'),
+        # 마감 전 분기의 대시보드·시계열·보고용 재무제표·주요 경영보고 숫자 조회
+        ('report.unclosed', '마감 전 결산수치 조회 (잠정치)', 'consol.journal',
+         {'system_admin', 'finance_lead'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
@@ -7875,6 +7878,38 @@ def _is_locked(year):
     return year in (YEARS_DATA.get('locked') or [])
 
 
+# ── 마감 전 분기 숫자 노출 제한 ──────────────────────────────────────────────
+# 연결 대시보드·시계열·보고용 재무제표·주요 경영보고는 확정 숫자로 읽히므로,
+# 마감 전 분기는 '결산이 마감되지 않았습니다'로 대신한다. 결산 작업 중 검증이
+# 필요한 관리자·연결담당자(report.unclosed)는 잠정치를 볼 수 있다.
+UNCLOSED_MSG = '결산이 마감되지 않았습니다.'
+
+
+def _can_view_unclosed(uname):
+    return _is_admin(uname) or _has_permission(uname, 'report.unclosed')
+
+
+def _unclosed_status(period):
+    """'closed' | 'provisional'(마감 전, 조회 가능) | 'blocked'(마감 전, 조회 불가)."""
+    if _is_locked(period):
+        return 'closed'
+    return 'provisional' if _can_view_unclosed(session.get('username')) else 'blocked'
+
+
+def _unclosed_json(period):
+    """화면 데이터 API 용 — 차단 대상이면 안내 응답, 아니면 None."""
+    if _unclosed_status(period) == 'blocked':
+        return jsonify({'unclosed': True, 'period': period, 'message': UNCLOSED_MSG})
+    return None
+
+
+def _unclosed_file(period):
+    """엑셀 다운로드 용 — 차단 대상이면 안내 문구 응답, 아니면 None."""
+    if _unclosed_status(period) == 'blocked':
+        return f'{period} {UNCLOSED_MSG}', 403
+    return None
+
+
 @app.route('/years/<year>/lock', methods=['POST'])
 @admin_required
 def lock_year(year):
@@ -10695,6 +10730,9 @@ def consolidation_dashboard_data(group_id):
         return jsonify({'error': '존재하지 않는 그룹'}), 404
     if not _can_access_group(session.get('username'), group_id):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    blocked = _unclosed_json(period)
+    if blocked:
+        return blocked
 
     try:
         ctx = _compute_group_internal(group_id, period)
@@ -10702,6 +10740,7 @@ def consolidation_dashboard_data(group_id):
         return jsonify({'error': str(e)}), 400
 
     payload = _build_dashboard_payload(ctx, period)
+    payload['provisional'] = not _is_locked(period)
 
     # 포함 그룹(rollup) 각각의 페이로드를 빌드 → 그 그룹의 by_company_grouped 슬라이스로
     # 메인 도넛의 단일 rollup 슬라이스를 펼쳐 치환한다.
@@ -11240,6 +11279,9 @@ def consolidation_dashboard_excel(group_id):
         return '존재하지 않는 그룹', 404
     if not _can_access_group(session.get('username'), group_id):
         return '해당 그룹에 접근 권한이 없습니다.', 403
+    blocked = _unclosed_file(period)
+    if blocked:
+        return blocked
 
     try:
         ctx = _compute_group_internal(group_id, period)
@@ -11834,8 +11876,13 @@ def holding_ratio_data():
     period = (request.args.get('year') or '').strip()
     if not _valid_year(period):
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    blocked = _unclosed_json(period)
+    if blocked:
+        return blocked
     try:
-        return jsonify(_compute_holding_ratio(period))
+        d = _compute_holding_ratio(period)
+        d['provisional'] = not _is_locked(period)
+        return jsonify(d)
     except (ValueError, RuntimeError) as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
@@ -11869,12 +11916,16 @@ def affiliate_performance_data():
     if period < SYSTEM_CLOSE_START_PERIOD:
         return jsonify({'error': f'{SYSTEM_CLOSE_START_PERIOD}부터 조회할 수 있습니다. '
                                  '이전 기간은 본 시스템 본결산 이전 자료라 제공하지 않습니다.'}), 400
+    blocked = _unclosed_json(period)
+    if blocked:
+        return blocked
     try:
         data = _compute_affiliate_performance(period)
     except Exception as e:
         return jsonify({'error': f'계산 실패: {e}'}), 500
     pl, tl = _affil_period_label(period)
-    data.update({'year': period, 'period_label': pl, 'title_period': tl})
+    data.update({'year': period, 'period_label': pl, 'title_period': tl,
+                 'provisional': not _is_locked(period)})
     return jsonify(data)
 
 
@@ -11888,6 +11939,9 @@ def affiliate_performance_excel():
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
     if period < SYSTEM_CLOSE_START_PERIOD:
         return jsonify({'error': f'{SYSTEM_CLOSE_START_PERIOD}부터 조회할 수 있습니다.'}), 400
+    blocked = _unclosed_file(period)
+    if blocked:
+        return blocked
     data = _compute_affiliate_performance(period)
     plabel, tlabel = _affil_period_label(period)
 
@@ -12797,9 +12851,13 @@ def report_fs_data():
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
     if not _can_access_group(session.get('username'), gid):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    blocked = _unclosed_json(period)
+    if blocked:
+        return blocked
     try:
         d = _compute_report_fs(gid, period, stmt)
         d['can_edit'] = _has_permission(session.get('username'), 'report.edit')
+        d['provisional'] = not _is_locked(period)
         return jsonify(d)
     except (ValueError, RuntimeError) as e:
         return jsonify({'error': str(e)}), 400
@@ -13124,6 +13182,9 @@ def report_fs_excel():
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
     if not _can_access_group(session.get('username'), gid):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
+    blocked = _unclosed_file(period)
+    if blocked:
+        return blocked
     try:
         d = _compute_report_fs(gid, period, stmt)
     except (ValueError, RuntimeError) as e:
@@ -13678,13 +13739,25 @@ def _ts_resolve_range(start, end):
     return (s_idx, e_idx), None
 
 
-def _ts_columns_for_range(group_id, s_idx, e_idx):
-    """s_idx~e_idx 분기별 시계열 컬럼 리스트."""
+def _ts_columns_for_range(group_id, s_idx, e_idx, excluded=None):
+    """s_idx~e_idx 분기별 시계열 컬럼 리스트.
+
+    마감 전 분기는 잠정치 조회 권한이 없으면 빼고(excluded 에 기록),
+    권한이 있으면 포함하되 provisional 표시를 단다.
+    """
     cols = []
     for idx in range(s_idx, e_idx + 1):
         col_period = _ts_idx_to_period(idx)
+        status = _unclosed_status(col_period)
+        if status == 'blocked':
+            if excluded is not None:
+                excluded.append(col_period)
+            continue
         raw = _ts_compute_period(group_id, col_period)
-        cols.append(_ts_build_column(col_period, raw, _ts_annualize_factor(col_period)))
+        col = _ts_build_column(col_period, raw, _ts_annualize_factor(col_period))
+        if status == 'provisional' and isinstance(col, dict):
+            col['provisional'] = True
+        cols.append(col)
     return cols
 
 
@@ -13734,11 +13807,14 @@ def timeseries_data(group_id):
     if not _can_access_group(session.get('username'), group_id):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
 
-    columns = _ts_columns_for_range(group_id, s_idx, e_idx)
+    excluded = []
+    columns = _ts_columns_for_range(group_id, s_idx, e_idx, excluded)
 
     return jsonify({'ok': True, 'group': g,
                     'start': _ts_idx_to_period(s_idx), 'end': _ts_idx_to_period(e_idx),
-                    'columns': columns})
+                    'columns': columns,
+                    'excluded_unclosed': excluded,
+                    'unclosed_message': UNCLOSED_MSG})
 
 
 @app.route('/timeseries/<group_id>/download')
@@ -13765,7 +13841,10 @@ def timeseries_download(group_id):
     if not _can_access_group(session.get('username'), group_id):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
 
-    columns = _ts_columns_for_range(group_id, s_idx, e_idx)
+    excluded = []
+    columns = _ts_columns_for_range(group_id, s_idx, e_idx, excluded)
+    if not columns:
+        return f'선택한 기간은 {UNCLOSED_MSG}', 403
 
     wb = Workbook()
     ws = wb.active

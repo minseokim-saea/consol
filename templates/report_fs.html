@@ -70,6 +70,7 @@ body { background:var(--surface); color:var(--text-body);
 {% set active_menu = 'report_fs' %}
 {% include '_sidebar.html' %}
 {% include '_topbar.html' %}
+{% include '_unclosed.html' %}
 
 <div class="container-fluid mt-3">
 
@@ -276,8 +277,13 @@ async function load(){
   try{
     const res = await fetch(url);
     const d = await res.json();
+    if (d.unclosed) {                       // 마감 전 — 숫자 대신 안내
+      area.innerHTML = unclosedHTML(d.period, d.message);
+      return;
+    }
     if (!res.ok || d.error) throw new Error(d.error || '조회 실패');
     render(d);
+    if (d.provisional) notice.insertAdjacentHTML('afterbegin', provisionalHTML(period()));
   }catch(e){
     area.innerHTML = `<div class="alert alert-danger mb-0">${esc(e.message)}</div>`;
   }
