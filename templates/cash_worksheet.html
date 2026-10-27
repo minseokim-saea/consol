@@ -217,6 +217,13 @@ body { background:var(--surface); color:var(--text-body);
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <div id="commentReuse" class="mb-2" style="display:none;">
+          <div class="small text-muted mb-1">
+            <i class="bi bi-clock-history"></i> 이 화면에서 쓴 코멘트 — 클릭하면 그대로 입력됩니다
+          </div>
+          <div id="commentReuseList" class="d-flex flex-column gap-1"
+               style="max-height:180px; overflow-y:auto;"></div>
+        </div>
         <textarea id="commentText" class="form-control" rows="5"
                   placeholder="수기조정 사유, 근거자료, 검토메모 등을 입력하세요"></textarea>
         <div class="form-text mt-2">
@@ -979,7 +986,45 @@ function openCommentModal(code, label) {
   document.getElementById('commentTarget').textContent =
     `${code} · ${label || ''}`;
   document.getElementById('commentText').value = MANUAL_COMMENTS[code] || '';
+  renderCommentReuse(code);
   new bootstrap.Modal(document.getElementById('commentModal')).show();
+}
+
+// 상계되는 계정끼리 같은 사유를 다는 경우가 많아, 다른 계정에 이미 쓴 코멘트를 골라 쓰게 한다.
+// 같은 문구는 한 번만 보여주고, 어느 계정에 쓰였는지 함께 표시한다.
+function renderCommentReuse(code) {
+  const wrap = document.getElementById('commentReuse');
+  const list = document.getElementById('commentReuseList');
+  const names = _cfCodeNameMap();
+  const byText = new Map();   // text → [code, ...]
+  Object.entries(MANUAL_COMMENTS).forEach(([c, t]) => {
+    const text = (t || '').trim();
+    if (!text || c === code) return;
+    if (!byText.has(text)) byText.set(text, []);
+    byText.get(text).push(c);
+  });
+  list.innerHTML = '';
+  if (!byText.size) { wrap.style.display = 'none'; return; }
+  byText.forEach((codes, text) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn btn-sm btn-outline-secondary text-start';
+    btn.style.whiteSpace = 'normal';
+    const used = codes.map(c => `${c} ${names[c] || ''}`.trim()).join(', ');
+    const body = document.createElement('div');
+    body.textContent = text;
+    const meta = document.createElement('div');
+    meta.className = 'small text-muted';
+    meta.textContent = `↳ ${used}`;
+    btn.append(body, meta);
+    btn.onclick = () => {
+      const ta = document.getElementById('commentText');
+      ta.value = text;
+      ta.focus();
+    };
+    list.appendChild(btn);
+  });
+  wrap.style.display = '';
 }
 
 function applyComment() {
