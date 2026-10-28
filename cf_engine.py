@@ -1179,6 +1179,24 @@ THIN = Side(border_style='thin', color='BFBFBF')
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
 NUM_FMT = '#,##0;(#,##0);"-"'
 
+# 강조 라인 — 화면(cash_worksheet.html)과 엑셀이 같은 목록을 쓴다.
+# 금액이 0이어도 숨기지 않는다 (값이 안 들어온 것 자체를 확인해야 하는 행).
+# 기타 현금의 유출/유입이 없는 비용·수익 (Ⅰ-2 가산 / Ⅰ-3 차감)
+ETC_NONCASH_CODES = frozenset({'CF7100001', 'CF7100002'})
+# 배당·자본거래 관련 주요 확인 대상 라인
+CAPITAL_WATCH_CODES = frozenset({
+    'CF1300000',                                          # 배당금의 수령(영업)
+    'CF3121003', 'CF3121004', 'CF4121003',                # 관계기업투자주식 처분·취득 / 배당금 수령(투자)
+    'CF5220003', 'CF5220004', 'CF5220005', 'CF5220006',   # 유상증자·자기주식 처분·신종자본증권 발행
+    'CF6220003', 'CF6220004', 'CF6220005', 'CF6220006',   # 유상감자·자기주식 취득·신종자본증권 상환·배당금 지급
+    'CF6220010',
+    'CF1110102',                                          # 국고보조금의 증감
+})
+ETC_NONCASH_FILL = PatternFill('solid', start_color='D6F0DC')
+ETC_NONCASH_FONT = Font(bold=True, color='14532D', name='맑은 고딕', size=10)
+CAPITAL_WATCH_FILL = PatternFill('solid', start_color='9DC5FF')
+CAPITAL_WATCH_FONT = Font(bold=True, color='0B3B8C', name='맑은 고딕', size=10)
+
 
 def _row_all_zero(row) -> bool:
     """detail 행이 K/L/M/N/O/Q/P 모두 0인지. 회사별 값도 모두 0이어야 True.
@@ -1275,7 +1293,14 @@ def write_cash_worksheet_excel(result, group_name, period, out_path, hide_zero=F
         )
 
     def _detail_row(row):
-        if hide_zero and _row_all_zero(row):
+        code = str(row.get('cf_code') or '')
+        if code in ETC_NONCASH_CODES:
+            fill, font = ETC_NONCASH_FILL, ETC_NONCASH_FONT
+        elif code in CAPITAL_WATCH_CODES:
+            fill, font = CAPITAL_WATCH_FILL, CAPITAL_WATCH_FONT
+        else:
+            fill = font = None
+        if hide_zero and not fill and _row_all_zero(row):
             return
         compare_tail = [None, None, None]
         if row.get('has_compare'):
@@ -1288,7 +1313,8 @@ def write_cash_worksheet_excel(result, group_name, period, out_path, hide_zero=F
             [row['cf_code'], '  ' + row['name']] +
             [row['companies'].get(co, 0) for co in companies] +
             _adj_cells(row) +
-            compare_tail
+            compare_tail,
+            fill=fill, font=font,
         )
 
     # ── 섹션을 로마숫자별로 그룹핑 ───────────────────────────────────

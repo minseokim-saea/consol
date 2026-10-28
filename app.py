@@ -114,6 +114,8 @@ from cf_engine import (compute_cf as cf_compute,
                        load_mapping as cf_load_mapping,
                        save_mapping_v2 as cf_save_mapping_v2,
                        write_cash_worksheet_excel as cf_write_excel,
+                       ETC_NONCASH_CODES as CF_ETC_NONCASH_CODES,
+                       CAPITAL_WATCH_CODES as CF_CAPITAL_WATCH_CODES,
                        prior_year_4q as cf_prior_year_4q,
                        compute_fund_adjustments_global_sae as cf_fund_adj_global_sae)
 import distribute_builder as dbuilder
@@ -13418,7 +13420,9 @@ def cash_worksheet_index():
                            year=year,
                            years=YEARS_DATA['years'],
                            username=session.get('username'),
-                           is_admin=_is_admin(session.get('username')))
+                           is_admin=_is_admin(session.get('username')),
+                           etc_noncash_codes=sorted(CF_ETC_NONCASH_CODES),
+                           capital_watch_codes=sorted(CF_CAPITAL_WATCH_CODES))
 
 
 @app.route('/cash-worksheet/compute/<group_id>/<period>', methods=['POST'])

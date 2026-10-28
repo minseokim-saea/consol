@@ -862,19 +862,11 @@ function rowAllZero(row, companies) {
   return true;
 }
 
-// 기타 현금의 유출/유입이 없는 비용·수익 (Ⅰ-2 가산 / Ⅰ-3 차감으로 분류) — 행 강조용
-const ETC_NONCASH_CODES = new Set(['CF7100001', 'CF7100002']);
-
-// 배당·자본거래 관련 주요 확인 대상 라인 — 별도 색으로 강조
-// (배당금 수령/지급, 유상증자·감자, 자기주식, 신종자본증권, 관계기업투자주식)
-const CAPITAL_WATCH_CODES = new Set([
-  'CF1300000',                                          // 배당금의 수령(영업)
-  'CF3121003', 'CF3121004', 'CF4121003',                // 관계기업투자주식 처분·취득 / 배당금 수령(투자)
-  'CF5220003', 'CF5220004', 'CF5220005', 'CF5220006',   // 유상증자·자기주식 처분·신종자본증권 발행
-  'CF6220003', 'CF6220004', 'CF6220005', 'CF6220006',   // 유상감자·자기주식 취득·신종자본증권 상환·배당금 지급
-  'CF6220010',
-  'CF1110102',                                          // 국고보조금의 증감
-]);
+// 강조 라인 목록은 cf_engine.py 에 있다 (엑셀 다운로드와 같은 목록).
+// 기타 현금의 유출/유입이 없는 비용·수익 (Ⅰ-2 가산 / Ⅰ-3 차감) — 녹색
+const ETC_NONCASH_CODES = new Set({{ etc_noncash_codes | tojson }});
+// 배당·자본거래 관련 주요 확인 대상 라인 — 파란색
+const CAPITAL_WATCH_CODES = new Set({{ capital_watch_codes | tojson }});
 
 // 강조 대상 라인 여부 — 이 행들은 금액이 0이어도 숨기지 않는다.
 function isHighlightedCfCode(code) {
