@@ -488,7 +488,7 @@ def _ensure_permission_catalog():
          {'system_admin', 'finance_lead'}, '연결정산'),
         # 감사인 제출자료 — 연결정산표·현금정산표·주석합산을 한 파일로 (홈 화면)
         ('audit.export', '감사인 제출자료 추출', 'report.edit',
-         {'system_admin', 'finance_lead'}, '연결정산'),
+         {'system_admin', 'finance_lead', 'viewer'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
