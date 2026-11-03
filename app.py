@@ -119,6 +119,7 @@ from cf_engine import (compute_cf as cf_compute,
                        prior_year_4q as cf_prior_year_4q,
                        compute_fund_adjustments_global_sae as cf_fund_adj_global_sae)
 import distribute_builder as dbuilder
+from audit_pack import build_audit_pack
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB per file
@@ -321,6 +322,7 @@ def _inject_sidebar_perms():
             'report_fs':       _has_permission(uname, 'report.fs'),
             'report_edit':     _has_permission(uname, 'report.edit'),
             'inter_review':    _has_permission(uname, 'inter.review'),
+            'audit_export':    _has_permission(uname, 'audit.export'),
             'files_upload':    _has_permission(uname, 'files.upload'),
             'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
@@ -483,6 +485,9 @@ def _ensure_permission_catalog():
          {'system_admin', 'finance_lead'}, '연결정산'),
         # 마감 전 분기의 대시보드·시계열·보고용 재무제표·주요 경영보고 숫자 조회
         ('report.unclosed', '마감 전 결산수치 조회 (잠정치)', 'consol.journal',
+         {'system_admin', 'finance_lead'}, '연결정산'),
+        # 감사인 제출자료 — 연결정산표·현금정산표·주석합산을 한 파일로 (홈 화면)
+        ('audit.export', '감사인 제출자료 추출', 'report.edit',
          {'system_admin', 'finance_lead'}, '연결정산'),
     ]
     data = _load_permission_groups(force=True)
@@ -6543,6 +6548,52 @@ def admin_note_aggregate_all_in_one():
 
     import time as _time
     t0 = _time.time()
+    all_aggs = _note_aggregate_collect(year)
+
+    # 통합 엑셀 생성 — 파일명에 timestamp 포함하여 브라우저 캐시 회피
+    download_url = None
+    excel_filename = None
+    sheet_count = 0
+    try:
+        out_dir = RESULTS_DIR / 'note_aggregate'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = _time.strftime('%Y%m%d_%H%M%S')
+        excel_filename = f'주석합산_전체_{year}_{timestamp}.xlsx'
+        out_path = out_dir / excel_filename
+        build_all_in_one_excel(year, all_aggs, out_path)
+        # 실제 생성된 시트 개수 확인
+        try:
+            from openpyxl import load_workbook
+            _wb = load_workbook(str(out_path), read_only=True)
+            sheet_count = len(_wb.sheetnames)
+            print(f'[주석합산 ALL] 생성된 시트 ({sheet_count}개): {_wb.sheetnames}',
+                  flush=True)
+            _wb.close()
+        except Exception:
+            pass
+        download_url = url_for('download_note_aggregate', filename=excel_filename)
+        print(f'[주석합산 ALL] 엑셀 생성 완료: {_time.time()-t0:.1f}초', flush=True)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f'[주석합산 ALL] 엑셀 생성 실패: {e}', flush=True)
+        return jsonify({'error': f'엑셀 생성 실패: {e}'}), 500
+
+    return jsonify({
+        'year': year,
+        'sections_count': len(all_aggs),
+        'sheets_count': sheet_count,
+        'download_url': download_url,
+        'excel_filename': excel_filename,
+        'elapsed_seconds': round(_time.time() - t0, 1),
+    })
+
+
+def _note_aggregate_collect(year):
+    """주석합산 각 항목(sub-route)을 실행해 {key: agg} 로 모은다.
+    sub-route 를 test_client 로 호출하므로 현재 사용자의 권한이 그대로 적용된다."""
+    import time as _time
+    t0 = _time.time()
     print(f'[주석합산 ALL] 시작: {year}, 섹션 {len(_NOTE_AGGREGATE_SECTIONS)}개,'
           f' 현재 사용자={session.get("username")!r}', flush=True)
 
@@ -6587,44 +6638,7 @@ def admin_note_aggregate_all_in_one():
                                 v.get('rows') or v.get('categories'))])
     print(f'[주석합산 ALL] 데이터 있는 섹션 ({len(nonempty_keys)}/{len(all_aggs)}):'
           f' {nonempty_keys}', flush=True)
-
-    # 통합 엑셀 생성 — 파일명에 timestamp 포함하여 브라우저 캐시 회피
-    download_url = None
-    excel_filename = None
-    sheet_count = 0
-    try:
-        out_dir = RESULTS_DIR / 'note_aggregate'
-        out_dir.mkdir(parents=True, exist_ok=True)
-        timestamp = _time.strftime('%Y%m%d_%H%M%S')
-        excel_filename = f'주석합산_전체_{year}_{timestamp}.xlsx'
-        out_path = out_dir / excel_filename
-        build_all_in_one_excel(year, all_aggs, out_path)
-        # 실제 생성된 시트 개수 확인
-        try:
-            from openpyxl import load_workbook
-            _wb = load_workbook(str(out_path), read_only=True)
-            sheet_count = len(_wb.sheetnames)
-            print(f'[주석합산 ALL] 생성된 시트 ({sheet_count}개): {_wb.sheetnames}',
-                  flush=True)
-            _wb.close()
-        except Exception:
-            pass
-        download_url = url_for('download_note_aggregate', filename=excel_filename)
-        print(f'[주석합산 ALL] 엑셀 생성 완료: {_time.time()-t0:.1f}초', flush=True)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f'[주석합산 ALL] 엑셀 생성 실패: {e}', flush=True)
-        return jsonify({'error': f'엑셀 생성 실패: {e}'}), 500
-
-    return jsonify({
-        'year': year,
-        'sections_count': len(all_aggs),
-        'sheets_count': sheet_count,
-        'download_url': download_url,
-        'excel_filename': excel_filename,
-        'elapsed_seconds': round(_time.time() - t0, 1),
-    })
+    return all_aggs
 
 
 @app.route('/admin/note-aggregate/download/<path:filename>')
@@ -8181,6 +8195,7 @@ def _sidebar_perms(uname):
         'report_fs':        _has_permission(uname, 'report.fs'),
         'report_edit':      _has_permission(uname, 'report.edit'),
         'inter_review':     _has_permission(uname, 'inter.review'),
+        'audit_export':     _has_permission(uname, 'audit.export'),
         'files_upload':     _has_permission(uname, 'files.upload'),
         'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
@@ -8289,6 +8304,123 @@ def set_current_period():
     YEARS_DATA['default'] = period
     _save_years()
     return jsonify({'ok': True, 'default': period})
+
+
+# ─── 감사인 제출자료 추출 (홈) ────────────────────────────────────────────
+AUDIT_PACK_DIR = RESULTS_DIR / 'audit_pack'
+
+
+def _audit_pack_parts(period, uname):
+    """감사인 제출자료에 들어갈 워크북 목록 — 연결정산표·현금정산표(그룹별) + 주석합산.
+    그룹별 계산이 실패해도 멈추지 않고 목록에 실패 사유를 남긴다."""
+    import io as _io
+    import tempfile
+    from openpyxl import load_workbook
+
+    groups = [g for g in consol_list_groups() if _can_access_group(uname, g['id'])]
+    consol_parts, cash_parts = [], []
+    for g in groups:
+        name = g.get('name') or g['id']
+        try:
+            ctx = _compute_group_internal(g['id'], period)
+        except Exception as e:
+            reason = str(e) or e.__class__.__name__
+            consol_parts.append({'category': '연결정산표', 'label': f'연결정산_{name}', 'title': name,
+                                 'wb': None, 'error': reason})
+            cash_parts.append({'category': '현금정산표', 'label': f'현금정산_{name}', 'title': name,
+                               'wb': None, 'error': reason})
+            continue
+
+        # 연결정산표 — 연결정산 화면의 엑셀과 동일 (전년 4Q 최종 비교 포함)
+        try:
+            result = ctx['result']
+            _attach_prior_final(result, g['id'], period)
+            with tempfile.TemporaryDirectory() as td:
+                p = Path(td) / 'consol.xlsx'
+                consol_write_excel(result, name, period, str(p))
+                wb = load_workbook(str(p))
+            consol_parts.append({'category': '연결정산표', 'label': f'연결정산_{name}', 'title': name,
+                                 'desc': f'{name} 연결정산표 (합산·연결조정·내부거래·최종)',
+                                 'wb': wb, 'sheets': ['연결정산']})
+        except Exception as e:
+            consol_parts.append({'category': '연결정산표', 'label': f'연결정산_{name}', 'title': name,
+                                 'wb': None, 'error': str(e) or e.__class__.__name__})
+
+        # 현금정산표 — 현금정산표 화면의 엑셀 다운로드와 동일 (0 행 숨김)
+        try:
+            cash = _make_cash_result(ctx, period)
+            _inject_consol_compare(cash, ctx)
+            bio = cf_write_excel(cash, name, period, None, hide_zero=True)
+            wb = load_workbook(_io.BytesIO(bio.getvalue()))
+            cash_parts.append({'category': '현금정산표', 'label': f'현금정산_{name}', 'title': name,
+                               'desc': f'{name} 현금정산표 (값이 0인 행 제외)',
+                               'wb': wb, 'sheets': ['현금정산표']})
+        except Exception as e:
+            cash_parts.append({'category': '현금정산표', 'label': f'현금정산_{name}', 'title': name,
+                               'wb': None, 'error': str(e) or e.__class__.__name__})
+
+    # 주석합산 — 주석합산 화면의 '전체 다운로드'와 동일 (표지 시트 제외)
+    note_parts = []
+    try:
+        all_aggs = _note_aggregate_collect(period)
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / 'notes.xlsx'
+            build_all_in_one_excel(period, all_aggs, p)
+            wb = load_workbook(str(p))
+        sheets = [s for s in wb.sheetnames if s != '전체 표지']
+        if sheets:
+            note_parts.append({'category': '주석합산', 'label': '주석합산',
+                               'wb': wb, 'sheets': sheets})
+        else:
+            note_parts.append({'category': '주석합산', 'label': '주석합산', 'wb': None,
+                               'error': '합산된 주석 자료가 없습니다.'})
+    except Exception as e:
+        note_parts.append({'category': '주석합산', 'label': '주석합산', 'wb': None,
+                           'error': str(e) or e.__class__.__name__})
+
+    return consol_parts + cash_parts + note_parts
+
+
+@app.route('/audit-pack/build', methods=['POST'])
+@require_permission('audit.export')
+def audit_pack_build():
+    """감사인 제출자료 엑셀 생성 → 다운로드 URL 반환."""
+    import time as _time
+    body = request.get_json(silent=True) or {}
+    period = (body.get('period') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    uname = session.get('username')
+    t0 = _time.time()
+    try:
+        parts = _audit_pack_parts(period, uname)
+        AUDIT_PACK_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f'감사인제출자료_{period}_{_time.strftime("%Y%m%d_%H%M%S")}.xlsx'
+        ok, failed = build_audit_pack(period, parts, AUDIT_PACK_DIR / filename,
+                                      provisional=not _is_locked(period))
+    except Exception as e:
+        return _json_error(e)
+    print(f'[감사인 제출자료] {period} {uname}: 시트 {len(ok)}개, 실패 {len(failed)}건, '
+          f'{_time.time() - t0:.1f}초', flush=True)
+    return jsonify({
+        'ok': True,
+        'download_url': url_for('audit_pack_download', filename=filename),
+        'filename': filename,
+        'sheet_count': len(ok),
+        'failed': [{'category': f[0], 'label': f[1], 'reason': f[4]} for f in failed],
+        'elapsed_seconds': round(_time.time() - t0, 1),
+    })
+
+
+@app.route('/audit-pack/download/<path:filename>')
+@require_permission('audit.export')
+def audit_pack_download(filename):
+    if '/' in filename or '\\' in filename or '..' in filename:
+        return '잘못된 파일명입니다.', 400
+    path = AUDIT_PACK_DIR / filename
+    if not path.exists():
+        return '파일을 찾을 수 없습니다.', 404
+    return send_file(str(path.resolve()), as_attachment=True, download_name=filename)
 
 
 @app.route('/package-upload')
@@ -11328,6 +11460,32 @@ def consolidation_dashboard_excel(group_id):
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+def _attach_prior_final(result, group_id, period):
+    """전년 4Q 연결정산표 최종값을 같은 그룹으로 재계산해 각 row에 prior_final로 주입.
+    result['prior_period'] 도 채우고, 비교 기간(없으면 None)을 반환."""
+    prior_period = _prior_q4_period(period)
+    prior_final_by_code = {}
+    if prior_period and _valid_year(prior_period):
+        try:
+            prior_ctx = _compute_group_internal(group_id, prior_period)
+            for prow in prior_ctx['result']['rows']:
+                pcode = str(prow.get('code') or '').strip()
+                if pcode and prow.get('kind') in ('detail', 'subtotal', 'formula', 'check'):
+                    prior_final_by_code[pcode] = prow.get('final')
+        except Exception:
+            prior_period = None
+            prior_final_by_code = {}
+    else:
+        prior_period = None
+
+    for row in result['rows']:
+        rcode = str(row.get('code') or '').strip()
+        row['prior_final'] = prior_final_by_code.get(rcode) if rcode else None
+
+    result['prior_period'] = prior_period
+    return prior_period
+
+
 @app.route('/consolidation/compute/<group_id>/<period>', methods=['POST'])
 @login_required
 @require_permission('consol.compute')
@@ -11357,27 +11515,7 @@ def consolidation_compute(group_id, period):
     rollups = ctx['rollups']
     companies = result['companies']
 
-    # 전년 4Q 연결정산표 최종값을 같은 그룹으로 재계산해 각 row에 prior_final로 주입
-    prior_period = _prior_q4_period(period)
-    prior_final_by_code = {}
-    if prior_period and _valid_year(prior_period):
-        try:
-            prior_ctx = _compute_group_internal(group_id, prior_period)
-            for prow in prior_ctx['result']['rows']:
-                pcode = str(prow.get('code') or '').strip()
-                if pcode and prow.get('kind') in ('detail', 'subtotal', 'formula', 'check'):
-                    prior_final_by_code[pcode] = prow.get('final')
-        except Exception:
-            prior_period = None
-            prior_final_by_code = {}
-    else:
-        prior_period = None
-
-    for row in result['rows']:
-        rcode = str(row.get('code') or '').strip()
-        row['prior_final'] = prior_final_by_code.get(rcode) if rcode else None
-
-    result['prior_period'] = prior_period
+    prior_period = _attach_prior_final(result, group_id, period)
 
     try:
 

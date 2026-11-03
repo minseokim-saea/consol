@@ -102,6 +102,16 @@ body {
 .tbl-scroll { max-height:420px; overflow:auto; }
 
 .empty { padding:34px 16px; text-align:center; color:var(--faint); font-size:13px; }
+
+.ap-body { padding:0 16px 16px; }
+.ap-desc { font-size:12.5px; color:var(--sub); margin-bottom:10px; }
+.ap-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.ap-status { font-size:12.5px; color:var(--sub); }
+.ap-status.ok { color:var(--pos); font-weight:600; }
+.ap-status.err { color:var(--neg); font-weight:600; }
+.ap-failed { margin-top:10px; padding:9px 12px; background:var(--neg-bg); border:1px solid #f6d4cf;
+  border-radius:10px; font-size:12.5px; color:#8a241a; }
+.ap-failed ul { margin:4px 0 0; padding-left:18px; }
 </style>
 </head>
 <body>
@@ -234,10 +244,81 @@ body {
 
   </div>
 
+  {% if perms.audit_export %}
+  <!-- 감사인 제출자료 추출 -->
+  <div class="panel" style="margin-top:14px">
+    <div class="panel-head">
+      <span class="panel-title"><i class="bi bi-file-earmark-zip"></i> <span data-i18n="cs.audit_title">감사인 제출자료 추출</span></span>
+    </div>
+    <div class="ap-body">
+      <div class="ap-desc" data-i18n="cs.audit_desc">연결정산표·현금정산표(연결그룹별)와 주석합산 자료를 엑셀 파일 하나로 만듭니다. 첫 시트 '목록'에서 각 시트로 이동할 수 있습니다.</div>
+      <div class="ap-row">
+        <select id="apPeriod" class="form-select form-select-sm" style="width:auto">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == current_period %}selected{% endif %}
+                  {% if y in locked_years %}data-locked="1"{% endif %}>{{ y }}{% if y in locked_years %} · 마감{% endif %}</option>
+          {% endfor %}
+        </select>
+        <button id="apBtn" type="button" class="btn btn-sm btn-primary">
+          <i class="bi bi-download"></i> <span data-i18n="cs.audit_btn">엑셀 만들기</span>
+        </button>
+        <span id="apStatus" class="ap-status"></span>
+      </div>
+      <div id="apFailed" class="ap-failed" hidden></div>
+    </div>
+  </div>
+  {% endif %}
+
   {% endif %}
 
 </div>
 
+<script>
+// 감사인 제출자료 — 그룹 수·주석 수만큼 계산하므로 수 분 걸릴 수 있다.
+(function () {
+  const btn = document.getElementById('apBtn');
+  if (!btn) return;
+  const sel = document.getElementById('apPeriod');
+  const status = document.getElementById('apStatus');
+  const failed = document.getElementById('apFailed');
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  btn.addEventListener('click', async () => {
+    const period = sel.value;
+    btn.disabled = sel.disabled = true;
+    failed.hidden = true;
+    status.className = 'ap-status';
+    status.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${esc(t('cs.audit_running'))}`;
+    const t0 = Date.now();
+    const timer = setInterval(() => {
+      status.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${esc(t('cs.audit_running'))} (${Math.round((Date.now() - t0) / 1000)}s)`;
+    }, 1000);
+    try {
+      const r = await fetch('/audit-pack/build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      status.className = 'ap-status ok';
+      status.innerHTML = `<i class="bi bi-check2-circle"></i> ${esc(t('cs.audit_done', j.sheet_count, j.elapsed_seconds))} `
+        + `<a href="${j.download_url}">${esc(j.filename)}</a>`;
+      if (j.failed && j.failed.length) {
+        failed.innerHTML = `<b>${esc(t('cs.audit_failed', j.failed.length))}</b><ul>`
+          + j.failed.map(f => `<li>${esc(f.label)} — ${esc(f.reason)}</li>`).join('') + '</ul>';
+        failed.hidden = false;
+      }
+      location.href = j.download_url;
+    } catch (e) {
+      status.className = 'ap-status err';
+      status.textContent = t('cs.audit_error', e.message);
+    } finally {
+      clearInterval(timer);
+      btn.disabled = sel.disabled = false;
+    }
+  });
+})();
+</script>
 <script>
 // 현재 결산기간 변경 (관리자 전용) — 변경 시 전체 기본값을 바꾸고 새로고침
 (function () {
@@ -281,7 +362,7 @@ body {
       if (typeof v === 'string') el.title = v;
     });
     // '2026-2Q · 마감' 처럼 값 뒤에 붙는 표기
-    document.querySelectorAll('#periodSelect option[data-locked]').forEach(op => {
+    document.querySelectorAll('#periodSelect option[data-locked], #apPeriod option[data-locked]').forEach(op => {
       op.textContent = `${op.value} · ${t('cs.closed')}`;
     });
   }
