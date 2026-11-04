@@ -15,7 +15,7 @@
   --pq-neg:#c62828; --pq-up:#1d4ed8; --pq-down:#c62828;
 }
 body { background:#eef1f6; font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif; }
-.pq-page { max-width:1320px; margin:0 auto; padding:28px 24px 48px; display:flex; flex-direction:column; gap:18px; font-feature-settings:'tnum' 1; }
+.pq-page { max-width:1600px; margin:0 auto; padding:28px 24px 48px; display:flex; flex-direction:column; gap:18px; font-feature-settings:'tnum' 1; }
 .pq-h-title { font-size:20px; font-weight:700; color:var(--pq-ink); letter-spacing:-.2px; }
 .pq-h-sub { font-size:12.5px; color:var(--pq-sub); margin-top:3px; }
 
@@ -57,7 +57,7 @@ table.pq-table { width:100%; border-collapse:collapse; font-size:13px; }
 .pq-table td { padding:7px 10px; border-bottom:1px solid var(--pq-rowline); white-space:nowrap; }
 .pq-table tbody tr:hover td { background:#f8fafc; }
 .pq-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
-.pq-table td.co { font-weight:600; color:var(--pq-ink); }
+.pq-table td.co { font-weight:600; color:var(--pq-ink); white-space:normal; min-width:180px; max-width:280px; }
 .pq-table .sep { border-left:1px solid var(--pq-bd); }
 .pq-table .neg { color:var(--pq-neg); }
 .pq-table .up { color:var(--pq-up); font-weight:600; }
