@@ -45,6 +45,8 @@ body { background:#eef1f6; font-family:'Pretendard Variable', Pretendard, -apple
 
 .pq-acc-chip { background:var(--pq-blue-bg); border:1px solid var(--pq-blue-bd); color:var(--pq-blue); font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:7px; }
 .pq-opt { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
+.pq-xlsx { border:1px solid #b7dfc4; background:#eef9f1; color:#166534; border-radius:8px; padding:5px 12px; font-size:12.5px; font-weight:700; cursor:pointer; }
+.pq-xlsx:hover { background:#dcf3e3; }
 
 .pq-table-wrap { overflow-x:auto; }
 table.pq-table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -126,6 +128,7 @@ table.pq-table { width:100%; border-collapse:collapse; font-size:13px; }
       <span class="pq-head-right">
         <label class="pq-opt"><input type="checkbox" id="hideZero" checked> 두 기간 모두 0인 회사 숨김</label>
         <span id="resCount"></span>
+        <button id="xlsxBtn" class="pq-xlsx" type="button"><i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드</button>
       </span>
     </div>
     <div class="pq-table-wrap">
@@ -300,6 +303,15 @@ function pct(d, baseVal) {
 document.getElementById('runBtn').addEventListener('click', runQuery);
 document.getElementById('accInput').addEventListener('keydown', e => { if (e.key === 'Enter') runQuery(); });
 document.getElementById('hideZero').addEventListener('change', render);
+// 엑셀 — 지금 화면에 띄운 조회 결과(기간·계정)와 숨김 옵션 그대로
+document.getElementById('xlsxBtn').addEventListener('click', () => {
+  if (!LAST) return;
+  const qs = new URLSearchParams({
+    base: LAST.base, compare: LAST.compare, code: LAST.account.code,
+    hide_zero: document.getElementById('hideZero').checked ? '1' : '0',
+  });
+  location.href = '/package-query/account-change/excel?' + qs;
+});
 // 계정을 목록에서 고르면 바로 조회
 document.getElementById('accInput').addEventListener('change', e => {
   const code = parseCode(e.target.value);

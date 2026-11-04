@@ -1864,20 +1864,18 @@ def package_query_account_change_page():
     )
 
 
-@app.route('/package-query/account-change/data')
-@require_permission('package.query')
-def package_query_account_change_data():
-    """두 기간의 회사별 계정 금액(현지통화·원화)과 증감."""
-    uname = session.get('username')
-    base = (request.args.get('base') or '').strip()
-    compare = (request.args.get('compare') or '').strip()
-    code = (request.args.get('code') or '').strip()
+def _account_change_compute(args, uname):
+    """계정별 증감 결과 계산 (화면 JSON·엑셀 공용).
+    반환: (result, None) 또는 (None, (오류메시지, HTTP 상태))."""
+    base = (args.get('base') or '').strip()
+    compare = (args.get('compare') or '').strip()
+    code = (args.get('code') or '').strip()
     if not _valid_year(base) or not _valid_year(compare):
-        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+        return None, ('유효한 결산기간을 선택해주세요.', 400)
     if base == compare:
-        return jsonify({'error': '기준 기간과 비교 기간이 같습니다.'}), 400
+        return None, ('기준 기간과 비교 기간이 같습니다.', 400)
     if not code:
-        return jsonify({'error': '계정을 선택해주세요.'}), 400
+        return None, ('계정을 선택해주세요.', 400)
 
     def _pick(entry):
         """entry 에서 계정 값 → (시트, 계정정보) 또는 (None, None)."""
@@ -1925,15 +1923,175 @@ def package_query_account_change_data():
             '_rank': master_rank.get(norm, 10**6),
         })
     if not acc_info['sheet']:
-        return jsonify({'error': f'{base}·{compare} 패키지에 {code} 계정이 없습니다.'}), 404
+        return None, (f'{base}·{compare} 패키지에 {code} 계정이 없습니다.', 404)
     rows.sort(key=lambda r: (r.pop('_rank'), r['company'] or ''))
 
-    return jsonify({
+    return {
         'base': base, 'compare': compare,
         'account': acc_info,
         'sheet_label': dict(_PQ_SHEETS).get(acc_info['sheet'] or '', ''),
         'rows': rows,
-    })
+    }, None
+
+
+@app.route('/package-query/account-change/data')
+@require_permission('package.query')
+def package_query_account_change_data():
+    """두 기간의 회사별 계정 금액(현지통화·원화)과 증감."""
+    result, err = _account_change_compute(request.args, session.get('username'))
+    if err:
+        return jsonify({'error': err[0]}), err[1]
+    return jsonify(result)
+
+
+@app.route('/package-query/account-change/excel')
+@require_permission('package.query')
+def package_query_account_change_excel():
+    """계정별 증감 결과를 엑셀로. hide_zero=1 이면 두 기간 모두 0인 회사 제외 (화면과 동일)."""
+    result, err = _account_change_compute(request.args, session.get('username'))
+    if err:
+        return err[0], err[1]
+    hide_zero = request.args.get('hide_zero') == '1'
+    wb = _account_change_workbook(result, hide_zero)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    acc = result['account']
+    return send_file(
+        buf, as_attachment=True,
+        download_name=f"계정별증감_{acc['code']}_{result['compare']}_{result['base']}.xlsx",
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
+
+def _account_change_workbook(result, hide_zero):
+    """계정별 증감 화면과 같은 표를 엑셀로. 증감·증감률·합계는 수식으로 둔다."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    acc = result['account']
+    base, compare = result['base'], result['compare']
+    wb = Workbook()
+    ws = wb.active
+    ws.title = '계정별 증감'
+
+    font = Font(name='맑은 고딕', size=10)
+    bold = Font(name='맑은 고딕', size=10, bold=True)
+    hdr_font = Font(name='맑은 고딕', size=10, bold=True, color='1F3864')
+    thin = Side(border_style='thin', color='BFBFBF')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    fill_hdr = PatternFill('solid', start_color='EEF2F7')
+    fill_local = PatternFill('solid', start_color='EEF5E6')
+    fill_krw = PatternFill('solid', start_color='E6EEFC')
+    fill_tot = PatternFill('solid', start_color='F2F2F2')
+    na_font = Font(name='맑은 고딕', size=9, color='94A3B8')
+    FMT_LOCAL = '#,##0.00;[Red]-#,##0.00;0'
+    FMT_KRW = '#,##0;[Red]-#,##0;0'
+    FMT_DELTA = '+#,##0;[Red]-#,##0;0'
+    FMT_DELTA_LOCAL = '+#,##0.00;[Red]-#,##0.00;0'
+    FMT_PCT = '+0.0%;[Red]-0.0%;0.0%'
+
+    ws['A1'] = '계정별 증감'
+    ws['A1'].font = Font(name='맑은 고딕', size=14, bold=True, color='1F3864')
+    ws['A2'] = f"계정: {acc['code']} {acc.get('kor') or ''}" + (f" ({acc['eng']})" if acc.get('eng') else '') \
+        + (f" · {result.get('sheet_label')}" if result.get('sheet_label') else '')
+    ws['A3'] = f'비교 기간 {compare} → 기준 기간 {base}  (증감 = 기준 − 비교)'
+    ws['A2'].font = ws['A3'].font = font
+
+    # 헤더 (5~6행)
+    h1, h2 = 5, 6
+    heads = [('A', '회사'), ('B', '통화')]
+    for col, text in heads:
+        ws[f'{col}{h1}'] = text
+        ws.merge_cells(f'{col}{h1}:{col}{h2}')
+    ws[f'C{h1}'] = '현지통화'
+    ws.merge_cells(f'C{h1}:E{h1}')
+    ws[f'F{h1}'] = '원화 (KRW)'
+    ws.merge_cells(f'F{h1}:I{h1}')
+    for col, text in zip('CDEFGHI', [compare, base, '증감', compare, base, '증감', '증감률']):
+        ws[f'{col}{h2}'] = text
+    for r in (h1, h2):
+        for ci in range(1, 10):
+            c = ws.cell(r, ci)
+            c.font = hdr_font
+            c.alignment = center
+            c.border = border
+            c.fill = fill_local if 3 <= ci <= 5 else fill_krw if ci >= 6 else fill_hdr
+
+    def _is_zero(s):
+        return s['status'] != 'ok' or (abs(s.get('local') or 0) < 1e-9 and abs(s.get('krw') or 0) < 0.5)
+
+    r = h2 + 1
+    first = r
+    both_rows = []      # 두 기간 모두 제출한 행 — 합계 대상
+    for row in result['rows']:
+        b, c = row['base'], row['compare']
+        if hide_zero and _is_zero(b) and _is_zero(c):
+            continue
+        has_b, has_c = b['status'] != 'missing', c['status'] != 'missing'
+        cur_b, cur_c = b.get('currency'), c.get('currency')
+        ws.cell(r, 1, row['company'])
+        ws.cell(r, 2, f'{cur_c}→{cur_b}' if (cur_b and cur_c and cur_b != cur_c) else (cur_b or cur_c or ''))
+        for ci in range(1, 10):
+            ws.cell(r, ci).border = border
+            ws.cell(r, ci).font = font
+        ws.cell(r, 2).alignment = Alignment(horizontal='center')
+        for col, side, has, key, fmt in (('C', c, has_c, 'local', FMT_LOCAL), ('D', b, has_b, 'local', FMT_LOCAL),
+                                        ('F', c, has_c, 'krw', FMT_KRW), ('G', b, has_b, 'krw', FMT_KRW)):
+            cell = ws[f'{col}{r}']
+            if has:
+                v = side.get(key) or 0
+                cell.value = round(v) if key == 'krw' else v
+                cell.number_format = fmt
+            else:
+                cell.value = '미업로드'
+                cell.font = na_font
+                cell.alignment = Alignment(horizontal='right')
+        if has_b and has_c:
+            if cur_b == cur_c:
+                ws[f'E{r}'] = f'=D{r}-C{r}'
+                ws[f'E{r}'].number_format = FMT_DELTA_LOCAL
+            ws[f'H{r}'] = f'=G{r}-F{r}'
+            ws[f'H{r}'].number_format = FMT_DELTA
+            ws[f'I{r}'] = f'=IF(ABS(F{r})<0.5,"",H{r}/ABS(F{r}))'
+            ws[f'I{r}'].number_format = FMT_PCT
+            both_rows.append(r)
+        r += 1
+    last = r - 1
+
+    # 합계 — 두 기간 모두 제출한 회사만 (화면과 동일)
+    ws.cell(r, 1, '합계' if len(both_rows) == (last - first + 1) else f'합계 (두 기간 모두 제출한 {len(both_rows)}개사)')
+    if both_rows:
+        # 미업로드 칸은 문자열이므로 F·G 가 모두 숫자인 행 = 두 기간 모두 제출한 회사
+        for col in ('F', 'G'):
+            ws[f'{col}{r}'] = (f'=SUMPRODUCT(ISNUMBER(F{first}:F{last})*ISNUMBER(G{first}:G{last}),'
+                               f'{col}{first}:{col}{last})')
+            ws[f'{col}{r}'].number_format = FMT_KRW
+        ws[f'H{r}'] = f'=G{r}-F{r}'
+        ws[f'H{r}'].number_format = FMT_DELTA
+        ws[f'I{r}'] = f'=IF(ABS(F{r})<0.5,"",H{r}/ABS(F{r}))'
+        ws[f'I{r}'].number_format = FMT_PCT
+    for ci in range(1, 10):
+        cell = ws.cell(r, ci)
+        cell.font = bold
+        cell.fill = fill_tot
+        cell.border = border
+
+    notes = [
+        '· 원화 금액은 패키지 업로드(또는 재분석) 시점 환율로 환산된 값입니다 (재무상태표=기말환율, 손익계산서=평균환율).',
+        '· 손익계산서 계정은 분기 누적 금액입니다 (예: 2Q 누적 − 1Q 누적 = 2분기 발생분).',
+        '· 현지통화 합계는 통화가 섞여 있어 표시하지 않습니다. "미업로드" 회사는 원화 합계에서 제외됩니다.',
+    ]
+    if hide_zero:
+        notes.append('· 두 기간 모두 0인 회사는 제외했습니다.')
+    for i, t in enumerate(notes, start=r + 2):
+        ws.cell(i, 1, t).font = Font(name='맑은 고딕', size=9, color='64748B')
+
+    for col, w in zip('ABCDEFGHI', (34, 9, 18, 18, 17, 19, 19, 18, 10)):
+        ws.column_dimensions[col].width = w
+    ws.freeze_panes = f'C{h2 + 1}'
+    return wb
 
 
 @app.route('/package-query/other-accounts')
