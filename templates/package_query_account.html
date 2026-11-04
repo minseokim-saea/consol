@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>계정별 증감 - 연결 재무보고 통합 시스템</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<style>
+:root{
+  --pq-blue:#1d4ed8; --pq-blue-bg:#eaf0fe; --pq-blue-bd:#d3e0fd;
+  --pq-ink:#0f1b2d; --pq-sub:#64748b; --pq-faint:#94a3b8; --pq-rowline:#f1f4f9;
+  --pq-card:#fff; --pq-bd:#e7ebf2; --pq-radius:14px; --pq-shadow:0 1px 3px rgba(16,24,40,.05);
+  --pq-neg:#c62828; --pq-up:#1d4ed8; --pq-down:#c62828;
+}
+body { background:#eef1f6; font-family:'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', Arial, sans-serif; }
+.pq-page { max-width:1320px; margin:0 auto; padding:28px 24px 48px; display:flex; flex-direction:column; gap:18px; font-feature-settings:'tnum' 1; }
+.pq-h-title { font-size:20px; font-weight:700; color:var(--pq-ink); letter-spacing:-.2px; }
+.pq-h-sub { font-size:12.5px; color:var(--pq-sub); margin-top:3px; }
+
+.pq-card { background:var(--pq-card); border:1px solid var(--pq-bd); border-radius:var(--pq-radius); box-shadow:var(--pq-shadow); overflow:hidden; }
+.pq-card-head { display:flex; align-items:center; gap:10px; padding:15px 22px; border-bottom:1px solid #eef1f6; font-size:14.5px; font-weight:700; color:var(--pq-ink); }
+.pq-bar { width:4px; height:16px; background:var(--pq-blue); border-radius:2px; flex-shrink:0; }
+.pq-head-right { margin-left:auto; display:flex; align-items:center; gap:12px; font-size:12.5px; font-weight:600; color:var(--pq-sub); }
+
+.pq-cond { display:flex; align-items:flex-end; gap:16px; padding:18px 22px; flex-wrap:wrap; }
+.pq-field { display:flex; flex-direction:column; gap:6px; }
+.pq-label { font-size:12px; font-weight:700; color:var(--pq-sub); }
+.pq-pill { position:relative; display:inline-flex; align-items:center; background:#f8fafc; border:1px solid #dbe1ea; border-radius:9px; padding:9px 12px; }
+.pq-pill select, .pq-pill input { appearance:none; -webkit-appearance:none; border:none; background:transparent; outline:none;
+  font-size:13.5px; font-weight:600; color:var(--pq-ink); font-feature-settings:'tnum' 1; }
+.pq-pill select { padding-right:22px; cursor:pointer; }
+.pq-pill .bi-chevron-down { position:absolute; right:12px; color:var(--pq-faint); pointer-events:none; font-size:11px; }
+.pq-pill.acc { min-width:380px; }
+.pq-pill.acc input { width:100%; }
+.pq-pill.acc .bi-search { color:var(--pq-faint); margin-right:8px; font-size:13px; }
+.pq-pill:focus-within { border-color:var(--pq-blue); box-shadow:0 0 0 3px var(--pq-blue-bg); }
+.pq-arrow { color:var(--pq-faint); padding-bottom:10px; }
+.pq-run { border:none; border-radius:9px; padding:10px 20px; font-size:14px; font-weight:700; cursor:pointer; background:var(--pq-blue); color:#fff; }
+.pq-run:hover { filter:brightness(1.08); }
+.pq-run:disabled { background:#e2e8f0; color:var(--pq-faint); cursor:not-allowed; }
+.pq-msg { padding:0 22px 16px; font-size:12.5px; color:var(--pq-sub); }
+.pq-msg.err { color:var(--pq-neg); font-weight:600; }
+
+.pq-acc-chip { background:var(--pq-blue-bg); border:1px solid var(--pq-blue-bd); color:var(--pq-blue); font-size:12.5px; font-weight:700; padding:4px 10px; border-radius:7px; }
+.pq-opt { display:inline-flex; align-items:center; gap:6px; cursor:pointer; user-select:none; }
+
+.pq-table-wrap { overflow-x:auto; }
+table.pq-table { width:100%; border-collapse:collapse; font-size:13px; }
+.pq-table th { background:#f7f9fc; color:#334155; font-weight:700; padding:8px 10px; text-align:center; border-bottom:1px solid var(--pq-bd); white-space:nowrap; }
+.pq-table thead tr:first-child th { border-bottom:1px solid #e2e8f0; }
+.pq-table th.grp-local { background:#f3f7ee; }
+.pq-table th.grp-krw { background:#eef3fd; }
+.pq-table td { padding:7px 10px; border-bottom:1px solid var(--pq-rowline); white-space:nowrap; }
+.pq-table tbody tr:hover td { background:#f8fafc; }
+.pq-table td.num { text-align:right; font-variant-numeric:tabular-nums; }
+.pq-table td.co { font-weight:600; color:var(--pq-ink); }
+.pq-table .sep { border-left:1px solid var(--pq-bd); }
+.pq-table .neg { color:var(--pq-neg); }
+.pq-table .up { color:var(--pq-up); font-weight:600; }
+.pq-table .down { color:var(--pq-down); font-weight:600; }
+.pq-table .na { color:var(--pq-faint); font-size:12px; }
+.pq-table tfoot td { background:#f7f9fc; font-weight:700; border-top:2px solid #cbd5e1; border-bottom:none; }
+.cur-badge { font-family:monospace; font-size:11.5px; font-weight:700; background:#f1f5f9; color:#334155; border:1px solid #e2e8f0; border-radius:4px; padding:1px 6px; }
+.pq-empty { text-align:center; padding:48px 24px; color:var(--pq-sub); }
+.pq-note { font-size:12px; color:var(--pq-sub); padding:12px 22px; border-top:1px solid #eef1f6; line-height:1.6; }
+</style>
+</head>
+<body>
+
+{% set active_menu = 'package_query_account' %}
+{% include '_sidebar.html' %}
+
+{% include '_topbar.html' %}
+
+<div class="pq-page">
+
+  <div>
+    <div class="pq-h-title">계정별 증감</div>
+    <div class="pq-h-sub">두 결산기간의 업로드 패키지에서 선택한 계정 금액을 회사별로 현지통화·원화 기준으로 비교합니다.</div>
+  </div>
+
+  <!-- 조회 조건 -->
+  <div class="pq-card">
+    <div class="pq-card-head"><span class="pq-bar"></span>조회 조건</div>
+    <div class="pq-cond">
+      <div class="pq-field">
+        <span class="pq-label">비교 기간</span>
+        <span class="pq-pill">
+          <select id="cmpSel">
+            {% for y in years %}<option value="{{ y }}" {% if y == compare %}selected{% endif %}>{{ y }}</option>{% endfor %}
+          </select>
+          <i class="bi bi-chevron-down"></i>
+        </span>
+      </div>
+      <i class="bi bi-arrow-right pq-arrow"></i>
+      <div class="pq-field">
+        <span class="pq-label">기준 기간</span>
+        <span class="pq-pill">
+          <select id="baseSel">
+            {% for y in years %}<option value="{{ y }}" {% if y == base %}selected{% endif %}>{{ y }}</option>{% endfor %}
+          </select>
+          <i class="bi bi-chevron-down"></i>
+        </span>
+      </div>
+      <div class="pq-field">
+        <span class="pq-label">계정 (코드 또는 계정명으로 검색)</span>
+        <span class="pq-pill acc">
+          <i class="bi bi-search"></i>
+          <input id="accInput" list="accList" placeholder="예: 1110101 또는 현금및현금성자산" autocomplete="off">
+        </span>
+        <datalist id="accList">
+          {% for a in accounts %}<option value="{{ a.code }} · {{ a.kor }}">{{ sheet_labels[a.sheet] }}{% if a.eng %} · {{ a.eng }}{% endif %}</option>{% endfor %}
+        </datalist>
+      </div>
+      <button id="runBtn" class="pq-run" type="button">조회</button>
+    </div>
+    <div class="pq-msg" id="condMsg">증감 = 기준 기간 − 비교 기간</div>
+  </div>
+
+  <!-- 결과 -->
+  <div class="pq-card" id="resultCard" hidden>
+    <div class="pq-card-head">
+      <span class="pq-bar"></span><span id="resTitle">조회 결과</span>
+      <span class="pq-head-right">
+        <label class="pq-opt"><input type="checkbox" id="hideZero" checked> 두 기간 모두 0인 회사 숨김</label>
+        <span id="resCount"></span>
+      </span>
+    </div>
+    <div class="pq-table-wrap">
+      <table class="pq-table">
+        <thead>
+          <tr>
+            <th rowspan="2">회사</th>
+            <th rowspan="2">통화</th>
+            <th colspan="3" class="grp-local sep">현지통화</th>
+            <th colspan="4" class="grp-krw sep">원화 (KRW)</th>
+          </tr>
+          <tr>
+            <th class="grp-local sep" id="hLocalCmp">비교</th>
+            <th class="grp-local" id="hLocalBase">기준</th>
+            <th class="grp-local">증감</th>
+            <th class="grp-krw sep" id="hKrwCmp">비교</th>
+            <th class="grp-krw" id="hKrwBase">기준</th>
+            <th class="grp-krw">증감</th>
+            <th class="grp-krw">증감률</th>
+          </tr>
+        </thead>
+        <tbody id="resBody"></tbody>
+        <tfoot id="resFoot"></tfoot>
+      </table>
+    </div>
+    <div class="pq-note">
+      · 원화 금액은 패키지 업로드(또는 재분석) 시점의 환율로 환산된 값입니다. 재무상태표는 기말환율, 손익계산서는 평균환율 기준입니다.<br>
+      · 손익계산서 계정은 분기 누적 금액이라 연도가 다르면 누적 기간이 다릅니다 (예: 2Q 누적 − 1Q 누적 = 2분기 발생분).<br>
+      · 현지통화 합계는 통화가 섞여 있어 표시하지 않습니다. "미업로드"는 해당 기간에 패키지가 없는 회사이며, 원화 합계에서 제외됩니다.
+    </div>
+  </div>
+</div>
+
+<script>
+const ACCOUNTS = {{ accounts | tojson }};
+const ACC_BY_CODE = Object.fromEntries(ACCOUNTS.map(a => [a.code, a]));
+let LAST = null;
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fmt(v, decimals) {
+  const n = Number(v) || 0;
+  const s = Math.abs(n).toLocaleString('en-US', {minimumFractionDigits: decimals, maximumFractionDigits: decimals});
+  return n < 0 ? '-' + s : s;
+}
+// 현지통화: 소수가 있으면 2자리, 아니면 정수
+function fmtLocal(v) {
+  const n = Number(v) || 0;
+  return fmt(n, Math.abs(n - Math.round(n)) > 1e-9 ? 2 : 0);
+}
+function fmtKrw(v) { return fmt(Math.round(Number(v) || 0), 0); }
+function numCell(text, v, extra) {
+  const cls = ['num'];
+  if (extra) cls.push(extra);
+  if ((Number(v) || 0) < 0) cls.push('neg');
+  return `<td class="${cls.join(' ')}">${text}</td>`;
+}
+function deltaCell(d, fmtFn, extra) {
+  const cls = ['num'];
+  if (extra) cls.push(extra);
+  if (d > 0) cls.push('up'); else if (d < 0) cls.push('down');
+  const sign = d > 0 ? '+' : '';
+  return `<td class="${cls.join(' ')}">${d === 0 ? '0' : sign + fmtFn(d)}</td>`;
+}
+const NA = (extra) => `<td class="num na ${extra || ''}">미업로드</td>`;
+
+function parseCode(text) {
+  const t = String(text || '').trim();
+  if (!t) return '';
+  const m = t.match(/^([0-9A-Za-z]+)/);
+  if (m && ACC_BY_CODE[m[1]]) return m[1];
+  // 계정명만 입력한 경우: 정확히 일치하는 이름이 하나면 그 계정
+  const hits = ACCOUNTS.filter(a => a.kor === t || a.eng.toLowerCase() === t.toLowerCase());
+  return hits.length === 1 ? hits[0].code : (m ? m[1] : '');
+}
+
+function setMsg(text, isErr) {
+  const el = document.getElementById('condMsg');
+  el.textContent = text;
+  el.classList.toggle('err', !!isErr);
+}
+
+async function runQuery() {
+  const base = document.getElementById('baseSel').value;
+  const compare = document.getElementById('cmpSel').value;
+  const code = parseCode(document.getElementById('accInput').value);
+  if (!code) { setMsg('계정을 선택하세요.', true); return; }
+  if (base === compare) { setMsg('기준 기간과 비교 기간이 같습니다.', true); return; }
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  setMsg('조회 중…');
+  try {
+    const qs = new URLSearchParams({base, compare, code});
+    const r = await fetch('/package-query/account-change/data?' + qs);
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || data.error) { setMsg(data.error || ('조회 실패 (' + r.status + ')'), true); return; }
+    LAST = data;
+    setMsg('증감 = 기준 기간 − 비교 기간');
+    render();
+    try { localStorage.setItem('pq.lastCode', code); } catch (e) {}
+  } catch (e) {
+    setMsg('조회 실패: ' + e, true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function render() {
+  const data = LAST;
+  if (!data) return;
+  const hideZero = document.getElementById('hideZero').checked;
+  const acc = data.account || {};
+  document.getElementById('resultCard').hidden = false;
+  document.getElementById('resTitle').innerHTML =
+    `<span class="pq-acc-chip">${esc(acc.code)}</span> ${esc(acc.kor || '(계정명 없음)')}` +
+    (data.sheet_label ? ` <span style="font-weight:500;color:var(--pq-sub);font-size:12.5px">· ${esc(data.sheet_label)}</span>` : '');
+  for (const id of ['hLocalCmp', 'hKrwCmp']) document.getElementById(id).textContent = data.compare;
+  for (const id of ['hLocalBase', 'hKrwBase']) document.getElementById(id).textContent = data.base;
+
+  const isZero = s => s.status !== 'ok' || (Math.abs(s.local) < 1e-9 && Math.abs(s.krw) < 0.5);
+  const rows = (data.rows || []).filter(r => !(hideZero && isZero(r.base) && isZero(r.compare)));
+
+  // 합계는 두 기간 모두 패키지가 있는 회사만 — 한쪽만 있는 회사가 섞이면 증감이 왜곡됨
+  let totCmp = 0, totBase = 0, totN = 0;
+  const html = rows.map(r => {
+    const b = r.base, c = r.compare;
+    const curB = b.currency, curC = c.currency;
+    const cur = curB && curC && curB !== curC ? `${curC}→${curB}` : (curB || curC || '');
+    const hasB = b.status !== 'missing', hasC = c.status !== 'missing';
+    if (hasB && hasC) { totBase += b.krw; totCmp += c.krw; totN++; }
+    let tds = `<td class="co">${esc(r.company)}</td><td><span class="cur-badge">${esc(cur)}</span></td>`;
+    // 현지통화 — 통화가 바뀐 회사는 증감을 계산하지 않음
+    tds += hasC ? numCell(fmtLocal(c.local), c.local, 'sep') : NA('sep');
+    tds += hasB ? numCell(fmtLocal(b.local), b.local) : NA();
+    tds += (hasB && hasC && curB === curC) ? deltaCell(b.local - c.local, fmtLocal) : '<td class="num na">-</td>';
+    // 원화
+    tds += hasC ? numCell(fmtKrw(c.krw), c.krw, 'sep') : NA('sep');
+    tds += hasB ? numCell(fmtKrw(b.krw), b.krw) : NA();
+    if (hasB && hasC) {
+      const d = Math.round(b.krw) - Math.round(c.krw);
+      tds += deltaCell(d, fmtKrw);
+      tds += `<td class="num">${pct(d, c.krw)}</td>`;
+    } else {
+      tds += '<td class="num na">-</td><td class="num na">-</td>';
+    }
+    return `<tr>${tds}</tr>`;
+  }).join('');
+
+  document.getElementById('resBody').innerHTML = html ||
+    `<tr><td colspan="9" class="pq-empty">표시할 회사가 없습니다.${hideZero ? ' (두 기간 모두 0인 회사는 숨김)' : ''}</td></tr>`;
+  const dTot = Math.round(totBase) - Math.round(totCmp);
+  const partial = rows.length - totN;
+  document.getElementById('resFoot').innerHTML = totN ? `<tr>
+      <td>합계${partial ? ` <span style="font-weight:500;color:var(--pq-sub);font-size:12px">(두 기간 모두 제출한 ${totN}개사)</span>` : ''}</td><td></td>
+      <td class="num sep"></td><td class="num"></td><td class="num"></td>
+      ${numCell(fmtKrw(totCmp), totCmp, 'sep')}${numCell(fmtKrw(totBase), totBase)}
+      ${deltaCell(dTot, fmtKrw)}<td class="num">${pct(dTot, totCmp)}</td></tr>` : '';
+  const hidden = (data.rows || []).length - rows.length;
+  document.getElementById('resCount').textContent =
+    `${rows.length}개사` + (hidden ? ` (숨김 ${hidden})` : '');
+}
+
+function pct(d, baseVal) {
+  const b = Number(baseVal) || 0;
+  if (Math.abs(b) < 0.5) return d === 0 ? '-' : '<span class="na">n/a</span>';
+  const p = d / Math.abs(b) * 100;
+  const cls = p > 0 ? 'up' : (p < 0 ? 'down' : '');
+  return `<span class="${cls}">${p > 0 ? '+' : ''}${p.toFixed(1)}%</span>`;
+}
+
+document.getElementById('runBtn').addEventListener('click', runQuery);
+document.getElementById('accInput').addEventListener('keydown', e => { if (e.key === 'Enter') runQuery(); });
+document.getElementById('hideZero').addEventListener('change', render);
+// 계정을 목록에서 고르면 바로 조회
+document.getElementById('accInput').addEventListener('change', e => {
+  const code = parseCode(e.target.value);
+  if (code && ACC_BY_CODE[code]) runQuery();
+});
+
+// 마지막으로 조회한 계정 복원
+try {
+  const last = localStorage.getItem('pq.lastCode');
+  if (last && ACC_BY_CODE[last]) document.getElementById('accInput').value = `${last} · ${ACC_BY_CODE[last].kor}`;
+} catch (e) {}
+</script>
+
+</body>
+</html>

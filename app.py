@@ -329,6 +329,7 @@ def _inject_sidebar_perms():
             'files_reanalyze': _has_permission(uname, 'files.reanalyze'),
             'aggregate_run':   _has_permission(uname, 'aggregate.run'),
             'package_verify':  _has_permission(uname, 'package.verify'),
+            'package_query':   _has_permission(uname, 'package.query'),
             'note_aggregate':  _has_permission(uname, 'note.aggregate'),
             'cash_compute':    _has_permission(uname, 'cash.compute'),
             'cash_mapping':    _has_permission(uname, 'cash.mapping'),
@@ -489,6 +490,9 @@ def _ensure_permission_catalog():
         # 감사인 제출자료 — 연결정산표·현금정산표·주석합산을 한 파일로 (홈 화면)
         ('audit.export', '감사인 제출자료 추출', 'report.edit',
          {'system_admin', 'finance_lead', 'viewer'}, '연결정산'),
+        # 패키지 조회 — 업로드 패키지 추출값 조회(계정별 증감 등). 패키지 검증과 같은 그룹에 기본 허용
+        ('package.query', '패키지 조회', 'package.verify',
+         {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, 'WCE/검증'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
@@ -1800,6 +1804,134 @@ def admin_wce_aggregate_data():
         'year': year,
         'companies': targets,
         'tables': out_tables,
+    })
+
+
+# ─── 패키지 조회 ────────────────────────────────────────────────────────────
+# 업로드 시 추출해 둔 BS / PL_MF 값(extracted.sheets)을 그대로 조회한다 — 파일을 다시 열지 않음.
+# value = 원화 환산값(BS 기말환율·PL 평균환율), local_value = 현지통화 원본.
+
+_PQ_SHEETS = (('BS', '재무상태표'), ('PL_MF', '손익계산서'))
+
+
+def _latest_files_by_company(period, uname):
+    """해당 기간에 업로드된 패키지 중 회사별 최신 1개 → {정규화 회사명: entry}."""
+    out = {}
+    for f in sorted(uploaded_files, key=lambda x: x.get('uploaded_at') or '', reverse=True):
+        if f.get('year') != period:
+            continue
+        company = f.get('company')
+        if not company or not _can_access_company(uname, company):
+            continue
+        out.setdefault(_norm_company_name(company), f)
+    return out
+
+
+def _package_query_accounts(uname):
+    """조회 가능한 패키지들에 나오는 BS·PL 계정 목록 (시트 순서 유지, 최근 기간 이름 우선)."""
+    accounts = {}
+    for f in sorted(uploaded_files, key=lambda x: _period_sort_key(x.get('year')), reverse=True):
+        if not f.get('company') or not _can_access_company(uname, f.get('company')):
+            continue
+        sheets = (f.get('extracted') or {}).get('sheets') or {}
+        for sheet, _ in _PQ_SHEETS:
+            for code, e in (sheets.get(sheet) or {}).items():
+                if code not in accounts:
+                    accounts[code] = {'code': code, 'sheet': sheet,
+                                      'kor': e.get('kor') or '', 'eng': e.get('eng') or ''}
+    order = {s: i for i, (s, _) in enumerate(_PQ_SHEETS)}
+    return sorted(accounts.values(), key=lambda a: (order[a['sheet']], a['code']))
+
+
+@app.route('/package-query/account-change')
+@require_permission('package.query')
+def package_query_account_change_page():
+    """패키지 조회 › 계정별 증감."""
+    uname = session.get('username')
+    years_list = YEARS_DATA.get('years', [])   # 최신순
+    base = (request.args.get('base') or '').strip()
+    if not _valid_year(base):
+        base = YEARS_DATA.get('default') or (years_list[0] if years_list else '')
+    older = [y for y in years_list if _period_sort_key(y) < _period_sort_key(base)]
+    compare = older[0] if older else ''
+    return render_template(
+        'package_query_account.html',
+        years=years_list, base=base, compare=compare,
+        accounts=_package_query_accounts(uname),
+        sheet_labels=dict(_PQ_SHEETS),
+        username=uname,
+    )
+
+
+@app.route('/package-query/account-change/data')
+@require_permission('package.query')
+def package_query_account_change_data():
+    """두 기간의 회사별 계정 금액(현지통화·원화)과 증감."""
+    uname = session.get('username')
+    base = (request.args.get('base') or '').strip()
+    compare = (request.args.get('compare') or '').strip()
+    code = (request.args.get('code') or '').strip()
+    if not _valid_year(base) or not _valid_year(compare):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    if base == compare:
+        return jsonify({'error': '기준 기간과 비교 기간이 같습니다.'}), 400
+    if not code:
+        return jsonify({'error': '계정을 선택해주세요.'}), 400
+
+    def _pick(entry):
+        """entry 에서 계정 값 → (시트, 계정정보) 또는 (None, None)."""
+        sheets = ((entry or {}).get('extracted') or {}).get('sheets') or {}
+        for sheet, _ in _PQ_SHEETS:
+            acc = (sheets.get(sheet) or {}).get(code)
+            if acc is not None:
+                return sheet, acc
+        return None, None
+
+    base_files = _latest_files_by_company(base, uname)
+    cmp_files = _latest_files_by_company(compare, uname)
+
+    # 회사 마스터 순서로 정렬, 마스터에 없는 회사는 뒤에 이름순
+    master_rank = {_norm_company_name(c.get('name')): i
+                   for i, c in enumerate(_load_company_master().get('companies') or [])}
+
+    rows = []
+    acc_info = {'code': code, 'sheet': None, 'kor': '', 'eng': ''}
+    for norm in set(base_files) | set(cmp_files):
+        fb, fc = base_files.get(norm), cmp_files.get(norm)
+        sb, ab = _pick(fb)
+        sc, ac = _pick(fc)
+        for s, a in ((sb, ab), (sc, ac)):
+            if a is not None and not acc_info['sheet']:
+                acc_info.update(sheet=s, kor=a.get('kor') or '', eng=a.get('eng') or '')
+        exb = (fb or {}).get('extracted') or {}
+        exc = (fc or {}).get('extracted') or {}
+
+        def _side(f, ex, a):
+            if f is None:
+                return {'status': 'missing'}          # 해당 기간 패키지 미업로드
+            if a is None:
+                return {'status': 'no_account', 'local': 0.0, 'krw': 0.0,
+                        'currency': ex.get('currency') or 'KRW'}
+            return {'status': 'ok',
+                    'local': float(a.get('local_value') or 0),
+                    'krw': float(a.get('value') or 0),
+                    'currency': ex.get('currency') or 'KRW'}
+
+        rows.append({
+            'company': (fb or fc).get('company'),
+            'base': _side(fb, exb, ab),
+            'compare': _side(fc, exc, ac),
+            '_rank': master_rank.get(norm, 10**6),
+        })
+    if not acc_info['sheet']:
+        return jsonify({'error': f'{base}·{compare} 패키지에 {code} 계정이 없습니다.'}), 404
+    rows.sort(key=lambda r: (r.pop('_rank'), r['company'] or ''))
+
+    return jsonify({
+        'base': base, 'compare': compare,
+        'account': acc_info,
+        'sheet_label': dict(_PQ_SHEETS).get(acc_info['sheet'] or '', ''),
+        'rows': rows,
     })
 
 
@@ -8202,6 +8334,7 @@ def _sidebar_perms(uname):
         'files_reanalyze':  _has_permission(uname, 'files.reanalyze'),
         'aggregate_run':    _has_permission(uname, 'aggregate.run'),
         'package_verify':   _has_permission(uname, 'package.verify'),
+        'package_query':    _has_permission(uname, 'package.query'),
         'note_aggregate':   _has_permission(uname, 'note.aggregate'),
         'cash_compute':     _has_permission(uname, 'cash.compute'),
         'cash_mapping':     _has_permission(uname, 'cash.mapping'),
