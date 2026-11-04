@@ -1440,3 +1440,87 @@ def verify_wce_label_match(extracted):
     except Exception as e:
         out['error'] = f'WCE 라벨 검사 실패: {e}'
     return out
+
+
+# ─── 기타계정(others. 시트) 상세 읽기 — 패키지 조회 › 기타계정 조회 ────────────
+# 시트 구조 (계정 블록 반복):
+#   A=번호, B=계정 영문명, C=계정코드          ← 블록 머리
+#   B='하위계정 Sub-account', C='금액', D='설명' ← 입력표 머리
+#   B=하위계정(드롭다운), C=금액(현지통화), D=설명 ← 입력행
+#   B='Total' / 'FS' / 'Diff.' , C=금액         ← 블록 끝 (FS = BS·PL 시트의 K-GAAP 조정 후 현지금액)
+
+def _find_other_sheet_name(zf):
+    """'others.' 시트 이름 (표기 흔들림 허용: others / Others. / other 등). 없으면 None."""
+    if 'xl/workbook.xml' not in zf.namelist():
+        return None
+    with zf.open('xl/workbook.xml') as f:
+        root = ET.parse(f).getroot()
+    for sheet in root.iter(_TAG_SHEET):
+        name = sheet.get('name') or ''
+        if name.strip().rstrip('.').strip().lower() in ('others', 'other'):
+            return name
+    return None
+
+
+def read_other_accounts(file_path):
+    """others. 시트의 계정별 상세 입력행을 읽는다.
+
+    반환: {'sheet_found': bool, 'error': str|None,
+           'accounts': [{'code', 'name', 'total', 'fs', 'diff',
+                         'rows': [{'row', 'sub', 'amount', 'desc'}]}]}
+    금액은 모두 현지통화. 하위계정·금액·설명이 모두 빈 행은 버린다.
+    """
+    out = {'sheet_found': False, 'error': None, 'accounts': []}
+    try:
+        with zipfile.ZipFile(file_path) as zf:
+            name = _find_other_sheet_name(zf)
+            path = _find_sheet_path_by_name(zf, name) if name else None
+            if not path or path not in zf.namelist():
+                return out
+            out['sheet_found'] = True
+            shared = _load_shared_strings(zf)
+            cur = None
+            in_rows = False
+            with zf.open(path) as f:
+                for event, elem in ET.iterparse(f, events=('end',)):
+                    if elem.tag != _TAG_ROW:
+                        continue
+                    r = int(elem.get('r') or 0)
+                    vals = {}
+                    for c in elem.findall(_TAG_C):
+                        letters, _ = _split_cell_ref(c.get('r'))
+                        if letters in ('A', 'B', 'C', 'D'):
+                            vals[letters] = _cell_value(c, shared)
+                    elem.clear()
+                    a, b, cv, d = (vals.get(k) for k in ('A', 'B', 'C', 'D'))
+                    b_txt = str(b).strip() if b is not None else ''
+                    is_num = isinstance(cv, (int, float)) and not isinstance(cv, bool)
+
+                    # 블록 머리: A=번호, B=계정명, C=7자리 계정코드
+                    if (isinstance(a, (int, float)) and not isinstance(a, bool)
+                            and is_num and 1000000 <= cv < 10000000 and b_txt):
+                        cur = {'code': str(int(cv)), 'name': b_txt,
+                               'total': 0.0, 'fs': 0.0, 'diff': 0.0, 'rows': []}
+                        out['accounts'].append(cur)
+                        in_rows = False
+                        continue
+                    if cur is None:
+                        continue
+                    if b_txt.startswith('하위계정'):
+                        in_rows = True
+                        continue
+                    key = b_txt.lower().rstrip('.')
+                    if key in ('total', 'fs', 'diff'):
+                        cur[key] = float(cv) if is_num else 0.0
+                        in_rows = False
+                        continue
+                    if not in_rows:
+                        continue
+                    amount = float(cv) if is_num else 0.0
+                    desc = str(d).strip() if d is not None else ''
+                    if not b_txt and not desc and amount == 0.0:
+                        continue
+                    cur['rows'].append({'row': r, 'sub': b_txt, 'amount': amount, 'desc': desc})
+    except Exception as e:
+        out['error'] = f'others 시트 읽기 실패: {e}'
+    return out

@@ -31,7 +31,8 @@ from package_verify import (verify_wcf_diff, verify_wcf_accounts,
                             verify_cf4_other_transfer,
                             verify_cf41_other_transfer,
                             verify_gaap_retained_earnings,
-                            verify_wce_label_match)
+                            verify_wce_label_match,
+                            read_other_accounts)
 from note_aggregate import (
     extract_l1_borrowings, build_l1_excel,
     extract_l4_loan_facility, build_l4_excel,
@@ -1932,6 +1933,97 @@ def package_query_account_change_data():
         'account': acc_info,
         'sheet_label': dict(_PQ_SHEETS).get(acc_info['sheet'] or '', ''),
         'rows': rows,
+    })
+
+
+@app.route('/package-query/other-accounts')
+@require_permission('package.query')
+def package_query_other_accounts_page():
+    """패키지 조회 › 기타계정 조회."""
+    years_list = YEARS_DATA.get('years', [])
+    period = (request.args.get('period') or '').strip()
+    if not _valid_year(period):
+        period = YEARS_DATA.get('default') or (years_list[0] if years_list else '')
+    return render_template('package_query_other.html', years=years_list, period=period,
+                           username=session.get('username'))
+
+
+@app.route('/package-query/other-accounts/data')
+@require_permission('package.query')
+def package_query_other_accounts_data():
+    """others. 시트의 기타계정 상세를 계정 → 하위계정 → 회사별로 모은다.
+    금액은 현지통화, 환산액은 업로드 시 사용된 환율(BS=기말, PL=평균) 적용."""
+    uname = session.get('username')
+    period = (request.args.get('period') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+
+    files = [f for f in _latest_files_by_company(period, uname).values() if f.get('path')]
+    workers = min(8, max(1, len(files)))
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        parsed = list(ex.map(lambda f: read_other_accounts(f['path']), files))
+
+    master_rank = {_norm_company_name(c.get('name')): i
+                   for i, c in enumerate(_load_company_master().get('companies') or [])}
+    accounts = {}       # code → 집계
+    order = []          # 시트상 계정 순서
+    no_sheet, errors = [], []
+    for f, res in zip(files, parsed):
+        company = f.get('company')
+        ex_ = f.get('extracted') or {}
+        currency = ex_.get('currency') or 'KRW'
+        sheets = ex_.get('sheets') or {}
+        if res.get('error'):
+            errors.append({'company': company, 'message': res['error']})
+            continue
+        if not res.get('sheet_found'):
+            no_sheet.append(company)
+            continue
+        for acc in res['accounts']:
+            code = acc['code']
+            is_bs = code[:1] in ('1', '2', '3')
+            if currency == 'KRW':
+                rate = 1.0
+            else:
+                rate = float((ex_.get('fx_spot_current') if is_bs else ex_.get('fx_avg')) or 1.0)
+            if code not in accounts:
+                fs_acc = (sheets.get('BS' if is_bs else 'PL_MF') or {}).get(code) or {}
+                accounts[code] = {'code': code, 'name': acc['name'], 'kor': fs_acc.get('kor') or '',
+                                  'sheet': 'BS' if is_bs else 'PL_MF', 'subs': {}, 'diffs': []}
+                order.append(code)
+            a = accounts[code]
+            if not a['kor']:
+                a['kor'] = ((sheets.get(a['sheet']) or {}).get(code) or {}).get('kor') or ''
+            for r in acc['rows']:
+                sub = a['subs'].setdefault(r['sub'] or '', [])
+                sub.append({'company': company, 'currency': currency, 'rate': rate,
+                            'local': r['amount'], 'krw': round(r['amount'] * rate),
+                            'desc': r['desc'], '_rank': master_rank.get(_norm_company_name(company), 10**6)})
+            if abs(acc.get('diff') or 0) >= 1:
+                a['diffs'].append({'company': company, 'currency': currency,
+                                   'total': acc['total'], 'fs': acc['fs'], 'diff': acc['diff'],
+                                   'diff_krw': round(acc['diff'] * rate)})
+
+    out_accounts = []
+    for code in order:
+        a = accounts[code]
+        subs = []
+        for name, rows in a['subs'].items():
+            rows.sort(key=lambda x: (-abs(x['krw']), x.pop('_rank'), x['company']))
+            subs.append({'sub': name, 'krw': sum(x['krw'] for x in rows),
+                         'companies': len({x['company'] for x in rows}), 'rows': rows})
+        subs.sort(key=lambda s: -abs(s['krw']))
+        out_accounts.append({
+            'code': code, 'name': a['name'], 'kor': a['kor'], 'sheet': a['sheet'],
+            'sheet_label': dict(_PQ_SHEETS).get(a['sheet'], ''),
+            'krw': sum(s['krw'] for s in subs),
+            'companies': len({x['company'] for s in subs for x in s['rows']}),
+            'subs': subs, 'diffs': a['diffs'],
+        })
+    return jsonify({
+        'period': period, 'scanned': len(files),
+        'accounts': out_accounts,
+        'no_sheet': sorted(no_sheet), 'errors': errors,
     })
 
 
