@@ -2106,17 +2106,10 @@ def package_query_other_accounts_page():
                            username=session.get('username'))
 
 
-@app.route('/package-query/other-accounts/data')
-@require_permission('package.query')
-def package_query_other_accounts_data():
-    """others. 시트의 기타계정 상세를 계정 → 하위계정 → 회사별로 모은다.
+def _other_accounts_compute(period, uname):
+    """others. 시트의 기타계정 상세를 계정 → 하위계정 → 회사별로 모은다 (화면 JSON·엑셀 공용).
     금액은 현지통화, 환산액은 업로드 시 사용된 환율(BS=기말, PL=평균) 적용."""
-    uname = session.get('username')
-    period = (request.args.get('period') or '').strip()
-    if not _valid_year(period):
-        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
-
-    files = [f for f in _latest_files_by_company(period, uname).values() if f.get('path')]
+    files =[f for f in _latest_files_by_company(period, uname).values() if f.get('path')]
     workers = min(8, max(1, len(files)))
     with ThreadPoolExecutor(max_workers=workers) as ex:
         parsed = list(ex.map(lambda f: read_other_accounts(f['path']), files))
@@ -2178,11 +2171,238 @@ def package_query_other_accounts_data():
             'companies': len({x['company'] for s in subs for x in s['rows']}),
             'subs': subs, 'diffs': a['diffs'],
         })
-    return jsonify({
+    return {
         'period': period, 'scanned': len(files),
         'accounts': out_accounts,
         'no_sheet': sorted(no_sheet), 'errors': errors,
-    })
+    }
+
+
+@app.route('/package-query/other-accounts/data')
+@require_permission('package.query')
+def package_query_other_accounts_data():
+    period = (request.args.get('period') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    return jsonify(_other_accounts_compute(period, session.get('username')))
+
+
+@app.route('/package-query/other-accounts/excel')
+@require_permission('package.query')
+def package_query_other_accounts_excel():
+    """기타계정 조회 결과 엑셀. 화면 필터(code·q·hide_zero)를 그대로 적용한다."""
+    period = (request.args.get('period') or '').strip()
+    if not _valid_year(period):
+        return '유효한 결산기간을 선택해주세요.', 400
+    result = _other_accounts_compute(period, session.get('username'))
+    wb = _other_accounts_workbook(
+        result,
+        code=(request.args.get('code') or '').strip(),
+        q=(request.args.get('q') or '').strip(),
+        hide_zero=request.args.get('hide_zero') == '1',
+    )
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf, as_attachment=True, download_name=f'기타계정조회_{period}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+
+
+def _other_accounts_workbook(result, code='', q='', hide_zero=True):
+    """기타계정 엑셀 — 요약 / 상세(계정›하위계정›회사, 소계 수식) / 데이터(한 줄 목록, 필터용)
+    / 대사차이(있을 때)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    period = result['period']
+    ql = q.lower()
+
+    def _match(row, sub):
+        return not ql or any(ql in str(s or '').lower() for s in (row['company'], sub, row['desc']))
+
+    # 화면과 같은 필터 적용
+    accounts = []
+    for a in result['accounts']:
+        if code and a['code'] != code:
+            continue
+        subs = []
+        for s in a['subs']:
+            rows = [r for r in s['rows'] if (not hide_zero or abs(r['local']) > 1e-9) and _match(r, s['sub'])]
+            if rows:
+                subs.append({**s, 'rows': rows})
+        if q and not subs:
+            continue
+        accounts.append({**a, 'subs': subs})
+
+    font = Font(name='맑은 고딕', size=10)
+    bold = Font(name='맑은 고딕', size=10, bold=True)
+    hdr_font = Font(name='맑은 고딕', size=10, bold=True, color='1F3864')
+    note_font = Font(name='맑은 고딕', size=9, color='64748B')
+    title_font = Font(name='맑은 고딕', size=14, bold=True, color='1F3864')
+    thin = Side(border_style='thin', color='BFBFBF')
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+    center = Alignment(horizontal='center', vertical='center')
+    wrap = Alignment(vertical='top', wrap_text=True)
+    fill_hdr = PatternFill('solid', start_color='EEF2F7')
+    fill_acc = PatternFill('solid', start_color='DCE6F7')
+    fill_sub = PatternFill('solid', start_color='F2F6FC')
+    FMT_LOCAL = '#,##0.00;[Red]-#,##0.00;0'
+    FMT_KRW = '#,##0;[Red]-#,##0;0'
+
+    cond = [f'결산기간 {period}', f'패키지 {result["scanned"]}개']
+    if code:
+        cond.append(f'계정 {code}')
+    if q:
+        cond.append(f'검색 "{q}"')
+    if hide_zero:
+        cond.append('금액 0인 행 제외')
+    cond_text = ' · '.join(cond)
+
+    def _header(ws, row, heads):
+        for ci, h in enumerate(heads, 1):
+            c = ws.cell(row, ci, h)
+            c.font, c.fill, c.border, c.alignment = hdr_font, fill_hdr, border, center
+
+    def _style(ws, row, ncol, f=font, fill=None):
+        for ci in range(1, ncol + 1):
+            c = ws.cell(row, ci)
+            c.font, c.border = f, border
+            if fill:
+                c.fill = fill
+
+    wb = Workbook()
+
+    # ── 상세: 계정 › 하위계정(소계 수식) › 회사 ─────────────────────
+    det = wb.active
+    det.title = '상세'
+    det['A1'] = '기타계정 조회 — 상세'
+    det['A1'].font = title_font
+    det['A2'] = cond_text
+    det['A2'].font = font
+    heads = ['계정 / 하위계정 / 회사', '통화', '현지금액', '원화 환산액', '설명']
+    _header(det, 4, heads)
+    r = 5
+    acc_total_row = {}        # 계정코드 → 상세 시트의 계정 행 (요약에서 합계 참조·링크)
+    for a in accounts:
+        if not a['subs']:
+            continue
+        acc_row = r
+        det.cell(r, 1, f"{a['code']}  {a['kor'] or a['name']}  ({a['sheet_label']})")
+        _style(det, r, 5, bold, fill_acc)
+        r += 1
+        sub_rows = []
+        for s in a['subs']:
+            sub_row = r
+            sub_rows.append(sub_row)
+            det.cell(r, 1, s['sub'] or '(하위계정 미선택)')
+            det.cell(r, 5, f"{len(s['rows'])}건 · {len({x['company'] for x in s['rows']})}개사")
+            _style(det, r, 5, bold, fill_sub)
+            r += 1
+            for x in s['rows']:
+                det.cell(r, 1, '    ' + x['company'])
+                det.cell(r, 2, x['currency']).alignment = center
+                det.cell(r, 3, x['local']).number_format = FMT_LOCAL
+                det.cell(r, 4, x['krw']).number_format = FMT_KRW
+                det.cell(r, 5, x['desc'])
+                _style(det, r, 5)
+                det.cell(r, 5).alignment = wrap
+                r += 1
+            det.cell(sub_row, 4, f'=SUM(D{sub_row + 1}:D{r - 1})').number_format = FMT_KRW
+        det.cell(acc_row, 4, '=' + '+'.join(f'D{x}' for x in sub_rows)).number_format = FMT_KRW
+        acc_total_row[a['code']] = acc_row
+    if not acc_total_row:
+        det.cell(r, 1, '조건에 맞는 입력이 없습니다.').font = note_font
+    for col, w in zip('ABCDE', (52, 9, 20, 20, 60)):
+        det.column_dimensions[col].width = w
+    det.freeze_panes = 'A5'
+
+    # ── 요약: 계정별 합계 (상세 시트 합계 참조) ────────────────────
+    summ = wb.create_sheet('요약', 0)
+    summ['A1'] = '기타계정 조회 — 요약'
+    summ['A1'].font = title_font
+    summ['A2'] = cond_text
+    summ['A2'].font = font
+    _header(summ, 4, ['계정코드', '계정명', '영문명', '구분', '입력 회사 수', '하위계정 수', '원화 합계', '대사 차이'])
+    r = 5
+    link_font = Font(name='맑은 고딕', size=10, color='0563C1', underline='single')
+    for a in accounts:
+        summ.cell(r, 1, a['code']).alignment = center
+        summ.cell(r, 2, a['kor'] or a['name'])
+        summ.cell(r, 3, a['name'])
+        summ.cell(r, 4, a['sheet_label']).alignment = center
+        summ.cell(r, 5, len({x['company'] for s in a['subs'] for x in s['rows']}))
+        summ.cell(r, 6, len(a['subs']))
+        if a['code'] in acc_total_row:
+            row_no = acc_total_row[a['code']]
+            summ.cell(r, 7, f"='상세'!D{row_no}")
+            summ.cell(r, 2).hyperlink = f"#'상세'!A{row_no}"
+        else:
+            summ.cell(r, 7, 0)
+        summ.cell(r, 7).number_format = FMT_KRW
+        summ.cell(r, 8, f"{len(a['diffs'])}개사" if a['diffs'] else '')
+        _style(summ, r, 8)
+        if a['code'] in acc_total_row:
+            summ.cell(r, 2).font = link_font     # 클릭하면 상세 시트의 해당 계정으로 이동
+        if a['diffs']:
+            summ.cell(r, 8).font = Font(name='맑은 고딕', size=10, bold=True, color='9A3412')
+        r += 1
+    note_row = r + 1
+    summ.cell(note_row, 1, '· 원화 합계는 재무상태표·손익계산서 계정이 섞여 있어 계정 간 합산하지 않습니다.').font = note_font
+    summ.cell(note_row + 1, 1, '· 현지금액은 others. 시트 입력값(K-GAAP 조정 후 현지통화), 원화 환산액은 업로드 시 환율'
+                               '(재무상태표=기말환율, 손익계산서=평균환율) 적용 값입니다.').font = note_font
+    if result['no_sheet']:
+        summ.cell(note_row + 2, 1, '· others 시트 없음: ' + ', '.join(result['no_sheet'])).font = note_font
+    if result['errors']:
+        summ.cell(note_row + 3, 1, '· 읽기 오류: ' + ', '.join(
+            f"{e['company']}({e['message']})" for e in result['errors'])).font = note_font
+    for col, w in zip('ABCDEFGH', (11, 24, 40, 12, 12, 12, 20, 11)):
+        summ.column_dimensions[col].width = w
+    summ.freeze_panes = 'A5'
+
+    # ── 데이터: 한 줄 목록 (피벗·필터용) ──────────────────────────
+    flat = wb.create_sheet('데이터')
+    flat_heads = ['계정코드', '계정명', '구분', '하위계정', '회사', '통화', '현지금액', '적용환율', '원화 환산액', '설명']
+    _header(flat, 1, flat_heads)
+    r = 2
+    for a in accounts:
+        for s in a['subs']:
+            for x in s['rows']:
+                vals = [a['code'], a['kor'] or a['name'], a['sheet_label'], s['sub'] or '(하위계정 미선택)',
+                        x['company'], x['currency'], x['local'], x['rate'], x['krw'], x['desc']]
+                for ci, v in enumerate(vals, 1):
+                    flat.cell(r, ci, v)
+                _style(flat, r, len(flat_heads))
+                flat.cell(r, 7).number_format = FMT_LOCAL
+                flat.cell(r, 8).number_format = '#,##0.0000'
+                flat.cell(r, 9).number_format = FMT_KRW
+                r += 1
+    if r > 2:
+        flat.auto_filter.ref = f'A1:J{r - 1}'
+    for col, w in zip('ABCDEFGHIJ', (11, 20, 11, 40, 34, 7, 18, 11, 18, 60)):
+        flat.column_dimensions[col].width = w
+    flat.freeze_panes = 'A2'
+
+    # ── 대사차이: others 시트 Total ≠ 재무제표 ────────────────────
+    diffs = [(a, d) for a in accounts for d in a['diffs']]
+    if diffs:
+        dws = wb.create_sheet('대사차이')
+        _header(dws, 1, ['계정코드', '계정명', '회사', '통화', 'others Total', '재무제표(FS)', '차이(현지)', '차이(원화)'])
+        for i, (a, d) in enumerate(diffs, 2):
+            vals = [a['code'], a['kor'] or a['name'], d['company'], d['currency'],
+                    d['total'], d['fs'], d['diff'], d['diff_krw']]
+            for ci, v in enumerate(vals, 1):
+                dws.cell(i, ci, v)
+            _style(dws, i, 8)
+            for ci in (5, 6, 7):
+                dws.cell(i, ci).number_format = FMT_LOCAL
+            dws.cell(i, 8).number_format = FMT_KRW
+        for col, w in zip('ABCDEFGH', (11, 20, 34, 7, 18, 18, 16, 16)):
+            dws.column_dimensions[col].width = w
+        dws.freeze_panes = 'A2'
+
+    return wb
 
 
 # ─── 패키지 검증 ────────────────────────────────────────────────────────────

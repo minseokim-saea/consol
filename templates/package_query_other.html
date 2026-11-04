@@ -45,6 +45,8 @@ body { background:#eef1f6; font-family:'Pretendard Variable', Pretendard, -apple
 .pq-chip.warn { background:var(--pq-warn-bg); border-color:var(--pq-warn-bd); color:var(--pq-warn-tx); }
 .pq-summary .spacer { flex:1; }
 .pq-link { background:none; border:none; color:var(--pq-blue); font-weight:600; font-size:12.5px; cursor:pointer; padding:0; }
+.pq-xlsx { border:1px solid #b7dfc4; background:#eef9f1; color:#166534; border-radius:8px; padding:5px 12px; font-size:12.5px; font-weight:700; cursor:pointer; margin-left:6px; }
+.pq-xlsx:hover { background:#dcf3e3; }
 
 .acc-head { display:flex; align-items:center; gap:10px; padding:13px 20px; cursor:pointer; user-select:none; }
 .acc-head:hover { background:#f8fafc; }
@@ -268,7 +270,8 @@ function render() {
   const summary = document.getElementById('summary');
   summary.innerHTML = chips.join('') + `<span class="spacer"></span>
     <button class="pq-link" type="button" data-all="open">모두 펼치기</button>
-    <button class="pq-link" type="button" data-all="close">모두 접기</button>`;
+    <button class="pq-link" type="button" data-all="close">모두 접기</button>
+    <button class="pq-xlsx" type="button" id="xlsxBtn"><i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드</button>`;
   summary.hidden = false;
   document.getElementById('note').hidden = false;
 }
@@ -281,6 +284,18 @@ document.getElementById('result').addEventListener('click', e => {
   openState[card.dataset.code] = card.classList.contains('open');
 });
 document.getElementById('summary').addEventListener('click', e => {
+  // 엑셀 — 지금 조회한 기간 + 화면 필터(계정·검색·0 숨김) 그대로
+  if (e.target.closest('#xlsxBtn')) {
+    if (!DATA) return;
+    const qs = new URLSearchParams({
+      period: DATA.period,
+      code: document.getElementById('accSel').value,
+      q: document.getElementById('searchInput').value.trim(),
+      hide_zero: document.getElementById('hideZero').checked ? '1' : '0',
+    });
+    location.href = '/package-query/other-accounts/excel?' + qs;
+    return;
+  }
   const b = e.target.closest('[data-all]');
   if (!b) return;
   const open = b.dataset.all === 'open';
