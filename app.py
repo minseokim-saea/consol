@@ -14297,6 +14297,21 @@ def _cf_get_roundings(group_id, period):
     return (_cf_load_manuals().get(key) or {}).get('roundings') or {}
 
 
+# 기초현금 수기조정(L) 허용 연도 — 시스템 첫 결산연도(2025년 말)는 청산된 회사의 패키지가
+# 없어 패키지 기초현금 합계가 실제 기초현금과 맞지 않는다. 그 해에만 기초현금을 수기로 보정한다.
+CASH_BEGIN_MANUAL_YEAR = '2025'
+
+
+def _cash_begin_manual_allowed(period):
+    return str(period or '').startswith(f'{CASH_BEGIN_MANUAL_YEAR}-')
+
+
+def _is_cash_begin_key(code):
+    """현금정산표 Ⅵ.기초의현금 라벨 행 키 (예: 'LBL::Ⅵ. 기초의현금')."""
+    k = str(code or '')
+    return k.startswith('LBL::') and ('기초의현금' in k or '기초현금' in k)
+
+
 def _cf_set_manuals(group_id, period, manuals, username,
                     comments=None, roundings=None):
     """manuals = {cf_code: number}, comments = {cf_code: text},
@@ -14440,6 +14455,7 @@ def cash_worksheet_compute(group_id, period):
         'manuals': manuals,
         'comments': comments,
         'roundings': roundings,
+        'begin_manual_allowed': _cash_begin_manual_allowed(period),
         'target_final_ni': target_final_ni,
         'file': out_name,
         'download_url': download_url,
@@ -15107,6 +15123,11 @@ def cash_worksheet_manual_set(group_id, period):
         return jsonify({'error': '해당 그룹에 접근 권한이 없습니다.'}), 403
     data = request.get_json(silent=True) or {}
     manuals = data.get('manuals') or {}
+    # 기초현금 수기조정은 첫해에만 — 그 밖의 기간에 들어온 값은 거부한다
+    if not _cash_begin_manual_allowed(period) and any(
+            _is_cash_begin_key(k) and float(v or 0) for k, v in manuals.items()):
+        return jsonify({'error': f'기초현금 수기조정은 {CASH_BEGIN_MANUAL_YEAR}년 결산기간에만 '
+                                 '입력할 수 있습니다.'}), 400
     # comments/roundings 키가 명시적으로 들어왔을 때만 갱신 (없으면 기존 값 보존)
     comments  = data.get('comments')  if 'comments'  in data else None
     roundings = data.get('roundings') if 'roundings' in data else None

@@ -930,7 +930,9 @@ def _compute_v2(agg, adj_entries, inter_entries, companies, manual, mapping,
     cash_begin_row = _label_row_from_cf(
         cf_sheet, companies, ['기초의현금', '기초현금', 'Ⅵ'],
         label_hint='Ⅵ. 기초의현금',
-        manuals=None,  # 기초/기말은 수기조정(L) 비대상 — 단수(Q)만 가능
+        # 기초현금 수기조정(L)은 첫해(시스템 첫 결산연도)에만 허용 — 저장 API 가 그 밖의
+        # 기간에는 이 키를 받지 않으므로 여기서는 저장된 값을 그대로 반영한다.
+        manuals=manual,
         roundings=rounding,
     )
     cash_end_row = _label_row_from_cf(

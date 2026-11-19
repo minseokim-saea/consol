@@ -500,13 +500,16 @@ function renderResult(payload) {
   // 현금증감 하단 4행 — Ⅴ.환율변동효과, 연결범위변동, Ⅵ.기초현금, Ⅶ.기말현금
   // editL: L(수기조정) 편집 가능 여부 / editQ: Q(단수조정) 편집 가능 여부.
   //   - Ⅴ 환율변동, 연결범위변동: L, Q 모두 편집 가능
-  //   - Ⅵ 기초, Ⅶ 기말: Q만 편집 가능
+  //   - Ⅵ 기초: Q 편집 가능. L 은 첫해(서버가 begin_manual_allowed 로 알려줌)에만 —
+  //     청산된 회사 패키지가 없어 기초현금이 안 맞는 경우를 보정한다.
+  //   - Ⅶ 기말: Q만 편집 가능
+  const beginL = !!(LAST_PAYLOAD && LAST_PAYLOAD.begin_manual_allowed);
   const epilogueRows = [
     { row: res.fx_effect,    label: 'Ⅴ. 환율변동효과', editL: true,  editQ: true  },
     // 자동흡수 plug — 입력이 아니므로 L/Q 편집 불가
     { row: res.fx_plug,      label: '환산차이(자동흡수)', editL: false, editQ: false },
     { row: res.scope_change, label: '연결범위변동',     editL: true,  editQ: true  },
-    { row: res.cash_begin,   label: 'Ⅵ. 기초의현금',   editL: false, editQ: true  },
+    { row: res.cash_begin,   label: 'Ⅵ. 기초의현금',   editL: beginL, editQ: true  },
     { row: res.cash_end,     label: 'Ⅶ. 기말의현금',   editL: false, editQ: true  },
   ];
   epilogueRows.forEach(({ row, label, editL, editQ }) => {
@@ -1162,13 +1165,25 @@ async function saveManualsAndRecompute() {
   // 재계산 결과 검증: (L+M+N+Q) × (Ⅳ현금증감 + Ⅴ환율변동 + scope_change) 합 = 0
   //   조정은 BS/PL 라인 간 이동이라 현금흐름 3행 전체 합에 영향이 없어야 함.
   //   Ⅳ만 따로 0일 필요는 없음 — Ⅴ/scope_change로 흡수 가능.
+  //   첫해 기초현금 수기조정(L)은 기초 잔액 보정이라 이 합에 더해 상쇄한다
+  //   (보통 연결범위변동에 반대 금액을 넣어 맞춘다 — 아래에서 따로 안내).
   const res = CURRENT_RESULT || {};
   const _sa = (r) => ((r||{}).manual||0)+((r||{}).adj||0)+((r||{}).inter||0)+((r||{}).fund_adj||0)+((r||{}).rounding||0);
   const ncS  = _sa(res.net_cash);
   const fxS  = _sa(res.fx_effect);
   const scS  = _sa(res.scope_change);
   const fpS  = _sa(res.fx_plug);   // 환산차이 행이 흡수한 잔액 포함
-  const adjTotal = Math.round(ncS + fxS + fpS + scS);
+  const bgL  = ((res.cash_begin || {}).manual) || 0;
+  const adjTotal = Math.round(ncS + fxS + fpS + scS + bgL);
+  // 기초현금 수기조정이 다른 행에서 상계되지 않으면 차액이 환산차이(자동흡수)로 들어간다
+  const pRes = Math.round(((res.fx_plug || {}).p_residual) || 0);
+  if (Math.round(bgL) && pRes) {
+    alert(
+      `기초현금 수기조정 ${Math.round(bgL).toLocaleString('ko-KR')} 이(가) 입력되어 있고, ` +
+      `환산차이(자동흡수)에 상계되지 않은 조정 잔액 ${pRes.toLocaleString('ko-KR')} 이(가) 있습니다.\n\n` +
+      `청산 등으로 연결에서 빠진 회사의 현금이라면 연결범위변동(L)에 반대 금액을 입력했는지 확인해주세요.`
+    );
+  }
   if (adjTotal !== 0) {
     const r = (row) => row || {};
     const _byCol = (row) => ({
