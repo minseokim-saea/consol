@@ -39,8 +39,8 @@ TITLE = '글로벌세아 연결재무보고'
 SECTIONS = [
     ('summary', '연결 실적 요약', '자산·부채·차입금, EBITDA·이자보상배율 등 핵심지표'),
     ('affiliates', '주요 계열사별 실적', '계열사별 매출·영업이익·당기순이익·EBITDA·차입금·현금'),
-    ('fs', '연결 재무제표', '재무상태표·손익계산서·현금흐름표 (중분류)'),
-    ('holding', '지주비율 현황', '자회사 주식가액 ÷ 자산총계, 지주회사 요건 점검'),
+    ('fs', '연결 재무제표', '재무상태표·손익계산서·현금흐름표'),
+    ('holding', '지주비율 현황', ''),
 ]
 
 
@@ -196,10 +196,12 @@ def _page_toc(c, ctx):
         c.drawString(x0, mid - 9, f'{i + 1:02d}')
         c.setFillColor(NAVY)
         c.setFont(bold, 18)
-        c.drawString(x0 + 62, mid + 2, title)
-        c.setFillColor(SUB)
-        c.setFont(regular, 11)
-        c.drawString(x0 + 62, mid - 16, desc)
+        # 설명이 없는 장은 제목을 장 번호와 같은 높이에 둔다
+        c.drawString(x0 + 62, mid + 2 if desc else mid - 7, title)
+        if desc:
+            c.setFillColor(SUB)
+            c.setFont(regular, 11)
+            c.drawString(x0 + 62, mid - 16, desc)
         if i < len(SECTIONS) - 1:
             c.setStrokeColor(RULE)
             c.setLineWidth(0.75)
@@ -218,7 +220,7 @@ ICE = HexColor('#EEF3FA')
 TINT = HexColor('#F5F9FE')
 
 
-def _frame(c, ctx, section_key, unit=None):
+def _frame(c, ctx, section_key, unit=None, subtitle=None):
     """본문 장 머리글(장 번호·제목·단위)과 바닥글(로고·보고서명·쪽 번호)."""
     regular, bold = fonts()
     section_no, title = _section(section_key)
@@ -228,9 +230,14 @@ def _frame(c, ctx, section_key, unit=None):
     c.drawString(M, y, f'{section_no:02d}')
     c.setFillColor(NAVY)
     c.drawString(M + 36, y, title)
+    tx = M + 36 + pdfmetrics.stringWidth(title, bold, 20)
+    if subtitle:                                   # 한 장이 여러 페이지일 때 페이지별 부제
+        c.setFillColor(SUB)
+        c.setFont(regular, 13)
+        c.drawString(tx + 10, y + 1, f'|  {subtitle}')
+        tx += 10 + pdfmetrics.stringWidth(f'|  {subtitle}', regular, 13)
     if ctx.get('provisional'):
-        tw = pdfmetrics.stringWidth(title, bold, 20)
-        _pill(c, M + 36 + tw + 10, y - 1, '잠정치', HexColor('#FDF1E6'), HexColor('#C0661E'))
+        _pill(c, tx + 10, y - 1, '잠정치', HexColor('#FDF1E6'), HexColor('#C0661E'))
     if unit:
         c.setFillColor(MUTED)
         c.setFont(regular, 9.5)
@@ -338,7 +345,10 @@ def _page_summary(c, ctx):
         return
 
     q, year, py = s['quarter'], s['year'], s['prior_year']
-    cur_sub = '연환산 · 분기말' if s.get('annualized') else '연간 · 기말'
+    if s.get('annualized'):
+        cur_sub = '연환산 · 분기말'
+    else:
+        cur_sub = '연간 · 기말' if q == 4 else f'{q}Q 누적 · 분기말'
 
     # ── 표 ──
     x0 = M
@@ -591,18 +601,19 @@ def _fs_col_labels(stmt, period, fs):
     return cur, f"{str(y - 1)[2:]}년" + ('' if q == 4 else ' 월할')
 
 
-def _fs_panel(c, x, w, top, rh, stmt, period, fs):
+def _fs_panel(c, x, w, top, rh, title, rows, labels, has_prior, size=8.5, nw=54):
+    """재무제표 한 표. labels = (당기, 전기) 열 머리글. 당기·전기 오른쪽에 증감 열."""
     regular, bold = fonts()
-    p = fs[stmt]
     c.setFillColor(NAVY)
     c.rect(x, top - 22, w, 22, stroke=0, fill=1)
     c.setFillColor(HexColor('#FFFFFF'))
     c.setFont(bold, 10.5)
-    c.drawString(x + 10, top - 15, p['title'])
+    c.drawString(x + 10, top - 15, title)
 
-    nw = 54                                           # 숫자 열 너비
-    r_pri, r_cur = x + w - 8, x + w - 8 - nw
-    cur_lab, pri_lab = _fs_col_labels(stmt, period, fs)
+    r_dlt = x + w - 10                                # 증감
+    r_pri = r_dlt - nw - 6                            # 전기
+    r_cur = r_pri - nw                                # 당기
+    cur_lab, pri_lab = labels
     y = top - 22
     c.setFillColor(ICE)
     c.rect(x, y - 17, w, 17, stroke=0, fill=1)
@@ -613,16 +624,17 @@ def _fs_panel(c, x, w, top, rh, stmt, period, fs):
     c.setFillColor(SUB)
     c.setFont(regular, 8)
     c.drawRightString(r_pri, y - 11.5, pri_lab)
+    c.drawRightString(r_dlt, y - 11.5, '증감')
     y -= 17
 
-    for r in p['rows']:
+    for r in rows:
         name = r['name']
         numbered = bool(re.match(r'^\s*\d+\s*\.', name))          # CF 1.~4.
         sub_level = r['level'] >= 1 or numbered
         is_total = r['level'] == 0 and not numbered and any(t in name for t in _FS_TOTALS)
         if r['kind'] == 'header':
             c.setFillColor(BRAND)
-            c.setFont(bold, 8.5)
+            c.setFont(bold, size)
             c.drawString(x + 10, y - rh / 2 - 3, name)
             y -= rh
             continue
@@ -632,19 +644,20 @@ def _fs_panel(c, x, w, top, rh, stmt, period, fs):
         base = y - rh / 2 - 3
         strong = r['kind'] == 'subtotal' and not sub_level
         c.setFillColor(SUB if sub_level else NAVY)
-        nx = x + (20 if sub_level else 10)
+        nx = x + (22 if sub_level else 10)
         font = bold if strong else regular
-        size = 8.5                                     # 긴 과목명은 숫자 칸을 넘지 않게 줄인다
-        while size > 6.5 and pdfmetrics.stringWidth(name, font, size) > r_cur - nw + 6 - nx:
-            size -= 0.25
-        c.setFont(font, size)
+        fs_ = size                                     # 긴 과목명은 숫자 칸을 넘지 않게 줄인다
+        while fs_ > 6.5 and pdfmetrics.stringWidth(name, font, fs_) > r_cur - nw + 6 - nx:
+            fs_ -= 0.25
+        c.setFont(font, fs_)
         c.drawString(nx, base, name)
         c.setFillColor(SUB if sub_level else NAVY)
-        c.setFont(bold if strong else regular, 8.5)
+        c.setFont(bold if strong else regular, size)
         c.drawRightString(r_cur, base, _fmt(r['cur'], 'amt'))
         c.setFillColor(MUTED if sub_level else SUB)
-        c.setFont(regular, 8.5)
-        c.drawRightString(r_pri, base, _fmt(r['pri'], 'amt') if p.get('has_prior') else '–')
+        c.setFont(regular, size)
+        c.drawRightString(r_pri, base, _fmt(r['pri'], 'amt') if has_prior else '–')
+        c.drawRightString(r_dlt, base, _fmt(r['cur'] - r['pri'], 'amt') if has_prior else '–')
         y -= rh
         c.setStrokeColor(RULE)
         c.setLineWidth(0.4 if not is_total else 0.7)
@@ -654,21 +667,46 @@ def _fs_panel(c, x, w, top, rh, stmt, period, fs):
     c.line(x, y, x + w, y)
 
 
-def _page_fs(c, ctx):
-    _frame(c, ctx, 'fs', unit='억원')
+def _fs_two_panels(c, ctx, panels):
+    """panels = [(제목, 행, (당기, 전기 라벨), 전기 유무), …] 두 표를 좌우로 나란히."""
+    top = BODY_TOP + 4
+    n = max(len(p[1]) for p in panels)
+    rh = min(21, (top - 39 - BODY_BOTTOM - 4) / max(n, 1))
+    size = 9.5 if rh >= 19 else 8.5
+    gap = 20
+    w = (PAGE_W - 2 * M - gap) / 2
+    for i, (title, rows, labels, has_prior) in enumerate(panels):
+        _fs_panel(c, M + i * (w + gap), w, top, rh, title, rows, labels, has_prior,
+                  size=size, nw=62)
+
+
+def _fs_data(c, ctx):
     fs = (ctx.get('data') or {}).get('fs') or {}
     if fs.get('error') or not fs.get('BS'):
         _no_data(c, fs.get('error') or f'{period_label(ctx["period"])} 연결 재무제표 자료가 없습니다.')
+        return None
+    return fs
+
+
+def _page_fs_bs(c, ctx):
+    _frame(c, ctx, 'fs', unit='억원', subtitle='재무상태표')
+    fs = _fs_data(c, ctx)
+    if not fs:
         return
-    top = BODY_TOP + 4
-    n = max(len(fs[s]['rows']) for s in ('BS', 'PL', 'CF'))
-    rh = min(16.5, (top - 39 - BODY_BOTTOM - 4) / max(n, 1))
-    gap = 14
-    widths = [236, 236, PAGE_W - 2 * M - 472 - 2 * gap]
-    x = M
-    for st, w in zip(('BS', 'PL', 'CF'), widths):
-        _fs_panel(c, x, w, top, rh, st, ctx['period'], fs)
-        x += w + gap
+    bs, lab = fs['BS'], _fs_col_labels('BS', ctx['period'], fs)
+    _fs_two_panels(c, ctx, [('자산', bs.get('assets') or [], lab, bs.get('has_prior')),
+                            ('부채 및 자본', bs.get('liab_equity') or [], lab, bs.get('has_prior'))])
+
+
+def _page_fs_pl_cf(c, ctx):
+    _frame(c, ctx, 'fs', unit='억원', subtitle='손익계산서 · 현금흐름표')
+    fs = _fs_data(c, ctx)
+    if not fs:
+        return
+    _fs_two_panels(c, ctx, [
+        (fs['PL']['title'], fs['PL']['rows'], _fs_col_labels('PL', ctx['period'], fs), fs['PL'].get('has_prior')),
+        (fs['CF']['title'], fs['CF']['rows'], _fs_col_labels('CF', ctx['period'], fs), fs['CF'].get('has_prior')),
+    ])
 
 
 # ── 04 지주비율 현황 ──────────────────────────────────────────────────────
@@ -852,7 +890,8 @@ def _page_holding(c, ctx):
         ny -= 11
 
 
-PAGES = [_page_cover, _page_toc, _page_summary, _page_affiliates, _page_fs, _page_holding]
+PAGES = [_page_cover, _page_toc, _page_summary, _page_affiliates,
+         _page_fs_bs, _page_fs_pl_cf, _page_holding]
 
 
 def build_mgmt_report(period, *, provisional=False, generated_at=None, data=None):

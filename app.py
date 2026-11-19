@@ -9076,7 +9076,7 @@ def _mgmt_summary(period):
     if not m or not g:
         return {'error': f"'{MGMT_GROUP_NAME}' 연결그룹을 찾을 수 없습니다."}
     year, q = int(m.group(1)), int(m.group(2))
-    factor = _ts_annualize_factor(period)
+    factor = 1.0          # 연환산하지 않은 분기 누적 그대로 (경영진 보고 요청)
 
     def _raw(p):
         # 패키지가 없는 기간은 0 으로 채워져 오므로 자산총계가 0 이면 자료 없음으로 본다
@@ -9139,8 +9139,67 @@ def _mgmt_fs(period):
         d = _compute_report_fs(g['id'], period, st, ctx=ctx, cash=cash, prior_period=prior_period,
                                prior_ctx=prior_ctx, prior_mode=prior_mode)
         out[st] = {'title': re.sub(r'\s+', '', d['title']), 'rows': _mgmt_fs_keep(st, d['rows']),
-                   'has_prior': prior_mode is not None and (st != 'CF' or d['prior_cash'])}
+                   'has_prior': (d['bs_prior_ok'] if st == 'BS'
+                                 else prior_mode is not None and (st != 'CF' or d['prior_cash']))}
+        if st == 'BS':
+            out['BS'].update(_mgmt_bs_split(d['rows'], out['BS']['rows']))
     return out
+
+
+def _mgmt_bs_split(full_rows, kept_rows):
+    """재무상태표를 자산 / 부채·자본 두 표로 나눈다.
+    부채는 유동·비유동 각각 차입금(총차입금 정의 BORROWING_CODES)과 기타로 나눈다."""
+    debt_set = set(BORROWING_CODES)
+    debt = {'유동': [0.0, 0.0], '비유동': [0.0, 0.0]}
+    liab = {}                                         # '유동'/'비유동'/'총계' → (이름, 당기, 전기)
+    section = None
+    for r in full_rows:
+        nm = r['name'].strip()
+        if r['level'] == 0 and r['kind'] == 'subtotal':
+            if '비유동부채' in nm:
+                section = '비유동'
+                liab[section] = (nm, r['cur'], r['pri'])
+            elif '유동부채' in nm:
+                section = '유동'
+                liab[section] = (nm, r['cur'], r['pri'])
+            elif nm.startswith('부채총계'):
+                liab['총계'] = (nm, r['cur'], r['pri'])
+                section = None
+            else:
+                section = None
+        elif section and r['kind'] == 'detail' and r['codes'] and set(r['codes']) <= debt_set:
+            debt[section][0] += r['cur']
+            debt[section][1] += r['pri']
+
+    assets, equity, part = [], [], None
+    for r in kept_rows:
+        nm = r['name'].strip()
+        if r['kind'] == 'header':
+            part = {'자산': 'A', '부채': 'L', '자본': 'E'}.get(nm, part)
+            if part == 'E':
+                equity.append(r)
+            continue
+        if part == 'A':
+            assets.append(r)
+        elif part == 'E':
+            equity.append(r)
+
+    def _row(name, cur, pri, level, kind):
+        return {'name': name, 'level': level, 'kind': kind, 'cur': cur, 'pri': pri}
+
+    le = [{'name': '부채', 'level': 0, 'kind': 'header', 'cur': 0.0, 'pri': 0.0}]
+    for key, d_name, o_name in (('유동', '유동차입금', '기타유동부채'),
+                                ('비유동', '비유동차입금', '기타비유동부채')):
+        if key not in liab:
+            continue
+        nm, cur, pri = liab[key]
+        dc, dp = debt[key]
+        le += [_row(nm, cur, pri, 0, 'subtotal'),
+               _row(d_name, dc, dp, 1, 'detail'),
+               _row(o_name, cur - dc, pri - dp, 1, 'detail')]
+    if '총계' in liab:
+        le.append(_row(*liab['총계'], 0, 'subtotal'))
+    return {'assets': assets, 'liab_equity': le + equity}
 
 
 def _mgmt_holding(period):
@@ -13505,6 +13564,13 @@ def _report_values(ctx, cash, stmt, mapping, lines=None, manuals=None, prior_fac
         for row in (ctx.get('result') or {}).get('rows') or []:
             c = str(row.get('code') or '').strip()
             if c:
+                if stmt == 'BS':
+                    # 재무상태표 전기는 항상 전년말 (_report_prepare_ctx 의 prior_ye_final)
+                    pv = row.get('prior_ye_final')
+                    if pv is None and 'prior_ye_final' not in row:
+                        pv = row.get('prior_final')        # 이전 방식으로 만든 ctx 호환
+                    src[c] = (float(row.get('final') or 0), float(pv or 0))
+                    continue
                 # 손익은 기간 누적이라 전년 연간액을 분기수만큼 월할해 동기와 맞춘다
                 src[c] = (float(row.get('final') or 0),
                           float(row.get('prior_final') or 0) * prior_factor)
@@ -13666,24 +13732,42 @@ def _report_prior_same_quarter(period):
 def _report_prepare_ctx(group_id, period):
     """연결정산표 실행 + 전기(전년 4Q) 값 주입. 여러 표를 만들 때 재사용한다.
 
-    반환: (ctx, prior_period)  — prior_period 는 못 구했으면 None
+    반환: (ctx, prior_period, prior_ctx, mode)  — prior_period 는 못 구했으면 None
+
+    각 행에 두 가지 전기 값을 넣는다.
+      prior_final    : 손익·현금흐름 전기 (전년 동분기, 없으면 전년 4Q)
+      prior_ye_final : 재무상태표 전기 — 항상 전년말(전년 4Q). 못 구하면 None
     """
     ctx = _compute_group_internal(group_id, period)
-    pctx = None
-    mode = None
+    ye_period = _prior_q4_period(period)
+
+    def _finals(p):
+        if not p or not _valid_year(p):
+            return None, None
+        try:
+            pc = _compute_group_internal(group_id, p)
+        except Exception:
+            return None, None
+        return pc, {str(r.get('code')): r.get('final')
+                    for r in pc['result']['rows'] if r.get('code')}
+
+    # 재무상태표 전기 = 전년말 고정
+    ye_ctx, ye_map = _finals(ye_period)
+    for r in ctx['result']['rows']:
+        r['prior_ye_final'] = (ye_map.get(str(r.get('code') or ''), 0)
+                               if ye_map is not None else None)
+
+    # 손익·현금흐름 전기
     # ① 전년 동분기 자료가 있으면 그대로 비교 (가장 정확)
     # ② 없으면 전년 4Q(연간) — 손익은 월할, 현금흐름표는 비교 불가
     for cand, m in ((_report_prior_same_quarter(period), 'same'),
-                    (_prior_q4_period(period), 'annual')):
-        if not cand or not _valid_year(cand):
+                    (ye_period, 'annual')):
+        if cand == ye_period:
+            pctx, pmap = ye_ctx, ye_map
+        else:
+            pctx, pmap = _finals(cand)
+        if pmap is None:
             continue
-        try:
-            pctx = _compute_group_internal(group_id, cand)
-        except Exception:
-            pctx = None
-            continue
-        pmap = {str(r.get('code')): r.get('final')
-                for r in pctx['result']['rows'] if r.get('code')}
         for r in ctx['result']['rows']:
             r['prior_final'] = pmap.get(str(r.get('code') or ''), 0)
         return ctx, cand, pctx, m
@@ -13730,14 +13814,22 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
                           prior_factor=pf, prior_cash=prior_cash)
     lab = labels['bs'] if stmt == 'BS' else labels['pl']
     entity = (mapping.get('entity_names') or {}).get(g['name']) or f"{g['name']} 및 그 종속기업"
+    # 재무상태표 전기는 전년말 고정 — 전년말 연결을 구했는지로 표시 여부를 정한다
+    ctx_rows = (ctx.get('result') or {}).get('rows') or []
+    if any('prior_ye_final' in r for r in ctx_rows):
+        bs_prior_ok = any(r.get('prior_ye_final') is not None for r in ctx_rows)
+    else:
+        bs_prior_ok = prior_mode is not None
     return {
         'group': g['name'], 'period': period, 'rollup': None, 'prior_period': prior_period,
         'prior_mode': prior_mode, 'prior_cash': bool(prior_cash),
+        'bs_prior_ok': bs_prior_ok,
         'stmt': stmt,
         'title': (mapping.get('titles') or {}).get(stmt, stmt),
         'entity': entity,
         'cur_label': lab[0],
-        'pri_label': _report_prior_label(stmt, lab, prior_mode, prior_cash),
+        'pri_label': ((lab[1] if bs_prior_ok else '전년말 자료 없음') if stmt == 'BS'
+                      else _report_prior_label(stmt, lab, prior_mode, prior_cash)),
         'rows': rows,
         'manual_total': sum(r['manual'] for r in rows if r['kind'] == 'detail'),
         'note': (f'※ 전기 금액은 전년 동기 자료가 없어 전년 연간 금액을 '
