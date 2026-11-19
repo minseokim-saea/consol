@@ -53,12 +53,14 @@ def _section(key):
 
 
 # ── 글꼴 ──────────────────────────────────────────────────────────────────
-# 서버 OS 에 따라 있는 한글 글꼴을 쓴다. 없으면 PDF 표준 한글 CID 글꼴로 대신한다.
+# 저장소에 넣어 둔 Pretendard(SIL OFL 1.1)를 PDF 에 포함한다 — 서버 OS·설치 글꼴과 무관하게 같은 모양.
+# 파일이 없을 때만 시스템 한글 글꼴을 찾고, 그것도 없으면 PDF 표준 CID 글꼴(뷰어가 굴림 등으로 대체)로 간다.
 _FONT_CANDIDATES = {
-    'regular': ['malgun.ttf', 'NanumGothic.ttf', 'NanumBarunGothic.ttf'],
-    'bold': ['malgunbd.ttf', 'NanumGothicBold.ttf', 'NanumBarunGothicBold.ttf'],
+    'regular': ['Pretendard-Regular.ttf', 'malgun.ttf', 'NanumGothic.ttf'],
+    'bold': ['Pretendard-Bold.ttf', 'malgunbd.ttf', 'NanumGothicBold.ttf'],
 }
 _FONT_DIRS = [
+    ASSET_DIR / 'fonts',
     Path(os.environ.get('WINDIR', r'C:\Windows')) / 'Fonts',
     Path('/usr/share/fonts/truetype/nanum'),
     Path('/usr/share/fonts/nanum'),
