@@ -269,6 +269,29 @@ body {
   </div>
   {% endif %}
 
+  {% if perms.mgmt_export %}
+  <!-- 경영진 보고자료 추출 -->
+  <div class="panel" style="margin-top:14px">
+    <div class="panel-head">
+      <span class="panel-title"><i class="bi bi-file-earmark-pdf"></i> <span data-i18n="cs.mgmt_title">경영진 보고자료 추출</span></span>
+    </div>
+    <div class="ap-body">
+      <div class="ap-desc" data-i18n="cs.mgmt_desc">선택한 결산기간의 경영진 보고자료를 PPT 인쇄본 형태(A4 가로)의 PDF로 만듭니다. 마감 전 기간은 표지에 잠정치로 표시됩니다.</div>
+      <div class="ap-row">
+        <select id="mrPeriod" class="form-select form-select-sm" style="width:auto">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == current_period %}selected{% endif %}>{{ y }}{% if y in locked_years %} · 마감{% endif %}</option>
+          {% endfor %}
+        </select>
+        <button id="mrBtn" type="button" class="btn btn-sm btn-primary">
+          <i class="bi bi-download"></i> <span data-i18n="cs.mgmt_btn">PDF 만들기</span>
+        </button>
+        <span id="mrStatus" class="ap-status"></span>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
   {% endif %}
 
 </div>
@@ -314,6 +337,42 @@ body {
       status.textContent = t('cs.audit_error', e.message);
     } finally {
       clearInterval(timer);
+      btn.disabled = sel.disabled = false;
+    }
+  });
+})();
+</script>
+<script>
+// 경영진 보고자료 — PDF 를 받아 바로 저장
+(function () {
+  const btn = document.getElementById('mrBtn');
+  if (!btn) return;
+  const sel = document.getElementById('mrPeriod');
+  const status = document.getElementById('mrStatus');
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  btn.addEventListener('click', async () => {
+    const period = sel.value;
+    btn.disabled = sel.disabled = true;
+    status.className = 'ap-status';
+    status.innerHTML = `<span class="spinner-border spinner-border-sm"></span> ${esc(t('cs.mgmt_running'))}`;
+    try {
+      const r = await fetch('/mgmt-report/pdf?period=' + encodeURIComponent(period));
+      if (!r.ok) throw new Error((await r.text()).slice(0, 200) || `HTTP ${r.status}`);
+      const blob = await r.blob();
+      const filename = `경영진보고자료_${period}.pdf`;
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      status.className = 'ap-status ok';
+      status.innerHTML = `<i class="bi bi-check2-circle"></i> ${esc(t('cs.mgmt_done', filename))}`;
+    } catch (e) {
+      status.className = 'ap-status err';
+      status.textContent = t('cs.audit_error', e.message);
+    } finally {
       btn.disabled = sel.disabled = false;
     }
   });

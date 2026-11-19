@@ -324,6 +324,7 @@ def _inject_sidebar_perms():
             'report_edit':     _has_permission(uname, 'report.edit'),
             'inter_review':    _has_permission(uname, 'inter.review'),
             'audit_export':    _has_permission(uname, 'audit.export'),
+            'mgmt_export':     _has_permission(uname, 'mgmt.export'),
             'files_upload':    _has_permission(uname, 'files.upload'),
             'files_force_upload': _has_permission(uname, 'files.force_upload'),
             'files_delete':    _has_permission(uname, 'files.delete'),
@@ -490,6 +491,9 @@ def _ensure_permission_catalog():
          {'system_admin', 'finance_lead'}, '연결정산'),
         # 감사인 제출자료 — 연결정산표·현금정산표·주석합산을 한 파일로 (홈 화면)
         ('audit.export', '감사인 제출자료 추출', 'report.edit',
+         {'system_admin', 'finance_lead', 'viewer'}, '연결정산'),
+        # 경영진 보고자료 — PPT 인쇄본 형태의 PDF (홈 화면)
+        ('mgmt.export', '경영진 보고자료 추출', 'audit.export',
          {'system_admin', 'finance_lead', 'viewer'}, '연결정산'),
         # 패키지 조회 — 업로드 패키지 추출값 조회(계정별 증감 등). 패키지 검증과 같은 그룹에 기본 허용
         ('package.query', '패키지 조회', 'package.verify',
@@ -8798,6 +8802,7 @@ def _sidebar_perms(uname):
         'report_edit':      _has_permission(uname, 'report.edit'),
         'inter_review':     _has_permission(uname, 'inter.review'),
         'audit_export':     _has_permission(uname, 'audit.export'),
+        'mgmt_export':      _has_permission(uname, 'mgmt.export'),
         'files_upload':     _has_permission(uname, 'files.upload'),
         'files_force_upload': _has_permission(uname, 'files.force_upload'),
         'files_delete':     _has_permission(uname, 'files.delete'),
@@ -9024,6 +9029,177 @@ def audit_pack_download(filename):
     if not path.exists():
         return '파일을 찾을 수 없습니다.', 404
     return send_file(str(path.resolve()), as_attachment=True, download_name=filename)
+
+
+# ─── 경영진 보고자료 추출 (홈) ────────────────────────────────────────────
+MGMT_GROUP_NAME = '글로벌세아'       # 보고 대상 연결그룹 (시계열 분석과 같음)
+
+
+def _mgmt_metrics(raw, factor):
+    """연결 raw 수치 → 연결실적요약 지표. 손익은 factor 로 연환산, 재무상태는 그대로."""
+    op = raw['op'] * factor
+    interest = abs(raw['interest']) * factor
+    ebitda = op + raw['amort'] * factor
+    debt, cash = raw['debt_total'], raw['cash']
+    liab, equity = raw['liab'], raw['equity']
+    net_debt = debt - cash
+    return {
+        'assets': raw['assets'], 'liab': liab, 'debt': debt, 'net_debt': net_debt, 'equity': equity,
+        'debt_ratio': (liab / equity * 100) if equity else None,
+        'ebitda': ebitda,
+        'nd_ebitda': (net_debt / ebitda) if ebitda > 0 else None,
+        'op': op, 'interest': interest,
+        'icr': (op / interest) if interest else None,
+    }
+
+
+def _mgmt_prior_manual(group_id, year):
+    """시스템에 전년 4Q 연결이 없을 때 — 대시보드에 수기 입력한 전년 연결값으로 채울 수 있는 항목만."""
+    rec = consol_get_prior(group_id) or {}
+    bs = (rec.get('bs_by_year') or {}).get(str(year)) or {}
+    pl = (rec.get('pl_by_period') or {}).get(f'{year}-4Q') or {}
+    if not bs and not pl:
+        return None
+    liab, equity = bs.get('부채총계'), bs.get('자본총계')
+    return {
+        'assets': bs.get('자산총계'), 'liab': liab, 'debt': bs.get('차입금총계'), 'net_debt': None,
+        'equity': equity,
+        'debt_ratio': (liab / equity * 100) if liab is not None and equity else None,
+        'ebitda': None, 'nd_ebitda': None, 'op': pl.get('영업이익'), 'interest': None, 'icr': None,
+    }
+
+
+def _mgmt_summary(period):
+    """연결실적요약 — 당해(선택 기간) vs 전년(전년 4Q, 연간)."""
+    m = PERIOD_RE.match(period or '')
+    g = next((g for g in consol_list_groups() if (g.get('name') or '').strip() == MGMT_GROUP_NAME), None)
+    if not m or not g:
+        return {'error': f"'{MGMT_GROUP_NAME}' 연결그룹을 찾을 수 없습니다."}
+    year, q = int(m.group(1)), int(m.group(2))
+    factor = _ts_annualize_factor(period)
+
+    def _raw(p):
+        # 패키지가 없는 기간은 0 으로 채워져 오므로 자산총계가 0 이면 자료 없음으로 본다
+        r = _ts_compute_period(g['id'], p) if _valid_year(p) else None
+        return r if r and r.get('assets') else None
+
+    cur_raw = _raw(period)
+    prior_period = f'{year - 1}-4Q'
+    prior, prior_source = None, None
+    if _unclosed_status(prior_period) != 'blocked':
+        prior_raw = _raw(prior_period)
+        if prior_raw:
+            prior, prior_source = _mgmt_metrics(prior_raw, 1.0), 'system'
+    if prior is None:
+        prior = _mgmt_prior_manual(g['id'], year - 1)
+        prior_source = 'manual' if prior else None
+    return {
+        'group': g.get('name'), 'year': year, 'quarter': q, 'annualized': factor != 1.0,
+        'current': _mgmt_metrics(cur_raw, factor) if cur_raw else None,
+        'prior': prior, 'prior_year': year - 1, 'prior_source': prior_source,
+    }
+
+
+def _mgmt_fs_keep(stmt, rows):
+    """보고용 재무제표에서 중분류까지만 남긴다.
+    BS: 표제·소계 + 0레벨 상세(비지배지분) / PL: 0레벨 + 당기순이익 아래 지배·비지배 / CF: 소계만.
+    값이 모두 0인 하위 라인은 뺀다."""
+    out = []
+    parent = None
+    for r in rows:
+        if r['level'] == 0:
+            parent = r['name']
+        if stmt == 'BS':
+            keep = r['kind'] != 'detail' or r['level'] == 0
+        elif stmt == 'PL':
+            keep = r['level'] == 0 or '당기순이익' in (parent or '')
+        else:
+            keep = r['kind'] != 'detail'
+        if not keep:
+            continue
+        zero = abs(r['cur']) < 5e7 and abs(r['pri']) < 5e7          # 억원 반올림 0
+        if zero and r['kind'] != 'header' and (r['level'] >= 1 or r['kind'] == 'detail'):
+            continue
+        out.append({'name': re.sub(r'\s*\(주석\s*\d+\)', '', r['name']).strip(),
+                    'level': r['level'], 'kind': r['kind'], 'cur': r['cur'], 'pri': r['pri']})
+    return out
+
+
+def _mgmt_fs(period):
+    """연결 재무제표 (보고용 재무제표의 BS·PL·CF, 중분류까지)."""
+    g = next((g for g in consol_list_groups() if (g.get('name') or '').strip() == MGMT_GROUP_NAME), None)
+    if not g:
+        return {'error': f"'{MGMT_GROUP_NAME}' 연결그룹을 찾을 수 없습니다."}
+    ctx, prior_period, prior_ctx, prior_mode = _report_prepare_ctx(g['id'], period)
+    if not (ctx.get('files') or []):
+        return {'error': f'{period} 연결 자료가 없습니다.'}
+    cash = _make_cash_result(ctx, period)
+    out = {'prior_period': prior_period, 'prior_mode': prior_mode}
+    for st in ('BS', 'PL', 'CF'):
+        d = _compute_report_fs(g['id'], period, st, ctx=ctx, cash=cash, prior_period=prior_period,
+                               prior_ctx=prior_ctx, prior_mode=prior_mode)
+        out[st] = {'title': re.sub(r'\s+', '', d['title']), 'rows': _mgmt_fs_keep(st, d['rows']),
+                   'has_prior': prior_mode is not None and (st != 'CF' or d['prior_cash'])}
+    return out
+
+
+def _mgmt_holding(period):
+    """지주비율 현황 (주요 경영보고 > 지주비율 현황과 같은 계산)."""
+    if period < HOLDING_START_PERIOD:
+        return {'error': f'지주비율 현황은 {HOLDING_START_PERIOD}부터 제공합니다.'}
+    return _compute_holding_ratio(period)
+
+
+def _mgmt_affiliates(period):
+    """주요 계열사별 실적 — 해당분기와 작년 4Q (주요 경영보고 > 계열사별 실적과 같은 계산)."""
+    if period < SYSTEM_CLOSE_START_PERIOD:
+        return {'error': f'계열사별 실적은 {SYSTEM_CLOSE_START_PERIOD}부터 제공합니다.'}
+    m = PERIOD_RE.match(period or '')
+    prior_period = f'{int(m.group(1)) - 1}-4Q' if m else None
+    out = {'current': _compute_affiliate_performance(period),
+           'prior': None, 'prior_period': prior_period}
+    # 작년 4Q 는 화면의 조회 시작 분기 이전이어도 보여준다 (경영진 보고 비교용)
+    if not prior_period or not _valid_year(prior_period):
+        out['prior_note'] = f'{prior_period or "전년 4Q"} 결산 자료가 없어 표시하지 못했습니다.'
+    elif _unclosed_status(prior_period) == 'blocked':
+        out['prior_note'] = f'{prior_period} {UNCLOSED_MSG}'
+    else:
+        out['prior'] = _compute_affiliate_performance(prior_period)
+    return out
+
+
+@app.route('/mgmt-report/pdf')
+@require_permission('mgmt.export')
+def mgmt_report_pdf():
+    """경영진 보고자료 PDF 다운로드. 마감 전 기간은 잠정치 조회 권한이 있어야 한다."""
+    period = (request.args.get('period') or '').strip()
+    if not _valid_year(period):
+        return '유효한 결산기간을 선택해주세요.', 400
+    blocked = _unclosed_file(period)
+    if blocked:
+        return blocked
+    try:
+        from mgmt_report import build_mgmt_report      # reportlab 이 없어도 앱은 뜨도록 지연 import
+    except ImportError:
+        return 'PDF 생성 모듈(reportlab)이 설치되어 있지 않습니다. pip install -r requirements.txt 를 실행해주세요.', 500
+    try:
+        def _part(fn):
+            # 한 장의 계산이 실패해도 나머지 장은 만든다 — 실패한 장에는 사유를 표시
+            try:
+                return fn(period)
+            except Exception as e:
+                traceback.print_exc()
+                return {'error': f'자료를 만들지 못했습니다: {e}'}
+        pdf = build_mgmt_report(period, provisional=not _is_locked(period),
+                                data={'summary': _part(_mgmt_summary),
+                                      'affiliates': _part(_mgmt_affiliates),
+                                      'fs': _part(_mgmt_fs),
+                                      'holding': _part(_mgmt_holding)})
+    except Exception as e:
+        traceback.print_exc()
+        return f'PDF 생성 중 오류: {e}', 500
+    return send_file(io.BytesIO(pdf), mimetype='application/pdf', as_attachment=True,
+                     download_name=f'경영진보고자료_{period}.pdf')
 
 
 @app.route('/package-upload')
@@ -13516,7 +13692,10 @@ def _report_prepare_ctx(group_id, period):
     return ctx, None, None, None
 
 
-def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period=None):
+def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period=None,
+                       prior_ctx=None, prior_mode=None):
+    """ctx 를 넘길 때 전기 비교까지 화면과 같게 하려면 _report_prepare_ctx 의
+    prior_period · prior_ctx · prior_mode 도 함께 넘긴다 (안 넘기면 전기는 월할·CF 비교 없음)."""
     mapping = _load_report_mapping()
     if not mapping:
         raise ValueError('보고서 매핑(report_mapping.json)을 찾을 수 없습니다.')
@@ -13525,7 +13704,6 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
     g = consol_get_group(group_id)
     if not g:
         raise ValueError('존재하지 않는 연결그룹입니다.')
-    prior_ctx, prior_mode = None, None
     if ctx is None:
         ctx, prior_period, prior_ctx, prior_mode = _report_prepare_ctx(group_id, period)
     if stmt == 'CF' and cash is None:
@@ -13554,6 +13732,7 @@ def _compute_report_fs(group_id, period, stmt, ctx=None, cash=None, prior_period
     entity = (mapping.get('entity_names') or {}).get(g['name']) or f"{g['name']} 및 그 종속기업"
     return {
         'group': g['name'], 'period': period, 'rollup': None, 'prior_period': prior_period,
+        'prior_mode': prior_mode, 'prior_cash': bool(prior_cash),
         'stmt': stmt,
         'title': (mapping.get('titles') or {}).get(stmt, stmt),
         'entity': entity,
