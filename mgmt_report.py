@@ -486,6 +486,14 @@ def _short_period(p):
     return f"{m.group(1)[2:]}.{m.group(2)}Q" if m else str(p or '')
 
 
+# 경영진 보고자료에서는 약칭 대신 회사명으로 표기 (화면·엑셀의 계열사별 실적은 그대로)
+AFFIL_PDF_LABELS = {'jjp': '전주페이퍼', 'jop': '전주원파워'}
+
+
+def _affil_label(col):
+    return AFFIL_PDF_LABELS.get(col.get('key'), col.get('label') or '')
+
+
 def _page_affiliates(c, ctx):
     regular, bold = fonts()
     _frame(c, ctx, 'affiliates', unit='억원')
@@ -543,7 +551,7 @@ def _page_affiliates(c, ctx):
         base = y - rh / 2 - 3.2
         c.setFillColor(SUB if is_etc else NAVY)
         c.setFont(bold if is_total else regular, 9.5)
-        c.drawString(x0 + 10, base, '합계 (연결)' if is_total else col['label'])
+        c.drawString(x0 + 10, base, '합계 (연결)' if is_total else _affil_label(col))
         cv = cur['values'].get(col['key']) or {}
         pv = ((prior.get('values') or {}).get(col['key'])) if prior else None
         for i, m in enumerate(metrics):
@@ -573,7 +581,7 @@ def _page_affiliates(c, ctx):
     notes = []
     if not prior:
         notes.append(f'{a.get("prior_note") or "전년 4Q 자료가 없어 표시하지 못했습니다."}')
-    missing = [f"{col['label']}({', '.join(col['missing'])})" for col in cols if col.get('missing')]
+    missing = [f"{_affil_label(col)}({', '.join(col['missing'])})" for col in cols if col.get('missing')]
     if missing:
         notes.append('패키지 미업로드: ' + ' · '.join(missing))
     c.setFillColor(MUTED)
