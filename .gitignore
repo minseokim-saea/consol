@@ -34,6 +34,8 @@ distribute_template/
 # ── 업무 파일 / 산출물 (민감정보 포함 — 저장소 업로드 금지) ───────
 *.xlsm
 *.xlsx
+# DART 감사보고서(DSD) — 실제 재무 숫자 포함 (샘플: samples/dsd/)
+*.dsd
 *.pptx
 *.docx
 ppt_screenshots/
