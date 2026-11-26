@@ -205,8 +205,33 @@ class DSDDocument:
     def current_text(self, cell: Cell) -> str:
         return cell.text
 
+    def raw_span(self, a: int, b: int) -> str:
+        """원문 [a, b) 구간 — 그 안의 편집을 반영한 XML."""
+        s = self.text[a:b]
+        for (x, y), v in sorted(self._edits.items(), reverse=True):
+            if a <= x and y <= b:
+                s = s[:x - a] + v + s[y - a:]
+        return s
+
+    def get_raw(self, cell: Cell) -> str:
+        return self._edits.get((cell.inner_start, cell.inner_end),
+                               self.text[cell.inner_start:cell.inner_end])
+
+    def set_raw(self, cell: Cell, raw: str):
+        """셀 안쪽 XML 을 그대로 넣는다 (다른 셀 내용 복사용)."""
+        self._edits[(cell.inner_start, cell.inner_end)] = raw
+        cell.text = plain(raw)
+
+    def replace_table(self, dst: Table, src: Table):
+        """dst 표 전체를 src 표 XML(편집 반영)로 바꾼다."""
+        self._edits[(dst.start, dst.end)] = self.raw_span(src.start, src.end)
+
     def save(self, out_path: str):
         t = self.text
+        spans = sorted(self._edits)
+        for (a1, b1), (a2, b2) in zip(spans, spans[1:]):
+            if a2 < b1:
+                raise ValueError('겹치는 편집이 있습니다 (같은 표를 두 번 고치려 함).')
         for (a, b), v in sorted(self._edits.items(), reverse=True):
             t = t[:a] + v + t[b:]
         data = t.encode("utf-8")

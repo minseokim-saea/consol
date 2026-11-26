@@ -61,13 +61,19 @@
           <label class="form-label small mb-1">틀로 쓸 감사보고서 DSD (작년 제출본 등)</label>
           <input id="dsdFile" type="file" class="form-control" accept=".dsd">
         </div>
+        <div class="form-check mb-2">
+          <input class="form-check-input" type="checkbox" id="rolloverChk" checked>
+          <label class="form-check-label small" for="rolloverChk">당기 → 전기 이월 (작년 DSD 를 틀로 쓸 때)</label>
+        </div>
         <button id="previewBtn" class="btn btn-primary" onclick="runPreview()">
           <i class="bi bi-search me-1"></i>미리보기
         </button>
       </div>
       <div class="hint mt-2">
         선택한 분기의 주석합산을 실행해 DSD 주석 표의 숫자 칸에 넣을 값을 계산합니다 (천원 단위 반올림, 음수는 괄호, 0은 "-").
-        틀 DSD 의 서식·문구는 그대로 두고 숫자 칸만 바꿉니다.
+        틀 DSD 의 서식·문구는 그대로 두고 숫자 칸만 바꿉니다.<br>
+        <b>당기 → 전기 이월</b>을 켜면 먼저 틀 DSD 의 당기 숫자를 전기 칸으로 옮깁니다 — 당기·전기 열이 나란한 표는 열을 복사하고,
+        (당기)·(전기) 표가 따로 있으면 당기 표를 통째로 전기 자리에 복사합니다. 올해 DSD 를 다시 고칠 때는 끄세요.
       </div>
       <div id="previewStatus" class="small text-muted mt-2"></div>
     </div>
@@ -79,6 +85,7 @@
       <span id="tplName" class="badge bg-light text-dark fw-normal ms-2" style="font-size:.72rem;"></span>
     </div>
     <div class="card-body">
+      <div id="rollBox" class="alert alert-light border small py-2 mb-3" style="display:none;"></div>
       <div class="d-flex gap-2 flex-wrap mb-3" id="summary"></div>
       <div class="hint mb-2">
         <b>확인 필요</b>는 합산값에 연결조정(내부거래 제거 등)이 반영되지 않아 공시 숫자와 다를 수 있는 칸으로, 기본으로 체크하지 않습니다.
@@ -111,7 +118,7 @@
 </div>
 
 <script>
-let RES = [], TOKEN = null, PERIOD = null, FILTER = 'all';
+let RES = [], TOKEN = null, PERIOD = null, FILTER = 'all', ROLL = null;
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -135,11 +142,14 @@ async function runPreview() {
   const fd = new FormData();
   fd.append('period', document.getElementById('yearSelect').value);
   fd.append('dsd', f);
+  fd.append('rollover', document.getElementById('rolloverChk').checked ? '1' : '0');
   try {
     const res = await fetch('/dsd-report/preview', {method:'POST', body:fd});
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || '미리보기 실패');
     RES = data.results; TOKEN = data.token; PERIOD = data.period; FILTER = 'all';
+    ROLL = data.rollover;
+    renderRoll();
     document.getElementById('tplName').textContent = `${data.template_name} · ${data.period}`;
     st.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${RES.length}칸 계산 완료 (${data.elapsed_seconds}초)`;
     checkDefault(false);
@@ -184,6 +194,20 @@ function render() {
   document.getElementById('resultBody').innerHTML = html || '<tr><td colspan="7" class="text-center text-muted py-4">해당하는 칸이 없습니다.</td></tr>';
   updCount();
 }
+function renderRoll() {
+  const box = document.getElementById('rollBox');
+  if (!ROLL) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const byMode = m => ROLL.tables.filter(x => x.mode === m).length;
+  const cells = ROLL.tables.reduce((s, x) => s + x.cells, 0);
+  const manual = ROLL.manual.map(x => `<li>표 ${x.table} · ${esc(x.anchor.slice(-40))} — ${esc(x.reason)}</li>`).join('');
+  box.innerHTML = `<div><i class="bi bi-arrow-left-right me-1"></i><b>당기 → 전기 이월</b>:
+      표 ${ROLL.tables.length}개 (열 이월 ${byMode('열 이월')} · 표 이월 ${byMode('표 이월')}), ${cells.toLocaleString()}칸 복사</div>
+    <div class="mt-1 text-muted">이월 후 당기 칸 중 아래 목록(숫자 채우기 규칙)에 없어 자동으로 바뀌지 않는 칸
+      <b class="text-dark">${ROLL.unrefreshed.toLocaleString()}칸</b> (표 ${ROLL.unrefreshed_tables}개)은 작년 값이 그대로 남습니다 —
+      생성 후 변경내역 엑셀의 <b>'직접 고칠 당기칸'</b> 시트를 보고 DART 편집기에서 고쳐주세요.</div>
+    ${manual ? `<div class="mt-1 text-warning-emphasis">이월하지 못해 직접 확인할 표:</div><ul class="mb-0">${manual}</ul>` : ''}`;
+  box.style.display = '';
+}
 function setFilter(k) { FILTER = k; render(); }
 function updCount() { document.getElementById('selCount').textContent = RES.filter(r => r._sel).length; }
 function checkAll(v) { RES.forEach(r => { r._sel = v && r.status !== 'error'; }); render(); }
@@ -197,7 +221,7 @@ async function runBuild() {
   btn.disabled = true;
   try {
     const res = await fetch('/dsd-report/build', {method:'POST', headers:{'Content-Type':'application/json'},
-                            body: JSON.stringify({token:TOKEN, period:PERIOD, selected:sel})});
+                            body: JSON.stringify({token:TOKEN, period:PERIOD, selected:sel, rollover: !!ROLL})});
     const data = await res.json();
     if (!res.ok || data.error) throw new Error(data.error || '생성 실패');
     st.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${data.applied}칸 반영 —
