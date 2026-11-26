@@ -233,6 +233,33 @@ class DSDDocument:
         """dst 표 전체를 src 표 XML(편집 반영)로 바꾼다."""
         self._edits[(dst.start, dst.end)] = self.raw_span(src.start, src.end)
 
+    def render(self) -> str:
+        """편집을 반영한 contents.xml 텍스트."""
+        t = self.text
+        for (a, b), v in sorted(self._edits.items(), reverse=True):
+            t = t[:a] + v + t[b:]
+        return t
+
+    @classmethod
+    def derived(cls, doc: 'DSDDocument') -> 'DSDDocument':
+        """doc 의 편집을 반영한 상태를 새 문서로 다시 읽는다 (행 구조가 바뀐 뒤 칸을 찾을 때)."""
+        new = cls.__new__(cls)
+        new.path = doc.path
+        new.members = dict(doc.members)
+        new.order = list(doc.order)
+        new.bom = doc.bom
+        new.text = doc.render()
+        new._edits = {}
+        new.tables = []
+        new._parse()
+        return new
+
+    def cell_tag_attr_span(self, cell: Cell, attr: str):
+        """셀 여는 태그 안 attr 값의 원문 위치 (없으면 None)."""
+        a = self.text.rfind('<', 0, cell.inner_start)
+        m = re.compile(rf'\b{attr}="([^"]*)"').search(self.text, a, cell.inner_start)
+        return (m.start(1), m.end(1)) if m else None
+
     def save(self, out_path: str):
         t = self.text
         spans = sorted(self._edits)

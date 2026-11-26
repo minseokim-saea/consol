@@ -159,7 +159,7 @@ def rollover(doc: DSDDocument, shift: int = 1) -> dict:
         if sce is not None:
             out['tables'].append({k: v for k, v in sce.items() if k != 'stale_rows'})
             out['manual'].append({'table': t.index, 'anchor': t.anchor,
-                                  'reason': f"자본변동표 당기 변동 {sce['stale_rows']}행은 작년 값이 남아 있습니다 — 직접 고쳐주세요."})
+                                  'reason': f"자본변동표 당기 변동 {sce['stale_rows']}행은 작년 값이 남아 있습니다 — '본문 재무제표 채우기'를 켜면 시스템 값으로 계산되고, 끄면 직접 고쳐야 합니다."})
             continue
         pairs, orphans = _col_pairs(t)
         if orphans and not pairs:

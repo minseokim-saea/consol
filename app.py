@@ -9068,6 +9068,7 @@ def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
     """틀 DSD 에 이월·기수변경을 적용하고 칸별 결과(주석 + 재무제표)를 만든다.
     미리보기와 생성이 같은 순서로 불러 결과 순번이 같아야 한다."""
     import dsd_builder, dsd_rollover, dsd_periods, dsd_fs
+    from dsd_engine import DSDDocument
     tyear = dsd_periods.template_year(doc)
     shift = (int(period[:4]) - tyear) if (do_roll and tyear) else 0
     period_info = {'template_year': tyear, 'shift': shift, 'requested': bool(do_roll)}
@@ -9078,6 +9079,11 @@ def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
     results = dsd_builder.plan(doc, dsd_builder.NoteSheets(notes_path), dsd_builder.load_mapping())
     if fs_rows:
         results += dsd_fs.plan_fs(doc, fs_rows)
+    period_info['n_main'] = len(results)
+    if fs_rows:
+        # 자본변동표는 이월로 행 구조가 바뀔 수 있어, 편집을 반영해 다시 읽은 문서에서 칸을 찾는다
+        import dsd_sce
+        results += dsd_sce.plan_sce(DSDDocument.derived(doc), fs_rows)
     return roll, period_info, results
 
 
@@ -9179,7 +9185,15 @@ def dsd_report_build():
         doc = DSDDocument(str(tpl_path))
         roll, pinfo, results = _dsd_prepare(doc, period, notes_path, fs_rows,
                                             bool(body.get('rollover')))
-        applied = dsd_builder.apply(doc, results, selected)
+        n_main = pinfo['n_main']
+        applied = dsd_builder.apply(doc, results[:n_main], {i for i in selected if i < n_main})
+        if len(results) > n_main:
+            # 자본변동표: 앞의 편집을 반영해 다시 읽은 문서에 적용한다 (미리보기와 같은 순번)
+            import dsd_sce
+            doc = DSDDocument.derived(doc)
+            sce = dsd_sce.plan_sce(doc, fs_rows)
+            results = results[:n_main] + sce
+            applied += dsd_builder.apply(doc, sce, {i - n_main for i in selected if i >= n_main})
         stamp = _time.strftime('%Y%m%d_%H%M%S')
         dsd_name = f'감사보고서_{period}_{stamp}.dsd'
         log_name = f'감사보고서_{period}_{stamp}_변경내역.xlsx'

@@ -151,4 +151,35 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                 item['row'] = f"{lab} → {rule['rename']}"
                 item['status'] = 'changed'
             out.append(item)
+    return out + plan_levels(doc)
+
+
+def plan_levels(doc: DSDDocument) -> list[dict]:
+    """세부 금액 칸에 값이 있는데 들여쓰기 단계(ALEVEL)가 0 인 줄 — DART 편집기에서 안 보인다.
+    바로 앞 세부 줄과 같은 단계로 맞춘다."""
+    out = []
+    for code, title in STATEMENTS:
+        t = find_statement_tables(doc).get(code)
+        if t is None:
+            continue
+        sub_col, tot_col = _cur_cols(t)
+        prev = None
+        for r in t.body_rows():
+            first = next((c for c in r if c.col == 0), None)
+            sub, tot = t.cell_at(r, sub_col), t.cell_at(r, tot_col)
+            if first is None:
+                continue
+            is_detail = sub is not None and sub.text.strip() and not (tot is not None and tot.text.strip())
+            lv = first.attrs.get('ALEVEL')
+            if is_detail and lv == '0' and prev not in (None, '0'):
+                span = doc.cell_tag_attr_span(first, 'ALEVEL')
+                if span:
+                    out.append({'table_id': code, 'table_name': '연결' + title, 'row': first.text,
+                                'col': '들여쓰기 단계', 'old': lv, 'new': prev, 'raw': None,
+                                'status': 'changed', 'review': False, 'sheet': 'DSD 서식',
+                                'expr': '', 'dsd_table': t.index,
+                                'message': 'DART 편집기에서 안 보이던 줄 — 앞 세부 줄과 같은 단계로 맞춤',
+                                '_span': (span[0], span[1], prev)})
+            if is_detail and lv not in (None, '0'):
+                prev = lv
     return out

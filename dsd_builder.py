@@ -259,6 +259,11 @@ def apply(doc: DSDDocument, results: list[dict], selected=None) -> int:
                 continue
         elif i not in selected:
             continue
+        if it.get('_span'):                     # 속성값 등 원문 구간 교체 (들여쓰기 보정)
+            a, b_, v = it['_span']
+            doc.replace_span(a, b_, v)
+            n += 1
+            continue
         cell = it.get('_cell')
         # 값이 같은 칸(ok)은 원문(정렬용 공백 등)을 그대로 둔다
         if cell is not None and it['status'] == 'changed':
