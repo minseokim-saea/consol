@@ -15,6 +15,21 @@ from dsd_engine import DSDDocument, Table, norm
 
 _CUR = {'당기': '전기', '당기말': '전기말', '당분기': '전분기', '당분기말': '전분기말'}
 _PRI = set(_CUR.values())
+_KISU_CUR = re.compile(r'^제(\d+)\(당\)(.*)$')   # 재무제표 머리글 '제38(당)기말'
+_KISU_PRI = re.compile(r'^제(\d+)\(전\)(.*)$')
+
+
+def _counterpart(seg: str) -> str | None:
+    if seg in _CUR:
+        return _CUR[seg]
+    m = _KISU_CUR.match(seg)
+    if m:
+        return f'제{int(m.group(1)) - 1}(전){m.group(2)}'
+    return None
+
+
+def _is_prior(seg: str) -> bool:
+    return seg in _PRI or bool(_KISU_PRI.match(seg))
 
 
 def _marker(t: Table) -> str | None:
@@ -55,11 +70,11 @@ def _col_pairs(t: Table):
         if c == 0:
             continue
         segs = h.split('/')
-        idx = [i for i, s in enumerate(segs) if s in _CUR]
+        idx = [i for i, s in enumerate(segs) if _counterpart(s)]
         if not idx:
             continue
         i = idx[0]
-        target = '/'.join(segs[:i] + [_CUR[segs[i]]] + segs[i + 1:])
+        target = '/'.join(segs[:i] + [_counterpart(segs[i])] + segs[i + 1:])
         cands = [x for x in by_path.get(target, []) if x not in used]
         if cands:
             used.add(cands[0])
@@ -67,12 +82,58 @@ def _col_pairs(t: Table):
         else:
             orphans.append(h)
     for c, h in heads.items():
-        if c and c not in used and any(s in _PRI for s in h.split('/')):
+        if c and c not in used and any(_is_prior(s) for s in h.split('/')):
             orphans.append(h)
     return pairs, orphans
 
 
-def rollover(doc: DSDDocument) -> dict:
+_SCE_MARK = re.compile(r'\((전기초|전기말|당기초|당기말)\)')
+_SCE_DATE = re.compile(r'(?<!\d)(\d{4})([.\-]\d{1,2}[.\-]\d{1,2})')
+
+
+def _rollover_sce(doc: DSDDocument, t: Table, shift: int) -> dict | None:
+    """자본변동표: [전기초…전기말][당기초…당기말] → [작년 당기 블록을 전기로][새 당기 블록].
+
+    새 전기 블록 = 작년 당기 블록 그대로 (라벨만 당기→전기).
+    새 당기 블록 = 당기초 행에 작년 당기말 값(= 새 전기말), 변동 행·당기말 행은 작년 값이 남으므로 직접 고친다.
+    """
+    marks = {}
+    for i, r in enumerate(t.rows):
+        first = next((c for c in r if c.col == 0), None)
+        m = _SCE_MARK.search(first.text) if first is not None else None
+        if m:
+            marks[m.group(1)] = i
+    if not {'전기초', '당기초', '당기말'} <= set(marks):
+        return None
+    p0, c0, c1 = marks['전기초'], marks['당기초'], marks['당기말']
+    if not p0 < c0 < c1:
+        return None
+    raw = [doc.raw_span(a, b) for a, b in t.row_spans]
+
+    def relabel(x, to_prior, year_shift):
+        if to_prior:
+            x = x.replace('(당기초)', '(전기초)').replace('(당기말)', '(전기말)')
+        if year_shift:
+            x = _SCE_DATE.sub(lambda m: f'{int(m.group(1)) + year_shift}{m.group(2)}', x)
+        return x
+
+    prior_block = [relabel(raw[i], True, 0) for i in range(c0, c1 + 1)]
+    # 새 당기초 = 작년 당기말 행 (라벨은 작년 당기초 행 라벨 + 연도 변경)
+    open_lab = re.search(r'\d{4}[.\-]\d{1,2}[.\-]\d{1,2}\s*\(당기초\)', raw[c0])
+    close_lab = re.search(r'\d{4}[.\-]\d{1,2}[.\-]\d{1,2}\s*\(당기말\)', raw[c1])
+    new_open = raw[c1]
+    if open_lab and close_lab:
+        new_open = new_open.replace(close_lab.group(0), open_lab.group(0))
+    cur_block = [relabel(new_open, False, shift)] + [relabel(raw[i], False, shift) for i in range(c0 + 1, c1 + 1)]
+    sep = doc.text[t.row_spans[p0][1]:t.row_spans[p0 + 1][0]] if p0 + 1 < len(t.row_spans) else '\n'
+    a, b = t.row_spans[p0][0], t.row_spans[c1][1]
+    doc.replace_span(a, b, sep.join(prior_block + cur_block))
+    return {'table': t.index, 'anchor': t.anchor, 'caption': t.caption, 'mode': '자본변동표 이월',
+            'cells': sum(len(t.rows[i]) for i in range(c0, c1 + 1)),
+            'stale_rows': c1 - c0}
+
+
+def rollover(doc: DSDDocument, shift: int = 1) -> dict:
     """이월을 doc 에 적용하고 요약을 돌려준다.
 
     반환: {'tables': [{table, anchor, mode, cells}], 'manual': [{table, anchor, reason}],
@@ -93,6 +154,12 @@ def rollover(doc: DSDDocument) -> dict:
 
     for t in doc.tables:
         if len(t.rows) < 2 or id(t) in in_split:
+            continue
+        sce = _rollover_sce(doc, t, shift)
+        if sce is not None:
+            out['tables'].append({k: v for k, v in sce.items() if k != 'stale_rows'})
+            out['manual'].append({'table': t.index, 'anchor': t.anchor,
+                                  'reason': f"자본변동표 당기 변동 {sce['stale_rows']}행은 작년 값이 남아 있습니다 — 직접 고쳐주세요."})
             continue
         pairs, orphans = _col_pairs(t)
         if orphans and not pairs:

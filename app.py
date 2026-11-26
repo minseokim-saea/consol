@@ -9043,7 +9043,8 @@ _DSD_TOKEN_RE = re.compile(r'^[0-9a-f]{16}$')
 
 
 def _dsd_work_paths(token):
-    return DSD_DIR / f'{token}_template.dsd', DSD_DIR / f'{token}_notes.xlsx'
+    return (DSD_DIR / f'{token}_template.dsd', DSD_DIR / f'{token}_notes.xlsx',
+            DSD_DIR / f'{token}_fs.json')
 
 
 @app.route('/dsd-report')
@@ -9054,29 +9055,55 @@ def dsd_report_page():
     year = (request.args.get('year') or '').strip()
     if not year or not _valid_year(year):
         year = q4[0] if q4 else (years_list[0] if years_list else '')
+    uname = session.get('username')
+    groups = [{'id': g.get('id'), 'name': g.get('name')} for g in consol_list_groups()
+              if g.get('id') and _can_access_group(uname, g.get('id'))]
+    default_gid = next((g['id'] for g in groups if (g['name'] or '').strip() == MGMT_GROUP_NAME),
+                       groups[0]['id'] if groups else '')
     return render_template('dsd_report.html', year=year, years=q4 or years_list,
-                           username=session.get('username'))
+                           groups=groups, default_gid=default_gid, username=uname)
+
+
+def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
+    """틀 DSD 에 이월·기수변경을 적용하고 칸별 결과(주석 + 재무제표)를 만든다.
+    미리보기와 생성이 같은 순서로 불러 결과 순번이 같아야 한다."""
+    import dsd_builder, dsd_rollover, dsd_periods, dsd_fs
+    tyear = dsd_periods.template_year(doc)
+    shift = (int(period[:4]) - tyear) if (do_roll and tyear) else 0
+    period_info = {'template_year': tyear, 'shift': shift, 'requested': bool(do_roll)}
+    roll = None
+    if shift > 0:
+        roll = dsd_rollover.rollover(doc, shift)
+        period_info.update(dsd_periods.bump(doc, shift))
+    results = dsd_builder.plan(doc, dsd_builder.NoteSheets(notes_path), dsd_builder.load_mapping())
+    if fs_rows:
+        results += dsd_fs.plan_fs(doc, fs_rows)
+    return roll, period_info, results
 
 
 @app.route('/dsd-report/preview', methods=['POST'])
 @require_permission('dsd.export')
 def dsd_report_preview():
-    """업로드한 DSD + 해당 기간 주석합산 → 칸별 기존값/새값 미리보기."""
+    """업로드한 DSD + 해당 기간 주석합산·보고용 재무제표 → 칸별 기존값/새값 미리보기."""
     import time as _time
     import zipfile as _zip
     from dsd_engine import DSDDocument
-    import dsd_builder
-    import dsd_rollover
+    import dsd_builder, dsd_rollover
     period = (request.form.get('period') or '').strip()
     if not _valid_year(period):
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
     f = request.files.get('dsd')
     if not f or not (f.filename or '').lower().endswith('.dsd'):
         return jsonify({'error': '틀로 쓸 DSD 파일(.dsd)을 올려주세요.'}), 400
+    uname = session.get('username')
+    want_fs = request.form.get('fs') == '1'
+    gid = (request.form.get('group_id') or '').strip()
+    if want_fs and (not gid or not _can_access_group(uname, gid)):
+        return jsonify({'error': '재무제표를 만들 연결그룹을 선택해주세요.'}), 400
     t0 = _time.time()
     DSD_DIR.mkdir(parents=True, exist_ok=True)
     token = secrets.token_hex(8)
-    tpl_path, notes_path = _dsd_work_paths(token)
+    tpl_path, notes_path, fs_path = _dsd_work_paths(token)
     f.save(str(tpl_path))
     try:
         with _zip.ZipFile(str(tpl_path)) as z:
@@ -9086,17 +9113,27 @@ def dsd_report_preview():
     except Exception as e:
         tpl_path.unlink(missing_ok=True)
         return jsonify({'error': f'DSD 파일을 읽지 못했습니다: {e}'}), 400
-    do_roll = request.form.get('rollover') == '1'
+    fs_note = ''
+    fs_rows = None
     try:
-        roll = dsd_rollover.rollover(doc) if do_roll else None
         all_aggs = _note_aggregate_collect(period)
         build_all_in_one_excel(period, all_aggs, notes_path)
-        sheets = dsd_builder.NoteSheets(notes_path)
-        results = dsd_builder.plan(doc, sheets, dsd_builder.load_mapping())
+        if want_fs:
+            if _unclosed_status(period) == 'blocked':
+                fs_note = f'{period} 은(는) 마감 전이라 재무제표를 채우지 않았습니다. ({UNCLOSED_MSG})'
+            else:
+                ctx, pp, pctx, pm = _report_prepare_ctx(gid, period)
+                fs_rows = {st: _compute_report_fs(gid, period, st, ctx=ctx, prior_period=pp,
+                                                  prior_ctx=pctx, prior_mode=pm)['rows']
+                           for st in ('BS', 'PL', 'CF')}
+                fs_path.write_text(json.dumps(fs_rows, ensure_ascii=False, default=str),
+                                   encoding='utf-8')
+        roll, pinfo, results = _dsd_prepare(doc, period, notes_path, fs_rows,
+                                            request.form.get('rollover') == '1')
     except Exception as e:
         traceback.print_exc()
         return _json_error(e)
-    print(f'[DSD 미리보기] {period} {session.get("username")}: {len(results)}칸, '
+    print(f'[DSD 미리보기] {period} {uname}: {len(results)}칸, '
           f'{_time.time() - t0:.1f}초', flush=True)
     roll_info = None
     if roll is not None:
@@ -9113,6 +9150,8 @@ def dsd_report_preview():
         'period': period,
         'template_name': f.filename,
         'rollover': roll_info,
+        'period_info': pinfo,
+        'fs_note': fs_note,
         'results': dsd_builder.public(results),
         'elapsed_seconds': round(_time.time() - t0, 1),
     })
@@ -9125,22 +9164,21 @@ def dsd_report_build():
     import time as _time
     from openpyxl import Workbook
     from dsd_engine import DSDDocument
-    import dsd_builder
-    import dsd_rollover
+    import dsd_builder, dsd_rollover
     body = request.get_json(silent=True) or {}
     token = str(body.get('token') or '')
     period = (body.get('period') or '').strip()
     if not _DSD_TOKEN_RE.match(token) or not _valid_year(period):
         return jsonify({'error': '미리보기를 먼저 실행해주세요.'}), 400
-    tpl_path, notes_path = _dsd_work_paths(token)
+    tpl_path, notes_path, fs_path = _dsd_work_paths(token)
     if not tpl_path.exists() or not notes_path.exists():
         return jsonify({'error': '미리보기 자료가 없습니다. 미리보기를 다시 실행해주세요.'}), 400
     selected = {int(i) for i in (body.get('selected') or []) if str(i).isdigit()}
     try:
+        fs_rows = json.loads(fs_path.read_text(encoding='utf-8')) if fs_path.exists() else None
         doc = DSDDocument(str(tpl_path))
-        roll = dsd_rollover.rollover(doc) if body.get('rollover') else None
-        sheets = dsd_builder.NoteSheets(notes_path)
-        results = dsd_builder.plan(doc, sheets, dsd_builder.load_mapping())
+        roll, pinfo, results = _dsd_prepare(doc, period, notes_path, fs_rows,
+                                            bool(body.get('rollover')))
         applied = dsd_builder.apply(doc, results, selected)
         stamp = _time.strftime('%Y%m%d_%H%M%S')
         dsd_name = f'감사보고서_{period}_{stamp}.dsd'
@@ -9160,12 +9198,17 @@ def dsd_report_build():
             ws.column_dimensions[col].width = w
         if roll is not None:
             ws2 = wb.create_sheet('당기→전기 이월')
+            kisu = pinfo.get('kisu')
+            ws2.append(['기수·날짜', f"연도 +{pinfo['shift']}"
+                        + (f" · 제{kisu[0]}기 → 제{kisu[1]}기" if kisu else ''),
+                        f"{pinfo.get('cells', 0)}칸 · 기간코드 {pinfo.get('attrs', 0)}곳"])
+            ws2.append([])
             ws2.append(['DSD 표 번호', '방식', '복사한 칸 수', '단위/구분', '표 앞 문단'])
             for x in roll['tables']:
                 ws2.append([x['table'], x['mode'], x['cells'], x['caption'], x['anchor']])
             for x in roll['manual']:
                 ws2.append([x['table'], '수동 확인', '', x['reason'], x['anchor']])
-            for col, w in zip('ABCDE', (12, 10, 12, 50, 70)):
+            for col, w in zip('ABCDE', (12, 30, 24, 50, 70)):
                 ws2.column_dimensions[col].width = w
             ws3 = wb.create_sheet('직접 고칠 당기칸')
             ws3.append(['DSD 표 번호', '단위/구분', '표 앞 문단', '행', '열', '작년 값(그대로 남음)'])

@@ -4052,7 +4052,9 @@
      "level": 0,
      "name": "기타투자자산의 처분",
      "kind": "detail",
-     "codes": []
+     "codes": [
+      "CF3124003"
+     ]
     },
     {
      "row": 148,
@@ -4315,6 +4317,15 @@
      "row": 177,
      "level": 0,
      "name": "기타투자자산의 취득",
+     "kind": "detail",
+     "codes": [
+      "CF4124003"
+     ]
+    },
+    {
+     "row": 177.5,
+     "level": 0,
+     "name": "장기선급금의 증가",
      "kind": "detail",
      "codes": []
     },

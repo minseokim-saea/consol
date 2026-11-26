@@ -56,6 +56,7 @@ class Table:
     rows: list = field(default_factory=list)  # list[list[Cell]]
     ncols: int = 0
     header_rows: int = 0
+    row_spans: list = field(default_factory=list)  # 행별 <TR>…</TR> 원문 위치
 
     # ---- 열/행 탐색 ----
     def col_headers(self) -> dict:
@@ -153,7 +154,9 @@ class DSDDocument:
         thead_end = s.find("</THEAD>")
         occupied: dict[tuple[int, int], bool] = {}
         rows = []
+        tbl.row_spans = []
         for ri, trm in enumerate(_RE_TR.finditer(s)):
+            tbl.row_spans.append((base + trm.start(), base + trm.end()))
             in_head = thead_end != -1 and trm.start() < thead_end
             col = 0
             row = []
@@ -221,6 +224,10 @@ class DSDDocument:
         """셀 안쪽 XML 을 그대로 넣는다 (다른 셀 내용 복사용)."""
         self._edits[(cell.inner_start, cell.inner_end)] = raw
         cell.text = plain(raw)
+
+    def replace_span(self, a: int, b: int, raw: str):
+        """원문 [a, b) 를 raw 로 바꾼다 (속성값·여러 행 교체용)."""
+        self._edits[(a, b)] = raw
 
     def replace_table(self, dst: Table, src: Table):
         """dst 표 전체를 src 표 XML(편집 반영)로 바꾼다."""
