@@ -14,7 +14,13 @@ import json
 import re
 from pathlib import Path
 
+from html import escape as _esc
+
 from dsd_engine import DSDDocument, fmt_amount, norm, parse_amount
+
+
+def html_escape(s):
+    return _esc(str(s), quote=False)
 
 FS_MAPPING_FILE = Path(__file__).with_name('dsd_fs_mapping.json')
 STATEMENTS = (('BS', '재무상태표'), ('PL', '손익계산서'), ('CF', '현금흐름표'))
@@ -24,6 +30,7 @@ def fs_key(s: str) -> str:
     s = norm(s)
     s = re.sub(r'\(주석[^)]*\)', '', s)
     s = re.sub(r'^(?:(?:[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+|[IVXL]+|\d+|[가-하])\.|\(\d+\)|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)', '', s)
+    s = s.lstrip('.')
     s = s.replace('(손실)', '').replace('(수익)', '').replace('의', '')
     return s
 
@@ -75,7 +82,10 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
         for m in (mapping.get(code) or []):
             rules[(norm(m['dsd']), int(m.get('nth', 1)))] = m
         used, ptr, seen = set(), 0, {}
-        for r in t.body_rows():
+        matched_row = {}                  # 시스템 줄 번호 → DSD 행 번호 (줄 추가 위치용)
+        for ri, r in enumerate(t.rows):
+            if ri < t.header_rows:
+                continue
             first = next((c for c in r if c.col == 0), None)
             if first is None or not first.text.strip():
                 continue
@@ -106,7 +116,8 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                         idx = None
                         break
                     idx.append(cand[0])
-                item['expr'] = ' + '.join(names) + (' × -1' if rule.get('sign') == -1 else '')                     + (f" ({rule['in']} 아래)" if rule.get('in') else '')
+                item['expr'] = (' + '.join(names) + (' × -1' if rule.get('sign') == -1 else '')
+                                + (f" ({rule['in']} 아래)" if rule.get('in') else ''))
                 if idx is None:
                     item['message'] = f'매핑한 시스템 줄을 찾지 못함: {names}'
                     out.append(item)
@@ -125,6 +136,7 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                 item['expr'] = rows[idx[0]]['name']
             for i in idx:
                 used.add(i)
+                matched_row[i] = ri
             ptr = max(idx) + 1
             val = sum((rows[i].get('cur') or 0) for i in idx) * (rule.get('sign', 1) if rule else 1)
             # 틀에서 금액이 있던 칸, 없으면 시스템 줄 종류로 결정
@@ -151,35 +163,65 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                 item['row'] = f"{lab} → {rule['rename']}"
                 item['status'] = 'changed'
             out.append(item)
-    return out + plan_levels(doc)
-
-
-def plan_levels(doc: DSDDocument) -> list[dict]:
-    """세부 금액 칸에 값이 있는데 들여쓰기 단계(ALEVEL)가 0 인 줄 — DART 편집기에서 안 보인다.
-    바로 앞 세부 줄과 같은 단계로 맞춘다."""
-    out = []
-    for code, title in STATEMENTS:
-        t = find_statement_tables(doc).get(code)
-        if t is None:
-            continue
-        sub_col, tot_col = _cur_cols(t)
-        prev = None
-        for r in t.body_rows():
-            first = next((c for c in r if c.col == 0), None)
-            sub, tot = t.cell_at(r, sub_col), t.cell_at(r, tot_col)
-            if first is None:
-                continue
-            is_detail = sub is not None and sub.text.strip() and not (tot is not None and tot.text.strip())
-            lv = first.attrs.get('ALEVEL')
-            if is_detail and lv == '0' and prev not in (None, '0'):
-                span = doc.cell_tag_attr_span(first, 'ALEVEL')
-                if span:
-                    out.append({'table_id': code, 'table_name': '연결' + title, 'row': first.text,
-                                'col': '들여쓰기 단계', 'old': lv, 'new': prev, 'raw': None,
-                                'status': 'changed', 'review': False, 'sheet': 'DSD 서식',
-                                'expr': '', 'dsd_table': t.index,
-                                'message': 'DART 편집기에서 안 보이던 줄 — 앞 세부 줄과 같은 단계로 맞춤',
-                                '_span': (span[0], span[1], prev)})
-            if is_detail and lv not in (None, '0'):
-                prev = lv
+        out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col)
     return out
+
+
+def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col):
+    """시스템에 금액이 있는데 틀 DSD 에 없는 세부 줄 → 앞 계정 줄 아래에 새 줄로 추가.
+    빠지면 소계·합계가 맞지 않으므로 기본 적용. 이미 쓰인 소계의 하위 줄(예: 매출원가 세부)은 제외."""
+    skip = set(used)
+    for s in used:
+        # 소계만 DSD 한 줄로 쓰이고 하위 줄은 하나도 안 쓰였으면 (예: 매출원가) 하위 줄은 추가하지 않는다
+        if rows[s].get('kind') == 'subtotal':
+            lv = rows[s].get('level', 0)
+            kids = []
+            for k in range(s + 1, len(rows)):
+                if rows[k].get('level', 0) <= lv:
+                    break
+                kids.append(k)
+            if kids and not any(k in used for k in kids):
+                skip.update(kids)
+    pri_cols = [c for c, h in t.col_headers().items() if '(전)' in h]
+    pri_sub = pri_cols[0] if pri_cols else None
+
+    def is_detail(ri):
+        r = t.rows[ri]
+        s, tt = t.cell_at(r, sub_col), t.cell_at(r, tot_col)
+        return s is not None and s.text.strip() and not (tt is not None and tt.text.strip())
+
+    out, pending = [], {}
+    for k, x in enumerate(rows):
+        if k in skip or x.get('kind') != 'detail' or abs(x.get('cur') or 0) < 0.5:
+            continue
+        prev = [i for i in matched_row if i < k]
+        if not prev:
+            continue
+        anchor = matched_row[max(prev)]
+        tpl = anchor if is_detail(anchor) else next(
+            (j for j in range(anchor + 1, len(t.rows)) if is_detail(j)), None)
+        if tpl is None:
+            continue
+        a, b = t.row_spans[tpl]
+        raw = doc.raw_span(a, b)
+        cols = [c.col for c in t.rows[tpl]]
+        pri = x.get('pri') or 0
+        content = {0: html_escape(x['name']), sub_col: fmt_amount(x['cur'], 0)}
+        if pri_sub is not None:
+            content[pri_sub] = fmt_amount(pri, 0)
+        it = iter(cols)
+        new_row = re.sub(r'(<T[DE][^>]*>)(.*?)(</T[DE]>)',
+                         lambda m: m.group(1) + content.get(next(it), '　') + m.group(3), raw, flags=re.S)
+        new_row = re.sub(r'ACODE="[^"]*"', 'ACODE=""', new_row)
+        pos = t.row_spans[anchor][1]
+        nxt = t.row_spans[anchor + 1][0] if anchor + 1 < len(t.row_spans) else pos
+        sep = doc.text[pos:nxt] if nxt > pos else '\n'
+        anchor_lab = next((c.text for c in t.rows[anchor] if c.col == 0), '')
+        out.append({'table_id': code, 'table_name': '연결' + title, 'row': x['name'], 'col': '줄 추가',
+                    'old': '', 'new': fmt_amount(x['cur'], 0), 'raw': x['cur'], 'status': 'changed',
+                    'review': False, 'sheet': '보고용 재무제표', 'dsd_table': t.index,
+                    'expr': f'“{anchor_lab}” 아래에 추가',
+                    'message': '틀 DSD 에 없는 줄 — 추가합니다 (전기 칸: 시스템 전기 값, 없으면 -)',
+                    '_insert': (pos, sep + new_row)})
+    return out
+

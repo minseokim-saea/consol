@@ -259,9 +259,8 @@ def apply(doc: DSDDocument, results: list[dict], selected=None) -> int:
                 continue
         elif i not in selected:
             continue
-        if it.get('_span'):                     # 속성값 등 원문 구간 교체 (들여쓰기 보정)
-            a, b_, v = it['_span']
-            doc.replace_span(a, b_, v)
+        if it.get('_insert'):                   # 틀에 없는 재무제표 줄 추가
+            doc.insert_at(*it['_insert'])
             n += 1
             continue
         cell = it.get('_cell')

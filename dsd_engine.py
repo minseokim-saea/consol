@@ -229,6 +229,10 @@ class DSDDocument:
         """원문 [a, b) 를 raw 로 바꾼다 (속성값·여러 행 교체용)."""
         self._edits[(a, b)] = raw
 
+    def insert_at(self, pos: int, raw: str):
+        """원문 pos 위치에 raw 를 끼워 넣는다 (같은 위치면 순서대로 이어 붙임)."""
+        self._edits[(pos, pos)] = self._edits.get((pos, pos), '') + raw
+
     def replace_table(self, dst: Table, src: Table):
         """dst 표 전체를 src 표 XML(편집 반영)로 바꾼다."""
         self._edits[(dst.start, dst.end)] = self.raw_span(src.start, src.end)
