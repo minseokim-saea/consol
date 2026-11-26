@@ -333,6 +333,7 @@ def _inject_sidebar_perms():
             'package_verify':  _has_permission(uname, 'package.verify'),
             'package_query':   _has_permission(uname, 'package.query'),
             'note_aggregate':  _has_permission(uname, 'note.aggregate'),
+            'dsd_export':      _has_permission(uname, 'dsd.export'),
             'cash_compute':    _has_permission(uname, 'cash.compute'),
             'cash_mapping':    _has_permission(uname, 'cash.mapping'),
             'distribute_run':  _has_permission(uname, 'distribute.run'),
@@ -498,6 +499,9 @@ def _ensure_permission_catalog():
         # 패키지 조회 — 업로드 패키지 추출값 조회(계정별 증감 등). 패키지 검증과 같은 그룹에 기본 허용
         ('package.query', '패키지 조회', 'package.verify',
          {'system_admin', 'finance_lead', 'finance_member', 'viewer'}, 'WCE/검증'),
+        # DART 감사보고서(DSD) 작성 — 주석합산을 돌리므로 note.aggregate 도 함께 있어야 한다
+        ('dsd.export', 'DART 감사보고서(DSD) 작성', 'note.aggregate',
+         {'system_admin', 'finance_lead'}, 'WCE/검증'),
     ]
     data = _load_permission_groups(force=True)
     defs = data.get('definitions') or []
@@ -8811,6 +8815,7 @@ def _sidebar_perms(uname):
         'package_verify':   _has_permission(uname, 'package.verify'),
         'package_query':    _has_permission(uname, 'package.query'),
         'note_aggregate':   _has_permission(uname, 'note.aggregate'),
+        'dsd_export':       _has_permission(uname, 'dsd.export'),
         'cash_compute':     _has_permission(uname, 'cash.compute'),
         'cash_mapping':     _has_permission(uname, 'cash.mapping'),
         'distribute_run':   _has_permission(uname, 'distribute.run'),
@@ -9027,6 +9032,138 @@ def audit_pack_download(filename):
         return '잘못된 파일명입니다.', 400
     path = AUDIT_PACK_DIR / filename
     if not path.exists():
+        return '파일을 찾을 수 없습니다.', 404
+    return send_file(str(path.resolve()), as_attachment=True, download_name=filename)
+
+
+# ─── DART 감사보고서(DSD) 작성 ─────────────────────────────────────────────
+# 이전 DSD 를 틀로 삼아, 주석합산 결과를 dsd_mapping.json 규칙대로 주석 표 칸에 채운다.
+DSD_DIR = RESULTS_DIR / 'dsd'
+_DSD_TOKEN_RE = re.compile(r'^[0-9a-f]{16}$')
+
+
+def _dsd_work_paths(token):
+    return DSD_DIR / f'{token}_template.dsd', DSD_DIR / f'{token}_notes.xlsx'
+
+
+@app.route('/dsd-report')
+@require_permission('dsd.export')
+def dsd_report_page():
+    years_list = YEARS_DATA.get('years', [])
+    q4 = [y for y in years_list if y.endswith('-4Q')]
+    year = (request.args.get('year') or '').strip()
+    if not year or not _valid_year(year):
+        year = q4[0] if q4 else (years_list[0] if years_list else '')
+    return render_template('dsd_report.html', year=year, years=q4 or years_list,
+                           username=session.get('username'))
+
+
+@app.route('/dsd-report/preview', methods=['POST'])
+@require_permission('dsd.export')
+def dsd_report_preview():
+    """업로드한 DSD + 해당 기간 주석합산 → 칸별 기존값/새값 미리보기."""
+    import time as _time
+    import zipfile as _zip
+    from dsd_engine import DSDDocument
+    import dsd_builder
+    period = (request.form.get('period') or '').strip()
+    if not _valid_year(period):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    f = request.files.get('dsd')
+    if not f or not (f.filename or '').lower().endswith('.dsd'):
+        return jsonify({'error': '틀로 쓸 DSD 파일(.dsd)을 올려주세요.'}), 400
+    t0 = _time.time()
+    DSD_DIR.mkdir(parents=True, exist_ok=True)
+    token = secrets.token_hex(8)
+    tpl_path, notes_path = _dsd_work_paths(token)
+    f.save(str(tpl_path))
+    try:
+        with _zip.ZipFile(str(tpl_path)) as z:
+            if 'contents.xml' not in z.namelist():
+                raise ValueError('contents.xml 없음')
+        doc = DSDDocument(str(tpl_path))
+    except Exception as e:
+        tpl_path.unlink(missing_ok=True)
+        return jsonify({'error': f'DSD 파일을 읽지 못했습니다: {e}'}), 400
+    try:
+        all_aggs = _note_aggregate_collect(period)
+        build_all_in_one_excel(period, all_aggs, notes_path)
+        sheets = dsd_builder.NoteSheets(notes_path)
+        results = dsd_builder.plan(doc, sheets, dsd_builder.load_mapping())
+    except Exception as e:
+        traceback.print_exc()
+        return _json_error(e)
+    print(f'[DSD 미리보기] {period} {session.get("username")}: {len(results)}칸, '
+          f'{_time.time() - t0:.1f}초', flush=True)
+    return jsonify({
+        'token': token,
+        'period': period,
+        'template_name': f.filename,
+        'results': dsd_builder.public(results),
+        'elapsed_seconds': round(_time.time() - t0, 1),
+    })
+
+
+@app.route('/dsd-report/build', methods=['POST'])
+@require_permission('dsd.export')
+def dsd_report_build():
+    """미리보기에서 고른 칸만 적용해 새 DSD 와 변경내역 엑셀을 만든다."""
+    import time as _time
+    from openpyxl import Workbook
+    from dsd_engine import DSDDocument
+    import dsd_builder
+    body = request.get_json(silent=True) or {}
+    token = str(body.get('token') or '')
+    period = (body.get('period') or '').strip()
+    if not _DSD_TOKEN_RE.match(token) or not _valid_year(period):
+        return jsonify({'error': '미리보기를 먼저 실행해주세요.'}), 400
+    tpl_path, notes_path = _dsd_work_paths(token)
+    if not tpl_path.exists() or not notes_path.exists():
+        return jsonify({'error': '미리보기 자료가 없습니다. 미리보기를 다시 실행해주세요.'}), 400
+    selected = {int(i) for i in (body.get('selected') or []) if str(i).isdigit()}
+    try:
+        doc = DSDDocument(str(tpl_path))
+        sheets = dsd_builder.NoteSheets(notes_path)
+        results = dsd_builder.plan(doc, sheets, dsd_builder.load_mapping())
+        applied = dsd_builder.apply(doc, results, selected)
+        stamp = _time.strftime('%Y%m%d_%H%M%S')
+        dsd_name = f'감사보고서_{period}_{stamp}.dsd'
+        log_name = f'감사보고서_{period}_{stamp}_변경내역.xlsx'
+        doc.save(str(DSD_DIR / dsd_name))
+        wb = Workbook()
+        ws = wb.active
+        ws.title = '변경내역'
+        ws.append(['적용', '주석', '표', '행', '열', '기존값', '새값', '합산값(원)', '상태',
+                   '확인필요', '시트', '계산식', '메모'])
+        for i, it in enumerate(results):
+            ws.append(['Y' if (i in selected and it['status'] != 'error') else '',
+                       it['table_id'], it['table_name'], it['row'], it['col'], it['old'],
+                       it['new'], it['raw'], it['status'], 'Y' if it.get('review') else '',
+                       it.get('sheet', ''), it.get('expr', ''), it['message']])
+        for col, w in zip('ABCDEFGHIJKLM', (6, 10, 24, 34, 22, 16, 16, 18, 9, 9, 26, 40, 30)):
+            ws.column_dimensions[col].width = w
+        wb.save(str(DSD_DIR / log_name))
+    except Exception as e:
+        traceback.print_exc()
+        return _json_error(e)
+    print(f'[DSD 생성] {period} {session.get("username")}: {applied}칸 적용', flush=True)
+    return jsonify({
+        'ok': True,
+        'applied': applied,
+        'download_url': url_for('dsd_report_download', filename=dsd_name),
+        'log_url': url_for('dsd_report_download', filename=log_name),
+        'filename': dsd_name,
+    })
+
+
+@app.route('/dsd-report/download/<path:filename>')
+@require_permission('dsd.export')
+def dsd_report_download(filename):
+    if '/' in filename or '\\' in filename or '..' in filename \
+            or filename.endswith(('_template.dsd', '_notes.xlsx')):
+        return '잘못된 파일명입니다.', 400
+    path = DSD_DIR / filename
+    if not path.exists() or path.suffix.lower() not in ('.dsd', '.xlsx'):
         return '파일을 찾을 수 없습니다.', 404
     return send_file(str(path.resolve()), as_attachment=True, download_name=filename)
 
