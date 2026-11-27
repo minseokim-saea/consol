@@ -172,6 +172,83 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
         out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before, labels)
     if report.get('SUBS'):
         out += plan_subs(doc, report['SUBS'], mapping.get('subsidiaries') or {})
+    out += plan_notes(doc, report, mapping.get('notes') or [])
+    return out
+
+
+def _lab_key(s) -> str:
+    return re.sub(r'\(\*\d+\)|\s', '', str(s or ''))
+
+
+def _sys_value(report, ref):
+    """'BS:사채#2' → 보고용 재무제표 BS 의 두 번째 '사채' 줄 당기값. 앞에 '-' 면 부호 반대."""
+    sign = -1 if ref.startswith('-') else 1
+    ref = ref.lstrip('-')
+    stmt, _, name = ref.partition(':')
+    name, _, nth = name.partition('#')
+    hits = [r for r in (report.get(stmt) or []) if norm(r.get('name')) == norm(name)]
+    k = int(nth or 1)
+    if len(hits) < k:
+        raise KeyError(f'보고용 재무제표 {stmt} 에 “{name}” 줄이 없음')
+    return sign * float(hits[k - 1].get('cur') or 0)
+
+
+def plan_notes(doc: DSDDocument, report: dict, conf: list) -> list[dict]:
+    """주석 표 칸을 보고용 재무제표 줄 값으로 (dsd_fs_mapping.json 의 notes).
+
+    notes[]: {id, name, anchor, caption?, nth?, unit?, cells[]}
+      cells[]: row (행 문구 — 그 행 앞쪽 칸 중 하나와 일치, 공백·(*1) 무시), nth (같은 문구 몇 번째),
+               col (열 머리글), sys ('BS:줄이름' 또는 목록 = 합계, '#2' = 같은 이름 두 번째, '-' = 차감)
+               또는 const (고정값), sign, div (나눈 뒤 원 단위 반올림), unit (기본: 표 단위), review
+    틀 칸의 숫자 뒤 글자(' 원', ' 주')는 그대로 붙인다."""
+    out = []
+    for tb in conf:
+        base = {'table_id': tb.get('id', ''), 'table_name': tb.get('name', ''), 'sheet': '보고용 재무제표'}
+        t = doc.find_table(tb['anchor'], int(tb.get('nth', 1)), tb.get('caption', ''))
+        for c in tb.get('cells', []):
+            refs = c.get('sys') if isinstance(c.get('sys'), list) else ([c['sys']] if c.get('sys') else [])
+            item = dict(base, row=c['row'], col=c['col'], old='', new='', raw=None, status='error',
+                        review=bool(c.get('review')), message='',
+                        expr=' + '.join(refs) if refs else str(c.get('const', '')))
+            out.append(item)
+            if t is None:
+                item['message'] = 'DSD 에서 표를 찾지 못함'
+                continue
+            item['dsd_table'] = t.index
+            ci = t.find_col(c['col'])
+            if ci is None:
+                item['message'] = '열 을(를) 찾지 못함'
+                continue
+            want, k, cell = _lab_key(c['row']), int(c.get('nth', 1)), None
+            for r in t.body_rows():
+                if any(x.col < ci and _lab_key(x.text) == want for x in r):
+                    k -= 1
+                    if k == 0:
+                        cell = t.cell_at(r, ci)
+                        break
+            if cell is None:
+                item['message'] = '행 을(를) 찾지 못함'
+                continue
+            unit = c.get('unit', tb.get('unit')) or _unit_of(t)
+            try:
+                terms = [float(c['const'])] if 'const' in c else [_sys_value(report, x) for x in refs]
+            except KeyError as e:
+                item['message'] = str(e.args[0])
+                continue
+            if len(terms) > 1 and not c.get('div'):
+                # 표의 합계는 단위로 반올림한 줄들의 합 (표 안에서 합계가 맞도록)
+                terms = [int(abs(x) / unit + 0.5) * (1 if x >= 0 else -1) * unit for x in terms]
+            val = sum(terms) * c.get('sign', 1)
+            if c.get('div'):
+                q = val / float(c['div'])
+                val, unit = int(abs(q) + 0.5) * (1 if q >= 0 else -1), 1
+            item['old'] = cell.text
+            item['raw'] = val
+            m = re.search(r'\s*[^\d\s,().\-]+\s*$', cell.text)
+            item['new'] = fmt_amount(val / unit, 0) + (m.group(0).rstrip() if m else '')
+            item['_cell'] = cell
+            o, n = parse_amount(item['old']), parse_amount(item['new'])
+            item['status'] = 'ok' if (o is not None and n is not None and o == n) else 'changed'
     return out
 
 
