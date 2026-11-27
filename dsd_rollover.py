@@ -198,9 +198,11 @@ def unrefreshed(roll: dict, results: list[dict], selected=None) -> list[dict]:
         if selected is not None and i not in selected:
             continue
         covered.add(id(it['_cell']))
+        if it.get('dsd_table') is not None:      # 다시 읽은 문서의 칸(빈칸 처리 등)은 위치로 맞춘다
+            covered.add((it['dsd_table'], it['_cell'].row, it['_cell'].col))
     out = []
     for t, cell in roll['current_cells']:
-        if id(cell) in covered:
+        if id(cell) in covered or (t.index, cell.row, cell.col) in covered:
             continue
         row = next((c.text for c in t.rows[cell.row] if c.col == 0), '')
         out.append({'table': t.index, 'anchor': t.anchor, 'caption': t.caption,

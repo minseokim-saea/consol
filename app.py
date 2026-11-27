@@ -9094,12 +9094,21 @@ def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
     if fs_rows:
         results += dsd_fs.plan_fs(doc, fs_rows)
     period_info['n_main'] = len(results)
-    if fs_rows or roll is not None:
-        # 자본변동표 당기 블록은 빈칸으로 (DART 보고서에서 직접 작성).
-        # 이월로 행 구조가 바뀔 수 있어, 편집을 반영해 다시 읽은 문서에서 칸을 찾는다
-        import dsd_sce
-        results += dsd_sce.plan_sce_blank(DSDDocument.derived(doc))
+    # 이월로 행 구조가 바뀔 수 있어, 편집을 반영해 다시 읽은 문서에서 칸을 찾는다
+    results += _dsd_blank_plan(DSDDocument.derived(doc), fs_rows, roll)
     return roll, period_info, results
+
+
+def _dsd_blank_plan(doc, fs_rows, roll):
+    """빈칸으로 둘 칸 — 회사가 DART 편집기에서 직접 쓴다. 미리보기·생성이 같은 순서로 부른다.
+      · 자본변동표 당기 블록 (재무제표 채우기 또는 이월 때)
+      · dsd_mapping.json 의 blank 표 열 (예: 사용이 제한된 금융상품 당기말)"""
+    import dsd_sce, dsd_builder
+    out = []
+    if fs_rows or roll is not None:
+        out += dsd_sce.plan_sce_blank(doc)
+    out += dsd_sce.plan_blank_cols(doc, dsd_builder.load_mapping().get('blank') or [])
+    return out
 
 
 @app.route('/dsd-report/preview', methods=['POST'])
@@ -9209,12 +9218,11 @@ def dsd_report_build():
         n_main = pinfo['n_main']
         applied = dsd_builder.apply(doc, results[:n_main], {i for i in selected if i < n_main})
         if len(results) > n_main:
-            # 자본변동표: 앞의 편집을 반영해 다시 읽은 문서에 적용한다 (미리보기와 같은 순번)
-            import dsd_sce
+            # 빈칸(자본변동표 당기·blank 표): 앞의 편집을 반영해 다시 읽은 문서에 적용한다 (미리보기와 같은 순번)
             doc = DSDDocument.derived(doc)
-            sce = dsd_sce.plan_sce_blank(doc)
-            results = results[:n_main] + sce
-            applied += dsd_builder.apply(doc, sce, {i - n_main for i in selected if i >= n_main})
+            post = _dsd_blank_plan(doc, fs_rows, roll)
+            results = results[:n_main] + post
+            applied += dsd_builder.apply(doc, post, {i - n_main for i in selected if i >= n_main})
         stamp = _time.strftime('%Y%m%d_%H%M%S')
         dsd_name = f'감사보고서_{period}_{stamp}.dsd'
         log_name = f'감사보고서_{period}_{stamp}_변경내역.xlsx'

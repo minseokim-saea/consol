@@ -105,6 +105,30 @@ def plan_sce_blank(doc: DSDDocument) -> list[dict]:
     return out
 
 
+def plan_blank_cols(doc: DSDDocument, conf: list) -> list[dict]:
+    """주석 표의 지정한 열(예: 당기말)을 빈칸으로 — 회사가 DART 편집기에서 직접 쓰는 칸.
+    conf: dsd_mapping.json 의 blank = [{id, name, anchor(표 앞 문단 일부), col(열 머리글)}]."""
+    out = []
+    for b in conf or []:
+        key = norm(b.get('anchor', '')).replace(' ', '')
+        base = {'table_id': b.get('id', ''), 'table_name': b.get('name', ''), 'raw': None,
+                'review': False, 'sheet': '', 'new': '', 'message': '', 'expr': b.get('col', '') + ' — 빈칸'}
+        t = next((x for x in doc.tables if key and key in norm(x.anchor).replace(' ', '')
+                  and len(x.rows) > 1 and b.get('col') in x.col_headers().values()), None)
+        if t is None:
+            out.append(dict(base, row='', col=b.get('col', ''), old='', status='error',
+                            message='DSD 에서 표를 찾지 못함'))
+            continue
+        cols = [c for c, h in t.col_headers().items() if h == b.get('col')]
+        for r in t.body_rows():
+            lab = next((x.text for x in r if x.col == 0), '')
+            for cell in r:
+                if cell.col in cols:
+                    out.append(dict(base, row=lab, col=b['col'], old=cell.text, dsd_table=t.index,
+                                    status='ok' if not cell.text.strip() else 'changed', _cell=cell))
+    return out
+
+
 def plan_sce(doc: DSDDocument, fs_rows: dict) -> list[dict]:
     t, c0, c1 = find_sce(doc)
     bs, pl = (fs_rows or {}).get('BS') or [], (fs_rows or {}).get('PL') or []
