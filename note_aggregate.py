@@ -4648,9 +4648,11 @@ def build_l3_severance_excel(agg_data, output_path):
 
 
 def build_a2_securities_roll_excel(agg_data, output_path):
-    """A2 2. 유가증권 증감내역 (기초=전기말 spot / 변동=avg / 기말=당기말 spot)."""
+    """A2 2. 유가증권 증감내역 (기초=전기말 spot / 변동=avg / 기말=당기말 spot).
+    extra_rows(연결조정 / 연결조정 반영 후)는 회사별 명세 끝에 붙인다."""
+    data = dict(agg_data, rows=list(agg_data.get('rows') or []) + list(agg_data.get('extra_rows') or []))
     return _build_l3_fx_effect_excel(
-        agg_data, output_path,
+        data, output_path,
         title='A2 2. 유가증권 증감내역 합산 (WCF 매도가능증권 1210102)',
         var_keys=A2_ROLL_KEYS, var_labels=A2_ROLL_LABELS,
     )
@@ -6491,6 +6493,7 @@ def build_all_in_one_excel(year, all_aggs, output_path):
         cols.append(('기말(KRW)', 18, 'krw_ending', 'num'))
         totals = agg2.get('totals_by_item_krw') or {}
         var_sum = sum((totals.get(k) or 0) for k in var_keys)
+        rows_all = list(agg2.get('rows') or []) + list(agg2.get('extra_rows') or [])
         _aio_write_section(wb, sheet_name,
             f'{title} (기초=전기말Spot / 변동=Avg / 기말=당기말Spot)',
             [('결산기간', agg2.get('year'), 'text'),
@@ -6499,8 +6502,10 @@ def build_all_in_one_excel(year, all_aggs, output_path):
              ('기초 KRW 합계', totals.get('beginning') or 0, 'num'),
              ('변동 KRW 합계', var_sum, 'num'),
              ('환율변동효과 KRW', totals.get('fx_effect') or 0, 'num'),
-             ('기말 KRW 합계', totals.get('ending') or 0, 'num')],
-            cols, agg2.get('rows') or [])
+             ('기말 KRW 합계', totals.get('ending') or 0, 'num')]
+            + ([('연결조정 반영 후 기말 KRW', (agg2['consol_adj'].get('adjusted_krw') or {}).get('ending') or 0, 'num')]
+               if agg2.get('consol_adj') else []),
+            cols, rows_all)
         sections_meta.append((sheet_name, short_name, '기말 KRW',
                               totals.get('ending') or 0))
 

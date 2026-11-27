@@ -1487,6 +1487,7 @@ function renderL3WithFxEffect(data, opts) {
 
   const totals = data.totals_by_item_krw || {};
   const varSum = varKeys.reduce((s, k) => s + (totals[k] || 0), 0);
+  const ca = opts.consolAdj ? data.consol_adj : null;
 
   const summary = `
     <div class="summary-strip mb-3 d-flex flex-wrap align-items-center gap-3">
@@ -1523,19 +1524,25 @@ function renderL3WithFxEffect(data, opts) {
       <div class="table-responsive">
         <table class="table rows-table table-hover mb-0">
           <thead><tr>
+            ${ca ? '<th>구분</th>' : ''}
             <th class="num">기초<br><small>[전기말 Spot]</small></th>
             ${varLbls.map(lbl => `<th class="num">${escHtml(lbl)}<br><small>[Avg]</small></th>`).join('')}
             <th class="num">환율변동효과</th>
             <th class="num">기말<br><small>[당기말 Spot]</small></th>
           </tr></thead>
           <tbody><tr>
+            ${ca ? '<td><strong>합계</strong></td>' : ''}
             <td class="num">${fmtNum(totals.beginning || 0, 0)}</td>
             ${varKeys.map(k => `<td class="num">${fmtNum(totals[k] || 0, 0)}</td>`).join('')}
             <td class="num text-info"><strong>${fmtNum(totals.fx_effect || 0, 0)}</strong></td>
             <td class="num num-krw">${fmtNum(totals.ending || 0, 0)}</td>
-          </tr></tbody>
+          </tr>${ca ? caRows(ca, varKeys) : ''}</tbody>
         </table>
       </div>
+      ${ca ? `<div class="small text-muted px-3 py-2">
+        연결조정 = 모든 연결그룹 연결조정분개(조정·내부거래)의 ${escHtml(ca.code)} 차변 − 대변.
+        기말 = ${escHtml(data.year)} 분개, 기초 = ${escHtml(ca.opening_source)}. 기말 − 기초 차액은 환율변동효과 칸에 넣습니다.
+      </div>` : ''}
     </div>`;
 
   if (!rows.length) {
@@ -1592,11 +1599,56 @@ function renderL3WithFxEffect(data, opts) {
   area.innerHTML = summary + errBlock + policyBlock + totalsBlock + detailBlock;
 }
 
+// 유가증권 증감내역 합계 아래 — 연결조정 / 연결조정 반영 후 (기초 연결조정은 수기 입력 가능)
+function caRows(ca, varKeys) {
+  const a = ca.krw || {}, b = ca.adjusted_krw || {};
+  const manual = (ca.opening_manual === null || ca.opening_manual === undefined) ? '' : ca.opening_manual;
+  return `
+    <tr class="table-light">
+      <td>연결조정</td>
+      <td class="num">
+        <div>${fmtNum(a.beginning || 0, 0)}</div>
+        <div class="input-group input-group-sm mt-1" style="min-width:210px">
+          <input type="text" class="form-control form-control-sm text-end" id="a2RollOpenAdj"
+                 placeholder="수기 입력 (원)" value="${escHtml(String(manual))}">
+          <button class="btn btn-outline-primary" type="button" onclick="saveA2RollOpeningAdj()">저장</button>
+        </div>
+        <div class="small text-muted">${escHtml(ca.opening_source)}</div>
+      </td>
+      ${varKeys.map(() => '<td class="num text-muted">-</td>').join('')}
+      <td class="num text-info">${fmtNum(a.fx_effect || 0, 0)}</td>
+      <td class="num">${fmtNum(a.ending || 0, 0)}</td>
+    </tr>
+    <tr>
+      <td><strong>연결조정 반영 후</strong></td>
+      <td class="num"><strong>${fmtNum(b.beginning || 0, 0)}</strong></td>
+      ${varKeys.map(k => `<td class="num"><strong>${fmtNum(b[k] || 0, 0)}</strong></td>`).join('')}
+      <td class="num text-info"><strong>${fmtNum(b.fx_effect || 0, 0)}</strong></td>
+      <td class="num num-krw"><strong>${fmtNum(b.ending || 0, 0)}</strong></td>
+    </tr>`;
+}
+
+async function saveA2RollOpeningAdj() {
+  const year = document.getElementById('yearSelect').value;
+  const v = (document.getElementById('a2RollOpenAdj').value || '').trim();
+  try {
+    const res = await fetch('/admin/note-aggregate/a2-securities-roll/opening-adj', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({year: year, amount: v}),
+    });
+    const d = await res.json();
+    if (!res.ok || d.error) { alert(d.error || '저장 실패'); return; }
+    selectAgg('a2-securities-roll');
+    runAgg();
+  } catch (e) { alert('저장 실패: ' + e); }
+}
+
 function renderA2SecuritiesRoll(data) {
   renderL3WithFxEffect(data, {
     sectionKey: '2',
     sectionName: '유가증권 증감내역 (WCF 1210102)',
     sheetLabel: 'WCF',
+    consolAdj: true,
     varPairs: [
       ['acquisition','취득'], ['disposal','처분'], ['valuation','평가'],
       ['impairment','손상'], ['business_combination','사업결합'], ['others','기타(차이)'],

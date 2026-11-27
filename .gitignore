@@ -23,6 +23,7 @@ wce_overrides.json
 fx_rates.json
 company_master.json
 cash_worksheet_manuals.json
+note_aggregate_manuals.json
 prior_consolidated.json
 consol_groups.json
 consol_journals.json

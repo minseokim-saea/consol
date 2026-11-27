@@ -48,7 +48,7 @@ from note_aggregate import (
     extract_l4_subsequent_events, build_l4_subsequent_events_excel,
     extract_l4_other_commitments, build_l4_other_commitments_excel,
     extract_a2_securities, build_a2_securities_excel,
-    extract_a2_securities_roll, build_a2_securities_roll_excel, A2_ROLL_KEYS,
+    extract_a2_securities_roll, build_a2_securities_roll_excel, A2_ROLL_KEYS, A2_ROLL_CODE,
     extract_a3_investment_property_pl, build_a3_investment_pl_excel,
     extract_a3_land_value_investment, build_a3_land_investment_excel,
     extract_a3_land_value_ppe, build_a3_land_ppe_excel,
@@ -6123,8 +6123,92 @@ def admin_note_aggregate_a2_securities_roll():
     for e in agg.get('errors') or []:
         if e.get('reason') == 'L3 시트 없음':
             e['reason'] = 'WCF 시트 없음'
+    _a2_roll_attach_consol_adj(agg, year)
     _attach_l4_excel(agg, year, build_a2_securities_roll_excel, 'A2_유가증권증감', 'A2-2')
     return jsonify(agg)
+
+
+NOTE_AGG_MANUALS_FILE = Path('note_aggregate_manuals.json')
+
+
+def _load_note_agg_manuals():
+    try:
+        with open(NOTE_AGG_MANUALS_FILE, encoding='utf-8') as fp:
+            return json.load(fp) or {}
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+
+
+def _journal_code_net(period, code):
+    """그 기간 모든 연결그룹 연결조정분개(조정·내부거래)에서 계정 code 의 차변 − 대변 (KRW).
+    반환: (금액, 분개가 있는 그룹 수)"""
+    from consol_schema import get_journal as _gj
+    total, n = 0.0, 0
+    for g in consol_list_groups():
+        rec = _gj(g['id'], period) or {}
+        ents = (rec.get('adjustment_entries') or []) + (rec.get('intercompany_entries') or [])
+        if ents:
+            n += 1
+        for e in ents:
+            if str(e.get('debit_code') or '').strip() == code:
+                total += float(e.get('debit_amt') or 0)
+            if str(e.get('credit_code') or '').strip() == code:
+                total -= float(e.get('credit_amt') or 0)
+    return total, n
+
+
+def _a2_roll_attach_consol_adj(agg, year):
+    """합계 아래 두 줄 — 연결조정 / 연결조정 반영 후.
+    기말 = 당기 연결조정분개의 1210102 순액, 기초 = 전년 4분기 분개 순액 (분개가 없거나 수기 입력이 있으면 수기값),
+    그 차액은 환율변동효과 칸에 넣는다."""
+    closing, _n = _journal_code_net(year, A2_ROLL_CODE)
+    prior = cf_prior_year_4q(year)
+    manual = (_load_note_agg_manuals().get('a2_roll_opening_adj') or {}).get(year)
+    if manual is not None:
+        opening, src = float(manual), '수기'
+    else:
+        opening, pn = _journal_code_net(prior, A2_ROLL_CODE) if prior else (0.0, 0)
+        src = f'{prior} 연결조정분개' if pn else '없음 (전기 분개 없음 — 수기 입력 필요)'
+    tot = agg.get('totals_by_item_krw') or {}
+    adj = {'beginning': opening, 'ending': closing, 'fx_effect': closing - opening}
+    adjusted = {k: (tot.get(k) or 0) + adj.get(k, 0.0)
+                for k in ['beginning', 'ending', 'fx_effect'] + list(A2_ROLL_KEYS)}
+    agg['consol_adj'] = {'code': A2_ROLL_CODE, 'prior_period': prior, 'opening_source': src,
+                         'opening_manual': manual, 'krw': adj, 'adjusted_krw': adjusted}
+    # 엑셀·통합엑셀용 합계 아래 줄
+    agg['extra_rows'] = [
+        dict({'company': '연결조정', 'currency': ''}, **{f'krw_{k}': v for k, v in adj.items()}),
+        dict({'company': '연결조정 반영 후', 'currency': ''}, **{f'krw_{k}': v for k, v in adjusted.items()}),
+    ]
+
+
+@app.route('/admin/note-aggregate/a2-securities-roll/opening-adj', methods=['POST'])
+@require_permission('note.aggregate')
+def admin_note_aggregate_a2_roll_opening_adj():
+    """유가증권 증감내역 — 기초 연결조정금액 수기 입력 (빈값이면 삭제 → 전기 분개 사용)."""
+    body = request.get_json(silent=True) or {}
+    year = (body.get('year') or '').strip()
+    if not _valid_year(year):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    raw = body.get('amount')
+    amount = None
+    if raw not in (None, ''):
+        try:
+            amount = float(str(raw).replace(',', ''))
+        except ValueError:
+            return jsonify({'error': '금액을 숫자로 입력해주세요.'}), 400
+    with FileLock(str(NOTE_AGG_MANUALS_FILE) + '.lock', timeout=10):
+        data = _load_note_agg_manuals()
+        sec = data.setdefault('a2_roll_opening_adj', {})
+        if amount is None:
+            sec.pop(year, None)
+        else:
+            sec[year] = amount
+        _atomic_write_json(NOTE_AGG_MANUALS_FILE, data)
+    print(f'[주석합산 A2-2] 기초 연결조정 수기 {year} = {amount} ({session.get("username")})', flush=True)
+    return jsonify({'ok': True, 'year': year, 'amount': amount})
 
 
 @app.route('/admin/note-aggregate/l3-pension-movement')
