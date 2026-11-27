@@ -6159,24 +6159,39 @@ def _journal_code_net(period, code):
     return total, n
 
 
+def _a2_roll_manual_adj(year):
+    """{항목: 금액} — 유가증권 증감내역 연결조정 줄 수기값 (기초·취득·처분·평가·손상·사업결합·기타)."""
+    data = _load_note_agg_manuals()
+    out = dict((data.get('a2_roll_adj') or {}).get(year) or {})
+    legacy = (data.get('a2_roll_opening_adj') or {}).get(year)      # 예전 기초만 입력하던 형식
+    if 'beginning' not in out and legacy is not None:
+        out['beginning'] = legacy
+    return {k: float(v) for k, v in out.items() if v is not None}
+
+
 def _a2_roll_attach_consol_adj(agg, year):
     """합계 아래 두 줄 — 연결조정 / 연결조정 반영 후.
-    기말 = 당기 연결조정분개의 1210102 순액, 기초 = 전년 4분기 분개 순액 (분개가 없거나 수기 입력이 있으면 수기값),
-    그 차액은 환율변동효과 칸에 넣는다."""
+      기말 = 당기 연결조정분개(모든 그룹, 조정·내부거래)의 1210102 차변 − 대변
+      기초 = 수기값, 없으면 전년 4분기 분개 순액
+      취득~기타 = 수기값 (없으면 0)
+      환율변동효과 = 기말 − (기초 + 변동 합)  ← 자동"""
     closing, _n = _journal_code_net(year, A2_ROLL_CODE)
     prior = cf_prior_year_4q(year)
-    manual = (_load_note_agg_manuals().get('a2_roll_opening_adj') or {}).get(year)
-    if manual is not None:
-        opening, src = float(manual), '수기'
+    manual = _a2_roll_manual_adj(year)
+    if 'beginning' in manual:
+        opening, src = manual['beginning'], '수기'
     else:
         opening, pn = _journal_code_net(prior, A2_ROLL_CODE) if prior else (0.0, 0)
         src = f'{prior} 연결조정분개' if pn else '없음 (전기 분개 없음 — 수기 입력 필요)'
+    adj = {'beginning': opening, 'ending': closing}
+    for k in A2_ROLL_KEYS:
+        adj[k] = manual.get(k, 0.0)
+    adj['fx_effect'] = closing - (opening + sum(adj[k] for k in A2_ROLL_KEYS))
     tot = agg.get('totals_by_item_krw') or {}
-    adj = {'beginning': opening, 'ending': closing, 'fx_effect': closing - opening}
     adjusted = {k: (tot.get(k) or 0) + adj.get(k, 0.0)
                 for k in ['beginning', 'ending', 'fx_effect'] + list(A2_ROLL_KEYS)}
     agg['consol_adj'] = {'code': A2_ROLL_CODE, 'prior_period': prior, 'opening_source': src,
-                         'opening_manual': manual, 'krw': adj, 'adjusted_krw': adjusted}
+                         'manual': manual, 'krw': adj, 'adjusted_krw': adjusted}
     # 엑셀·통합엑셀용 합계 아래 줄
     agg['extra_rows'] = [
         dict({'company': '연결조정', 'currency': ''}, **{f'krw_{k}': v for k, v in adj.items()}),
@@ -6184,31 +6199,35 @@ def _a2_roll_attach_consol_adj(agg, year):
     ]
 
 
-@app.route('/admin/note-aggregate/a2-securities-roll/opening-adj', methods=['POST'])
+@app.route('/admin/note-aggregate/a2-securities-roll/manual-adj', methods=['POST'])
 @require_permission('note.aggregate')
-def admin_note_aggregate_a2_roll_opening_adj():
-    """유가증권 증감내역 — 기초 연결조정금액 수기 입력 (빈값이면 삭제 → 전기 분개 사용)."""
+def admin_note_aggregate_a2_roll_manual_adj():
+    """유가증권 증감내역 연결조정 줄 수기 입력 — {year, values: {beginning, acquisition, ...}}.
+    빈값인 항목은 지운다 (기초는 전기 분개, 나머지는 0 으로 돌아감). 환율변동효과·기말은 입력받지 않는다."""
     body = request.get_json(silent=True) or {}
     year = (body.get('year') or '').strip()
     if not _valid_year(year):
         return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
-    raw = body.get('amount')
-    amount = None
-    if raw not in (None, ''):
+    allowed = ['beginning'] + list(A2_ROLL_KEYS)
+    vals = {}
+    for k, raw in (body.get('values') or {}).items():
+        if k not in allowed or raw in (None, ''):
+            continue
         try:
-            amount = float(str(raw).replace(',', ''))
+            vals[k] = float(str(raw).replace(',', ''))
         except ValueError:
-            return jsonify({'error': '금액을 숫자로 입력해주세요.'}), 400
+            return jsonify({'error': f'{k}: 금액을 숫자로 입력해주세요.'}), 400
     with FileLock(str(NOTE_AGG_MANUALS_FILE) + '.lock', timeout=10):
         data = _load_note_agg_manuals()
-        sec = data.setdefault('a2_roll_opening_adj', {})
-        if amount is None:
-            sec.pop(year, None)
+        sec = data.setdefault('a2_roll_adj', {})
+        if vals:
+            sec[year] = vals
         else:
-            sec[year] = amount
+            sec.pop(year, None)
+        (data.get('a2_roll_opening_adj') or {}).pop(year, None)      # 예전 형식 정리
         _atomic_write_json(NOTE_AGG_MANUALS_FILE, data)
-    print(f'[주석합산 A2-2] 기초 연결조정 수기 {year} = {amount} ({session.get("username")})', flush=True)
-    return jsonify({'ok': True, 'year': year, 'amount': amount})
+    print(f'[주석합산 A2-2] 연결조정 수기 {year} = {vals} ({session.get("username")})', flush=True)
+    return jsonify({'ok': True, 'year': year, 'values': vals})
 
 
 @app.route('/admin/note-aggregate/l3-pension-movement')

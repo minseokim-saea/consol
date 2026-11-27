@@ -1541,7 +1541,8 @@ function renderL3WithFxEffect(data, opts) {
       </div>
       ${ca ? `<div class="small text-muted px-3 py-2">
         연결조정 = 모든 연결그룹 연결조정분개(조정·내부거래)의 ${escHtml(ca.code)} 차변 − 대변.
-        기말 = ${escHtml(data.year)} 분개, 기초 = ${escHtml(ca.opening_source)}. 기말 − 기초 차액은 환율변동효과 칸에 넣습니다.
+        기말 = ${escHtml(data.year)} 분개, 기초 = ${escHtml(ca.opening_source)}, 취득~기타 = 수기 입력.
+        환율변동효과 = 기말 − (기초 + 변동 합) 으로 자동 계산합니다.
       </div>` : ''}
     </div>`;
 
@@ -1599,25 +1600,25 @@ function renderL3WithFxEffect(data, opts) {
   area.innerHTML = summary + errBlock + policyBlock + totalsBlock + detailBlock;
 }
 
-// 유가증권 증감내역 합계 아래 — 연결조정 / 연결조정 반영 후 (기초 연결조정은 수기 입력 가능)
+// 유가증권 증감내역 합계 아래 — 연결조정 / 연결조정 반영 후
+//   연결조정: 기초·취득~기타는 수기 입력, 기말 = 연결조정분개, 환율변동효과 = 자동
 function caRows(ca, varKeys) {
-  const a = ca.krw || {}, b = ca.adjusted_krw || {};
-  const manual = (ca.opening_manual === null || ca.opening_manual === undefined) ? '' : ca.opening_manual;
+  const a = ca.krw || {}, b = ca.adjusted_krw || {}, m = ca.manual || {};
+  const inp = (k) => `
+    <input type="text" class="form-control form-control-sm text-end mt-1 a2-adj-inp" data-key="${k}"
+           style="min-width:120px" placeholder="수기 (원)"
+           value="${m[k] === undefined || m[k] === null ? '' : escHtml(String(m[k]))}">`;
   return `
     <tr class="table-light">
-      <td>연결조정</td>
-      <td class="num">
-        <div>${fmtNum(a.beginning || 0, 0)}</div>
-        <div class="input-group input-group-sm mt-1" style="min-width:210px">
-          <input type="text" class="form-control form-control-sm text-end" id="a2RollOpenAdj"
-                 placeholder="수기 입력 (원)" value="${escHtml(String(manual))}">
-          <button class="btn btn-outline-primary" type="button" onclick="saveA2RollOpeningAdj()">저장</button>
-        </div>
-        <div class="small text-muted">${escHtml(ca.opening_source)}</div>
+      <td>연결조정
+        <div class="mt-1"><button class="btn btn-sm btn-outline-primary" type="button"
+             onclick="saveA2RollManualAdj()">수기값 저장</button></div>
       </td>
-      ${varKeys.map(() => '<td class="num text-muted">-</td>').join('')}
-      <td class="num text-info">${fmtNum(a.fx_effect || 0, 0)}</td>
-      <td class="num">${fmtNum(a.ending || 0, 0)}</td>
+      <td class="num"><div>${fmtNum(a.beginning || 0, 0)}</div>${inp('beginning')}
+        <div class="small text-muted">${escHtml(ca.opening_source)}</div></td>
+      ${varKeys.map(k => `<td class="num"><div>${fmtNum(a[k] || 0, 0)}</div>${inp(k)}</td>`).join('')}
+      <td class="num text-info">${fmtNum(a.fx_effect || 0, 0)}<div class="small text-muted">자동</div></td>
+      <td class="num">${fmtNum(a.ending || 0, 0)}<div class="small text-muted">연결조정분개</div></td>
     </tr>
     <tr>
       <td><strong>연결조정 반영 후</strong></td>
@@ -1628,13 +1629,17 @@ function caRows(ca, varKeys) {
     </tr>`;
 }
 
-async function saveA2RollOpeningAdj() {
+async function saveA2RollManualAdj() {
   const year = document.getElementById('yearSelect').value;
-  const v = (document.getElementById('a2RollOpenAdj').value || '').trim();
+  const values = {};
+  document.querySelectorAll('.a2-adj-inp').forEach(el => {
+    const v = (el.value || '').trim();
+    if (v !== '') values[el.dataset.key] = v;
+  });
   try {
-    const res = await fetch('/admin/note-aggregate/a2-securities-roll/opening-adj', {
+    const res = await fetch('/admin/note-aggregate/a2-securities-roll/manual-adj', {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({year: year, amount: v}),
+      body: JSON.stringify({year: year, values: values}),
     });
     const d = await res.json();
     if (!res.ok || d.error) { alert(d.error || '저장 실패'); return; }
