@@ -135,7 +135,7 @@
 </div>
 
 <script>
-let RES = [], TOKEN = null, PERIOD = null, FILTER = 'all', ROLL = null, PINFO = {}, FSNOTE = '';
+let RES = [], TOKEN = null, PERIOD = null, FILTER = 'all', ROLL = null, PINFO = {}, FSNOTE = '', CONVERTED = false;
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -168,6 +168,7 @@ async function runPreview() {
     if (!res.ok || data.error) throw new Error(data.error || '미리보기 실패');
     RES = data.results; TOKEN = data.token; PERIOD = data.period; FILTER = 'all';
     ROLL = data.rollover; PINFO = data.period_info || {}; FSNOTE = data.fs_note || '';
+    CONVERTED = !!data.converted;
     renderRoll();
     document.getElementById('tplName').textContent = `${data.template_name} · ${data.period}`;
     st.innerHTML = `<i class="bi bi-check-circle text-success me-1"></i>${RES.length}칸 계산 완료 (${data.elapsed_seconds}초)`;
@@ -216,6 +217,7 @@ function render() {
 function renderRoll() {
   const box = document.getElementById('rollBox');
   const notes = [];
+  if (CONVERTED) notes.push(`<div><i class="bi bi-arrow-left-right me-1"></i><b>문서 변환</b>: 틀이 연결감사보고서라 감사전 연결재무제표 형식으로 바꿨습니다 — 표지·감사인의 감사보고서·외부감사 실시내용 등은 빼고 연결재무제표·주석만 남깁니다.</div>`);
   if (FSNOTE) notes.push(`<div class="text-warning-emphasis"><i class="bi bi-exclamation-triangle me-1"></i>${esc(FSNOTE)}</div>`);
   if (PINFO.requested && !ROLL) {
     notes.push(`<div class="text-muted"><i class="bi bi-info-circle me-1"></i>틀 DSD 가 ${esc(PINFO.template_year)}년 보고서라 결산기간(${esc(PERIOD)})과 연도가 같거나 늦습니다 — 이월·기수 변경은 하지 않았습니다.</div>`);

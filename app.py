@@ -9111,10 +9111,14 @@ def dsd_report_preview():
     token = secrets.token_hex(8)
     tpl_path, notes_path, fs_path = _dsd_work_paths(token)
     f.save(str(tpl_path))
+    converted = False
     try:
         with _zip.ZipFile(str(tpl_path)) as z:
             if 'contents.xml' not in z.namelist():
                 raise ValueError('contents.xml 없음')
+        # 감사인의 연결감사보고서를 틀로 올리면 감사전 연결재무제표 형식으로 바꿔서 쓴다 (작업 사본만)
+        import dsd_convert
+        converted = dsd_convert.convert_file_if_audit(str(tpl_path))
         doc = DSDDocument(str(tpl_path))
     except Exception as e:
         tpl_path.unlink(missing_ok=True)
@@ -9158,6 +9162,7 @@ def dsd_report_preview():
         'rollover': roll_info,
         'period_info': pinfo,
         'fs_note': fs_note,
+        'converted': converted,
         'results': dsd_builder.public(results),
         'elapsed_seconds': round(_time.time() - t0, 1),
     })
