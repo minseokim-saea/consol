@@ -24,7 +24,9 @@
                '열!@그룹' = 그 열의 회사명이 그룹 회사(company_master + group_aliases)면 제외,
                '열@그룹' = 그룹 회사만 (연결조정으로 제거되는 내부 지분 등)
       sheet, unit, decimals — 선택
-      round_rows — true 면 데이터 행마다 단위로 반올림한 뒤 합산 (표 합계 = 위 행들의 합)
+      round_rows — true 면 데이터 행마다 단위로 반올림한 뒤 합산
+      sum_above  — true 면 expr 대신 표에서 이 행 위의 같은 열 값 합계 (이번에 채우는 칸은 새 값,
+                   확인필요 칸과 채우지 않는 칸은 틀 값). 합계 행이 표 안의 행들과 맞는다.
   group_aliases — company_master 에 없는 그룹 회사 이름 (피투자회사명 표기가 다른 경우)
 """
 from __future__ import annotations
@@ -249,6 +251,7 @@ def plan(doc: DSDDocument, sheets: NoteSheets, mapping: dict) -> list[dict]:
     for t in mapping.get('tables', []):
         base = {'table_id': t.get('id', ''), 'table_name': t.get('name', '')}
         tbl = doc.find_table(t['anchor'], int(t.get('nth', 1)), t.get('caption', ''))
+        planned = {}                     # 칸 → 이 표에서 앞서 계산한 결과 (sum_above 용)
         for c in t.get('cells', []):
             item = dict(base, row=c['row'], col=c['col'], old='', new='', raw=None,
                         status='error', message='', review=bool(c.get('review')),
@@ -268,6 +271,25 @@ def plan(doc: DSDDocument, sheets: NoteSheets, mapping: dict) -> list[dict]:
                 item['message'] = '병합된 칸이라 쓸 수 없음'
                 continue
             item['old'] = cell.text
+            if c.get('sum_above'):
+                # 표 합계 = 위 행들의 그 열 값 (이번에 채우는 칸은 새 값, 확인필요 칸·나머지는 틀 값)
+                total = 0.0
+                for rr in tbl.body_rows():
+                    if rr is r:
+                        break
+                    x = tbl.cell_at(rr, ci)
+                    if x is None or x is cell:
+                        continue
+                    p_it = planned.get(id(x))
+                    txt = p_it['new'] if (p_it and not p_it.get('review') and p_it['status'] != 'error') else x.text
+                    total += parse_amount(txt) or 0.0
+                unit = c.get('unit', t.get('unit', default_unit)) or 1
+                item['raw'] = total * unit
+                item['new'] = fmt_amount(total, int(c.get('decimals', t.get('decimals', 0))))
+                item['_cell'] = cell
+                o, n = parse_amount(item['old']), parse_amount(item['new'])
+                item['status'] = 'ok' if o is not None and n is not None and o == n else 'changed'
+                continue
             try:
                 where = ';'.join(x for x in (t.get('where', ''), c.get('where', '')) if x)
                 unit = c.get('unit', t.get('unit', default_unit)) or 1
@@ -280,6 +302,7 @@ def plan(doc: DSDDocument, sheets: NoteSheets, mapping: dict) -> list[dict]:
             item['raw'] = raw
             item['new'] = fmt_amount(val, int(c.get('decimals', t.get('decimals', 0))))
             item['_cell'] = cell
+            planned[id(cell)] = item
             old_v, new_v = parse_amount(item['old']), parse_amount(item['new'])
             item['status'] = 'ok' if old_v is not None and new_v is not None and old_v == new_v else 'changed'
     return out
