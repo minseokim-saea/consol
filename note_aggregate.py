@@ -970,6 +970,78 @@ def extract_a2_securities(file_path, sheet_name='A2', max_row_scan=200):
             'rows': rows, 'error': None}
 
 
+A2_ROLL_CODE = '1210102'          # 매도가능증권
+A2_ROLL_KEYS = ['acquisition', 'disposal', 'valuation', 'impairment',
+                'business_combination', 'others']
+A2_ROLL_LABELS = ['취득', '처분', '평가', '손상', '사업결합', '기타(차이)']
+
+
+def extract_a2_securities_roll(file_path, code=A2_ROLL_CODE, sheet_name='WCF', max_row_scan=600):
+    """WCF(현금흐름 정산표) 시트에서 A열 계정코드가 code 인 행들로 유가증권 증감을 만든다.
+
+    WCF 컬럼: C=기초(전기말) D=기말(당기말) G/H=비현금 Dr/Cr
+              J·K·L = 비용 조정(코드·내역·금액)  M·N·O = 수익 조정
+              U = 투자 Cash-in 금액(처분)  X = 투자 Cash-out 금액(취득)  Y = 사업결합
+    항목 (로컬 통화, 자산 증가 +):
+      취득     = X
+      처분     = -(U − 처분이익 + 처분손실)      ← 처분금액에서 처분손익을 가감한 장부금액
+      평가     = G − H                           ← 비현금흐름
+      손상     = −손상차손 + 손상차손환입
+      사업결합 = Y
+      기타(차이) = 기말 − (기초 + 위 항목)        ← 그 밖의 조정·입력 차이
+    """
+    rows_data, err = _load_sheet_rows(file_path, sheet_name, max_row_scan, max_col=31)
+    if err:
+        return {'sheet_found': False, 'items': {}, 'error': err}
+    if rows_data is None:
+        return {'sheet_found': False, 'items': {}, 'error': None}
+
+    def num(v):
+        return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else 0.0
+
+    def code_of(v):
+        if isinstance(v, float) and v.is_integer():
+            v = int(v)
+        return str(v).strip() if v is not None else ''
+
+    hit = [r for r in sorted(rows_data) if code_of(rows_data[r].get(1)) == code]
+    if not hit:
+        return {'sheet_found': True, 'items': {}, 'error': None}
+    beg = end = acq = proceeds = gain = loss = val = imp = bc = adj_other = 0.0
+    for r in hit:
+        v = rows_data[r]
+        beg += num(v.get(3)); end += num(v.get(4))
+        val += num(v.get(7)) - num(v.get(8))
+        proceeds += num(v.get(21)); acq += num(v.get(24)); bc += num(v.get(25))
+        for name_col, amt_col, sign in ((11, 12, -1), (14, 15, 1)):   # 비용(L) / 수익(O)
+            amt = num(v.get(amt_col))
+            if not amt:
+                continue
+            name = str(v.get(name_col) or '')
+            if '손상' in name:
+                imp += sign * amt
+            elif '처분' in name:
+                if sign > 0:
+                    gain += amt
+                else:
+                    loss += amt
+            else:
+                adj_other += sign * amt
+    items = {
+        'beginning': beg,
+        'acquisition': acq,
+        'disposal': -(proceeds - gain + loss),
+        'valuation': val,
+        'impairment': imp,
+        'business_combination': bc,
+    }
+    items['others'] = end - (beg + sum(items[k] for k in A2_ROLL_KEYS[:-1]))
+    items['ending'] = end
+    return {'sheet_found': True, 'items': items, 'error': None,
+            'detail': {'rows': hit, 'proceeds': proceeds, 'gain': gain, 'loss': loss,
+                       'other_adjustments': adj_other}}
+
+
 def _load_sheet_rows(file_path, sheet_name, max_row_scan=200, max_col=10):
     """임의 시트 행 데이터 로드 (zipfile/xml stream).
 
@@ -4575,6 +4647,15 @@ def build_l3_severance_excel(agg_data, output_path):
     )
 
 
+def build_a2_securities_roll_excel(agg_data, output_path):
+    """A2 2. 유가증권 증감내역 (기초=전기말 spot / 변동=avg / 기말=당기말 spot)."""
+    return _build_l3_fx_effect_excel(
+        agg_data, output_path,
+        title='A2 2. 유가증권 증감내역 합산 (WCF 매도가능증권 1210102)',
+        var_keys=A2_ROLL_KEYS, var_labels=A2_ROLL_LABELS,
+    )
+
+
 def build_l3_pension_movement_excel(agg_data, output_path):
     """L3 2. 퇴직연금운용자산의 변동 (기초=전기말 spot / 변동=avg / 기말=당기말 spot)."""
     return _build_l3_fx_effect_excel(
@@ -7161,6 +7242,8 @@ def build_all_in_one_excel(year, all_aggs, output_path):
             col_defs, agg.get('rows') or [])
         sections_meta.append((sheet, '유가증권 명세', '장부가액 KRW',
                               agg.get('grand_book_krw') or 0))
+    _add_l3_fx_sheet('a2_securities_roll', 'A2_2_유가증권증감',
+        'A2 2. 유가증권 증감내역', '유가증권 증감', A2_ROLL_KEYS, A2_ROLL_LABELS)
 
     # ─── A3 1. 투자부동산 관련 손익 ───────────────────────────
     agg = all_aggs.get('a3_investment_pl') or {}

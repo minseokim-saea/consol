@@ -186,7 +186,7 @@
         <li class="nav-item">
           <button class="nav-link" data-sheet="A2" type="button"
                   onclick="selectSheet('A2')">
-            A2 유가증권<span class="badge">1</span>
+            A2 유가증권<span class="badge">2</span>
           </button>
         </li>
         <li class="nav-item">
@@ -505,6 +505,15 @@
                 <div class="agg-desc">계정·피투자회사·주식수·지분율·취득원가·장부가액 (행 추가 안전).</div>
               </div>
             </button>
+            <button type="button" class="agg-item" id="aggA2ROLL"
+                    onclick="selectAgg('a2-securities-roll')">
+              <span class="agg-key">2</span>
+              <i class="bi bi-arrow-left-right agg-icon"></i>
+              <div class="flex-grow-1">
+                <div class="agg-title">유가증권 증감내역</div>
+                <div class="agg-desc">연결정산표 회사 패키지 WCF 시트 A열 1210102(매도가능증권) — 기초·취득·처분(처분손익 가감)·평가(비현금)·손상·기말.</div>
+              </div>
+            </button>
           </div>
         </div>
 
@@ -780,6 +789,7 @@ const AGG_ITEM_ID = {
   'l4-subsequent-events':    'aggL4SE',
   'l4-other-commitments':    'aggL4OC',
   'a2-securities':           'aggA2SEC',
+  'a2-securities-roll':      'aggA2ROLL',
   'a3-investment-pl':        'aggA3IP',
   'a3-land-investment':      'aggA3LI',
   'a3-land-ppe':             'aggA3LP',
@@ -874,6 +884,7 @@ async function runAgg() {
     else if (selected === 'l4-subsequent-events') renderL4SubsequentEvents(data);
     else if (selected === 'l4-other-commitments') renderL4OtherCommitments(data);
     else if (selected === 'a2-securities') renderA2Securities(data);
+    else if (selected === 'a2-securities-roll') renderA2SecuritiesRoll(data);
     else if (selected === 'a3-investment-pl') renderA3InvestmentPL(data);
     else if (selected === 'a3-land-investment') renderA3LandInvestment(data);
     else if (selected === 'a3-land-ppe') renderA3LandPpe(data);
@@ -1462,7 +1473,7 @@ function renderL3WithFxEffect(data, opts) {
   const errBlock = (data.errors && data.errors.length)
     ? `<div class="errors-block">
          <strong><i class="bi bi-exclamation-triangle me-1"></i>경고</strong>
-         <span class="small text-muted ms-2">L3 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
+         <span class="small text-muted ms-2">${opts.sheetLabel || 'L3'} 시트 없음 또는 읽기 실패 ${data.errors.length}건</span>
          <ul class="mb-0 mt-1 small">
            ${data.errors.map(e => `<li>${escHtml(e.company)} — ${escHtml(e.reason)}</li>`).join('')}
          </ul>
@@ -1579,6 +1590,19 @@ function renderL3WithFxEffect(data, opts) {
     </div>`;
 
   area.innerHTML = summary + errBlock + policyBlock + totalsBlock + detailBlock;
+}
+
+function renderA2SecuritiesRoll(data) {
+  renderL3WithFxEffect(data, {
+    sectionKey: '2',
+    sectionName: '유가증권 증감내역 (WCF 1210102)',
+    sheetLabel: 'WCF',
+    varPairs: [
+      ['acquisition','취득'], ['disposal','처분'], ['valuation','평가'],
+      ['impairment','손상'], ['business_combination','사업결합'], ['others','기타(차이)'],
+    ],
+    emptyMsg: '연결정산표 회사 패키지의 WCF 시트에 1210102(매도가능증권) 행 값이 있는 회사가 없습니다.',
+  });
 }
 
 function renderL3Severance(data) {

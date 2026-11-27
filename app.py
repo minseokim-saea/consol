@@ -48,6 +48,7 @@ from note_aggregate import (
     extract_l4_subsequent_events, build_l4_subsequent_events_excel,
     extract_l4_other_commitments, build_l4_other_commitments_excel,
     extract_a2_securities, build_a2_securities_excel,
+    extract_a2_securities_roll, build_a2_securities_roll_excel, A2_ROLL_KEYS,
     extract_a3_investment_property_pl, build_a3_investment_pl_excel,
     extract_a3_land_value_investment, build_a3_land_investment_excel,
     extract_a3_land_value_ppe, build_a3_land_ppe_excel,
@@ -5978,13 +5979,17 @@ def _l3_process_pivot(year, extractor, item_keys, log_tag, rate_type='spot',
     return result
 
 
-def _l3_process_with_fx_effect(year, extractor, var_keys, log_tag):
+def _l3_process_with_fx_effect(year, extractor, var_keys, log_tag, consolidated_only=False):
     """L3 1번/2번 공통: 항목별 환율(기초=전기말 spot / 변동=avg / 기말=당기말 spot)
     + 환율변동효과 계산.
 
     var_keys: 변동 항목 키 리스트 (기초/기말 제외, avg 환율 적용 대상)
+    consolidated_only: True 면 그 기간 연결그룹(연결정산표)에 들어 있는 회사 패키지만
     """
     files = _collect_files_for_year(year)
+    if consolidated_only:
+        gmap, _order = _company_group_map(year)
+        files = [f for f in files if _norm_co(f.get('company')) in gmap]
     import time as _time
     central_current = _get_current_fx_for_period(year)
     central_prior   = _get_prior_fx_for_period(year)
@@ -6099,6 +6104,26 @@ def admin_note_aggregate_l3_severance():
         year, extract_l3_severance_provision, var_keys, 'L3-1')
     _attach_l4_excel(agg, year, build_l3_severance_excel,
                      'L3_퇴직급여충당부채', 'L3-1')
+    return jsonify(agg)
+
+
+@app.route('/admin/note-aggregate/a2-securities-roll')
+@require_permission('note.aggregate')
+def admin_note_aggregate_a2_securities_roll():
+    """A2 2. 유가증권 증감내역 — 연결정산표에 포함되는 회사 패키지의 WCF 시트 A열 1210102(매도가능증권) 행.
+
+    기초 + 취득 − 처분(처분금액 ∓ 처분손익) + 평가(비현금흐름) + 손상 + 사업결합 + 기타(차이) = 기말.
+    환율: 기초=전기말 spot / 변동=avg / 기말=당기말 spot, 환율변동효과 = 기말 − (기초 + Σ 변동).
+    """
+    year = (request.args.get('year') or '').strip()
+    if not _valid_year(year):
+        return jsonify({'error': '유효한 결산기간을 선택해주세요.'}), 400
+    agg = _l3_process_with_fx_effect(year, extract_a2_securities_roll, A2_ROLL_KEYS, 'A2-2',
+                                     consolidated_only=True)
+    for e in agg.get('errors') or []:
+        if e.get('reason') == 'L3 시트 없음':
+            e['reason'] = 'WCF 시트 없음'
+    _attach_l4_excel(agg, year, build_a2_securities_roll_excel, 'A2_유가증권증감', 'A2-2')
     return jsonify(agg)
 
 
@@ -7135,6 +7160,7 @@ _NOTE_AGGREGATE_SECTIONS = [
     ('l4_subsequent_events',     'l4-subsequent-events'),
     ('l4_other_commitments',     'l4-other-commitments'),
     ('a2_securities',            'a2-securities'),
+    ('a2_securities_roll',       'a2-securities-roll'),
     ('a3_investment_pl',         'a3-investment-pl'),
     ('a3_land_investment',       'a3-land-investment'),
     ('a3_land_ppe',              'a3-land-ppe'),
