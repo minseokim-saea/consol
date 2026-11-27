@@ -117,6 +117,7 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                         break
                     idx.append(cand[0])
                 item['expr'] = (' + '.join(names) + (' × -1' if rule.get('sign') == -1 else '')
+                                + (f" ÷ {float(rule['div']):,.0f}" if rule.get('div') else '')
                                 + (f" ({rule['in']} 아래)" if rule.get('in') else ''))
                 if idx is None:
                     item['message'] = f'매핑한 시스템 줄을 찾지 못함: {names}'
@@ -139,6 +140,9 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                 matched_row[i] = ri
             ptr = max(idx) + 1
             val = sum((rows[i].get('cur') or 0) for i in idx) * (rule.get('sign', 1) if rule else 1)
+            if rule is not None and rule.get('div'):
+                q = val / float(rule['div'])          # 주당 금액 — 원 단위 사사오입
+                val = int(abs(q) + 0.5) * (1 if q >= 0 else -1)
             # 틀에서 금액이 있던 칸, 없으면 시스템 줄 종류로 결정
             if tot is not None and tot.text.strip() and (sub is None or not sub.text.strip()):
                 cell = tot
