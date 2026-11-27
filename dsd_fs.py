@@ -163,13 +163,28 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                 item['row'] = f"{lab} → {rule['rename']}"
                 item['status'] = 'changed'
             out.append(item)
-        out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col)
+        before = (mapping.get('insert_before') or {}).get(code) or {}
+        out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before)
     return out
 
 
-def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col):
+def _dsd_row_index(t, label):
+    """틀 DSD 표에서 과목명이 label 과 같은 첫 행 번호 (주석 표시·번호·띄어쓰기 무시)."""
+    key = fs_key(label)
+    for ri, r in enumerate(t.rows):
+        if ri < t.header_rows:
+            continue
+        lab = next((c.text for c in r if c.col == 0), '')
+        if lab.strip() and fs_key(lab) == key:
+            return ri
+    return None
+
+
+def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before=None):
     """시스템에 금액이 있는데 틀 DSD 에 없는 세부 줄 → 앞 계정 줄 아래에 새 줄로 추가.
-    빠지면 소계·합계가 맞지 않으므로 기본 적용. 이미 쓰인 소계의 하위 줄(예: 매출원가 세부)은 제외."""
+    빠지면 소계·합계가 맞지 않으므로 기본 적용. 이미 쓰인 소계의 하위 줄(예: 매출원가 세부)은 제외.
+    before = {시스템 줄 이름: DSD 과목명} — 그 과목 바로 위에 추가 (dsd_fs_mapping.json 의 insert_before)."""
+    before = {norm(k): v for k, v in (before or {}).items()}
     skip = set(used)
     for s in used:
         # 소계만 DSD 한 줄로 쓰이고 하위 줄은 하나도 안 쓰였으면 (예: 매출원가) 하위 줄은 추가하지 않는다
@@ -194,10 +209,14 @@ def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col
     for k, x in enumerate(rows):
         if k in skip or x.get('kind') != 'detail' or abs(x.get('cur') or 0) < 0.5:
             continue
-        prev = [i for i in matched_row if i < k]
-        if not prev:
-            continue
-        anchor = matched_row[max(prev)]
+        target = _dsd_row_index(t, before[norm(x['name'])]) if norm(x['name']) in before else None
+        if target is not None and target - 1 >= t.header_rows:
+            anchor = target - 1           # 지정한 과목 바로 위 = 그 앞 행 아래
+        else:
+            prev = [i for i in matched_row if i < k]
+            if not prev:
+                continue
+            anchor = matched_row[max(prev)]
         tpl = anchor if is_detail(anchor) else next(
             (j for j in range(anchor + 1, len(t.rows)) if is_detail(j)), None)
         if tpl is None:
