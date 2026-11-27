@@ -21,7 +21,10 @@
       expr   — 계산식. [열이름] = 데이터 행 합계, {요약라벨} = 시트 상단 요약값,
                숫자·+ - * / ( ) 사용 가능
       where  — 필터. '열=값' / '열~포함' / '열!=값', 여러 값은 '|', 여러 조건은 ';'
+               '열!@그룹' = 그 열의 회사명이 그룹 회사(company_master + group_aliases)면 제외,
+               '열@그룹' = 그룹 회사만 (연결조정으로 제거되는 내부 지분 등)
       sheet, unit, decimals — 선택
+  group_aliases — company_master 에 없는 그룹 회사 이름 (피투자회사명 표기가 다른 경우)
 """
 from __future__ import annotations
 
@@ -124,9 +127,34 @@ class NoteSheets:
 
 # ─── 필터 / 계산식 ───────────────────────────────────────────────────────────
 
-def _match_where(row: dict, where: str) -> bool:
+def _co_key(s) -> str:
+    """회사명 비교용 — 괄호 안(개별·연결·(1))·주식회사·㈜·문장부호·대소문자 무시."""
+    s = re.sub(r'\([^)]*\)|주식회사|㈜', '', str(s or ''))
+    return re.sub(r'[^0-9A-Za-z가-힣]', '', s).upper()
+
+
+def is_group_company(name, group_keys) -> bool:
+    """이름이 그룹 회사와 같거나 한쪽이 다른 쪽으로 시작하면 (예: PT. EINS TREND GLOBAL ↔ PT.EINS TREND)."""
+    k = _co_key(name)
+    if len(k) < 4:
+        return False
+    return any(g and (k == g or (len(g) >= 6 and k.startswith(g)) or (len(k) >= 6 and g.startswith(k)))
+               for g in group_keys)
+
+
+def _match_where(row: dict, where: str, group_keys=()) -> bool:
     for cond in [c.strip() for c in (where or '').split(';') if c.strip()]:
-        m = re.match(r'^(.+?)(!=|=|~)(.*)$', cond)
+        m = re.match(r'^(.+?)(!@|@|!=|=|~)(.*)$', cond)
+        if m and m.group(2) in ('@', '!@'):
+            col = _key(m.group(1))
+            if col not in row:
+                raise KeyError(f'필터 열 없음: {m.group(1)}')
+            if not group_keys:
+                raise ValueError('그룹 회사 목록이 없음 (company_master)')
+            hit = is_group_company(row.get(col), group_keys)
+            if hit != (m.group(2) == '@'):
+                return False
+            continue
         if not m:
             raise ValueError(f'필터 형식 오류: {cond}')
         col, op, vals = _key(m.group(1)), m.group(2), [_key(v) for v in m.group(3).split('|')]
@@ -182,7 +210,7 @@ def evaluate(sheets: NoteSheets, sheet_name: str, expr: str, where: str = '') ->
             raise KeyError(f'열 없음: {m.group(1)} (시트 {sd.name})')
         total = 0.0
         for r in sd.rows:
-            if where and not _match_where(r, where):
+            if where and not _match_where(r, where, getattr(sheets, 'group_keys', ())):
                 continue
             v = r.get(col)
             if isinstance(v, (int, float)):
@@ -212,6 +240,8 @@ def plan(doc: DSDDocument, sheets: NoteSheets, mapping: dict) -> list[dict]:
     """칸별 결과 목록. status: ok(같음) / changed(바뀜) / error."""
     out = []
     default_unit = mapping.get('unit', 1000)
+    names = list(mapping.get('_group_companies') or []) + list(mapping.get('group_aliases') or [])
+    sheets.group_keys = {_co_key(n) for n in names if _co_key(n)}
     for t in mapping.get('tables', []):
         base = {'table_id': t.get('id', ''), 'table_name': t.get('name', '')}
         tbl = doc.find_table(t['anchor'], int(t.get('nth', 1)), t.get('caption', ''))

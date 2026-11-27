@@ -2,10 +2,17 @@
   "version": 1,
   "unit": 1000,
   "description": "주석합산 시트 → DART 감사보고서(DSD) 주석 표 칸 연결 규칙. 규칙 설명은 dsd_builder.py 상단 참고. review=true 는 합산값에 연결조정이 반영되지 않아 확인이 필요한 칸(기본 미적용). blank = 숫자를 넣지 않고 빈칸으로 둘 표 열 [{id, name, anchor(표 앞 문단 일부), col(열 머리글)}] — DART 편집기에서 직접 작성.",
+  "group_aliases": ["SAE-A Trading Co., LTD"],
   "blank": [
     {"id": "3", "name": "사용이 제한된 금융상품", "anchor": "사용이 제한된 금융상품", "col": "당기말"}
   ],
   "tables": [
+    {"id": "5.1", "name": "매도가능증권 내역", "anchor": "보고기간종료일 현재 매도가능증권의 내역", "sheet": "A2_유가증권",
+     "where": "계정~매도가능;피투자회사명!@그룹",
+     "cells": [
+      {"row": "합계", "col": "당기말/장부가액", "expr": "[장부가액(KRW)]"},
+      {"row": "합계", "col": "당기말/취득원가", "expr": "[취득원가(KRW)]", "review": true}
+     ]},
     {
       "id": "11.2", "name": "퇴직급여충당부채 변동", "anchor": "퇴직급여충당부채의 변동내역", "sheet": "L3_1_퇴직급여충당부채",
       "cells": [

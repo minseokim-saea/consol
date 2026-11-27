@@ -9090,7 +9090,10 @@ def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
     if shift > 0:
         roll = dsd_rollover.rollover(doc, shift)
         period_info.update(dsd_periods.bump(doc, shift))
-    results = dsd_builder.plan(doc, dsd_builder.NoteSheets(notes_path), dsd_builder.load_mapping())
+    mapping = dsd_builder.load_mapping()
+    # 피투자회사가 그룹 회사인 지분(연결조정으로 제거)을 빼는 필터용
+    mapping['_group_companies'] = [c.get('name') for c in (_load_company_master().get('companies') or [])]
+    results = dsd_builder.plan(doc, dsd_builder.NoteSheets(notes_path), mapping)
     if fs_rows:
         results += dsd_fs.plan_fs(doc, fs_rows)
     period_info['n_main'] = len(results)
