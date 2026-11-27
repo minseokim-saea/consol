@@ -168,7 +168,8 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
                 item['status'] = 'changed'
             out.append(item)
         before = (mapping.get('insert_before') or {}).get(code) or {}
-        out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before)
+        labels = (mapping.get('insert_label') or {}).get(code) or {}
+        out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before, labels)
     return out
 
 
@@ -184,11 +185,13 @@ def _dsd_row_index(t, label):
     return None
 
 
-def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before=None):
+def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before=None, labels=None):
     """시스템에 금액이 있는데 틀 DSD 에 없는 세부 줄 → 앞 계정 줄 아래에 새 줄로 추가.
     빠지면 소계·합계가 맞지 않으므로 기본 적용. 이미 쓰인 소계의 하위 줄(예: 매출원가 세부)은 제외.
-    before = {시스템 줄 이름: DSD 과목명} — 그 과목 바로 위에 추가 (dsd_fs_mapping.json 의 insert_before)."""
+    before = {시스템 줄 이름: DSD 과목명} — 그 과목 바로 위에 추가 (dsd_fs_mapping.json 의 insert_before).
+    labels = {시스템 줄 이름: DSD 에 쓸 과목명} — 새 줄 과목명을 바꿔 쓴다 (insert_label)."""
     before = {norm(k): v for k, v in (before or {}).items()}
+    labels = {norm(k): v for k, v in (labels or {}).items()}
     skip = set(used)
     for s in used:
         # 소계만 DSD 한 줄로 쓰이고 하위 줄은 하나도 안 쓰였으면 (예: 매출원가) 하위 줄은 추가하지 않는다
@@ -229,7 +232,8 @@ def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col
         raw = doc.raw_span(a, b)
         cols = [c.col for c in t.rows[tpl]]
         pri = x.get('pri') or 0
-        content = {0: html_escape(x['name']), sub_col: fmt_amount(x['cur'], 0)}
+        label = labels.get(norm(x['name']), x['name'])
+        content = {0: html_escape(label), sub_col: fmt_amount(x['cur'], 0)}
         if pri_sub is not None:
             content[pri_sub] = fmt_amount(pri, 0)
         it = iter(cols)
@@ -240,7 +244,8 @@ def _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col
         nxt = t.row_spans[anchor + 1][0] if anchor + 1 < len(t.row_spans) else pos
         sep = doc.text[pos:nxt] if nxt > pos else '\n'
         anchor_lab = next((c.text for c in t.rows[anchor] if c.col == 0), '')
-        out.append({'table_id': code, 'table_name': '연결' + title, 'row': x['name'], 'col': '줄 추가',
+        out.append({'table_id': code, 'table_name': '연결' + title,
+                    'row': x['name'] if label == x['name'] else f"{x['name']} → {label}", 'col': '줄 추가',
                     'old': '', 'new': fmt_amount(x['cur'], 0), 'raw': x['cur'], 'status': 'changed',
                     'review': False, 'sheet': '보고용 재무제표', 'dsd_table': t.index,
                     'expr': f'“{anchor_lab}” 아래에 추가',
