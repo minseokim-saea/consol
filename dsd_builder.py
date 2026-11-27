@@ -24,6 +24,7 @@
                '열!@그룹' = 그 열의 회사명이 그룹 회사(company_master + group_aliases)면 제외,
                '열@그룹' = 그룹 회사만 (연결조정으로 제거되는 내부 지분 등)
       sheet, unit, decimals — 선택
+      round_rows — true 면 데이터 행마다 단위로 반올림한 뒤 합산 (표 합계 = 위 행들의 합)
   group_aliases — company_master 에 없는 그룹 회사 이름 (피투자회사명 표기가 다른 경우)
 """
 from __future__ import annotations
@@ -190,7 +191,8 @@ def _safe_eval(expr: str, env: dict) -> float:
     return ev(ast.parse(expr, mode='eval'))
 
 
-def evaluate(sheets: NoteSheets, sheet_name: str, expr: str, where: str = '') -> float:
+def evaluate(sheets: NoteSheets, sheet_name: str, expr: str, where: str = '', round_unit=None) -> float:
+    """round_unit: 주면 데이터 행마다 그 단위로 반올림한 뒤 더한다 (표의 합계가 행 합계와 맞도록)."""
     sd = sheets.get(sheet_name)
     if sd is None:
         raise KeyError(f'시트 없음: {sheet_name}')
@@ -214,6 +216,8 @@ def evaluate(sheets: NoteSheets, sheet_name: str, expr: str, where: str = '') ->
                 continue
             v = r.get(col)
             if isinstance(v, (int, float)):
+                if round_unit:
+                    v = int(abs(v) / round_unit + 0.5) * (1 if v >= 0 else -1) * round_unit
                 total += v
         return var(total)
 
@@ -266,11 +270,12 @@ def plan(doc: DSDDocument, sheets: NoteSheets, mapping: dict) -> list[dict]:
             item['old'] = cell.text
             try:
                 where = ';'.join(x for x in (t.get('where', ''), c.get('where', '')) if x)
-                raw = evaluate(sheets, c.get('sheet') or t.get('sheet', ''), c['expr'], where)
+                unit = c.get('unit', t.get('unit', default_unit)) or 1
+                raw = evaluate(sheets, c.get('sheet') or t.get('sheet', ''), c['expr'], where,
+                               unit if c.get('round_rows') else None)
             except Exception as e:  # noqa: BLE001 — 사용자에게 사유 표시
                 item['message'] = str(e)
                 continue
-            unit = c.get('unit', t.get('unit', default_unit)) or 1
             val = raw / unit
             item['raw'] = raw
             item['new'] = fmt_amount(val, int(c.get('decimals', t.get('decimals', 0))))
