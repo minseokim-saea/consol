@@ -83,6 +83,28 @@ def _bs_prior(doc, name):
     return None
 
 
+def plan_sce_blank(doc: DSDDocument) -> list[dict]:
+    """연결자본변동표 당기 블록(당기초 ~ 당기말 행)의 금액 칸을 모두 빈칸으로.
+    DART 보고서에서는 당기 자본변동표를 직접 작성하므로 숫자를 넣지 않는다 (전기 블록은 이월값 그대로)."""
+    t, c0, c1 = find_sce(doc)
+    if t is None:
+        return []
+    heads = t.col_headers()
+    base = {'table_id': 'SCE', 'table_name': '연결자본변동표', 'raw': None, 'review': False,
+            'sheet': '', 'dsd_table': t.index, 'new': '', 'message': '', 'expr': '당기 — 빈칸'}
+    out = []
+    for i in range(c0, c1 + 1):
+        row = t.rows[i]
+        lab = next((x.text for x in row if x.col == 0), '')
+        for cell in row:
+            if cell.col == 0:
+                continue
+            blank = not cell.text.strip()
+            out.append(dict(base, row=lab, col=heads.get(cell.col, ''), old=cell.text,
+                            status='ok' if blank else 'changed', _cell=cell))
+    return out
+
+
 def plan_sce(doc: DSDDocument, fs_rows: dict) -> list[dict]:
     t, c0, c1 = find_sce(doc)
     bs, pl = (fs_rows or {}).get('BS') or [], (fs_rows or {}).get('PL') or []

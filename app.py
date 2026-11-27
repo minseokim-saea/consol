@@ -9080,10 +9080,11 @@ def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
     if fs_rows:
         results += dsd_fs.plan_fs(doc, fs_rows)
     period_info['n_main'] = len(results)
-    if fs_rows:
-        # 자본변동표는 이월로 행 구조가 바뀔 수 있어, 편집을 반영해 다시 읽은 문서에서 칸을 찾는다
+    if fs_rows or roll is not None:
+        # 자본변동표 당기 블록은 빈칸으로 (DART 보고서에서 직접 작성).
+        # 이월로 행 구조가 바뀔 수 있어, 편집을 반영해 다시 읽은 문서에서 칸을 찾는다
         import dsd_sce
-        results += dsd_sce.plan_sce(DSDDocument.derived(doc), fs_rows)
+        results += dsd_sce.plan_sce_blank(DSDDocument.derived(doc))
     return roll, period_info, results
 
 
@@ -9196,7 +9197,7 @@ def dsd_report_build():
             # 자본변동표: 앞의 편집을 반영해 다시 읽은 문서에 적용한다 (미리보기와 같은 순번)
             import dsd_sce
             doc = DSDDocument.derived(doc)
-            sce = dsd_sce.plan_sce(doc, fs_rows)
+            sce = dsd_sce.plan_sce_blank(doc)
             results = results[:n_main] + sce
             applied += dsd_builder.apply(doc, sce, {i - n_main for i in selected if i >= n_main})
         stamp = _time.strftime('%Y%m%d_%H%M%S')
