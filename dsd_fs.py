@@ -170,6 +170,78 @@ def plan_fs(doc: DSDDocument, report: dict, mapping: dict | None = None) -> list
         before = (mapping.get('insert_before') or {}).get(code) or {}
         labels = (mapping.get('insert_label') or {}).get(code) or {}
         out += _plan_inserts(doc, t, code, title, rows, used, matched_row, sub_col, tot_col, before, labels)
+    if report.get('SUBS'):
+        out += plan_subs(doc, report['SUBS'], mapping.get('subsidiaries') or {})
+    return out
+
+
+def _co_key(s: str) -> str:
+    """회사명 비교용 — (주)·(*1) 표시, 띄어쓰기·문장부호, 대소문자 무시."""
+    s = re.sub(r'\(\*\d+\)|\(주\)|주식회사|\(미제출\)', '', str(s or ''))
+    return re.sub(r'[\s.,()·\-]', '', s).lower()
+
+
+def _unit_of(t) -> int:
+    cap = norm(t.caption)
+    for k, u in (('백만원', 1000000), ('천원', 1000)):
+        if k in cap:
+            return u
+    return 1
+
+
+def plan_subs(doc: DSDDocument, subs: dict, conf: dict) -> list[dict]:
+    """주석 '주요 종속기업의 요약재무현황' 표 — 회사별 자산·부채·매출·당기순손익을 연결정산표 회사 열 값으로.
+
+    subs : {연결정산표 회사 열 이름: {'1000000': 값, ...}} (원 단위)
+    conf : dsd_fs_mapping.json 의 subsidiaries — anchor(표 앞 문단), cols({DSD 열: 계정코드}),
+           companies({DSD 회사명: 연결정산표 회사 열 이름})."""
+    anchor = conf.get('anchor') or '주요 종속기업의 요약재무현황'
+    cols = conf.get('cols') or {}
+    by_co = {_co_key(k): v for k, v in subs.items()}
+    names = {_co_key(k): v for k, v in (conf.get('companies') or {}).items()}
+    tname = '주요 종속기업 요약재무현황'
+    akey = norm(anchor).replace(' ', '')
+    t = next((x for x in doc.tables
+              if akey in norm(x.anchor).replace(' ', '') and len(x.rows) > 1
+              and any(h in x.col_headers().values() for h in cols)), None)
+    if t is None:
+        return [{'table_id': '주석1', 'table_name': tname, 'row': '', 'col': '', 'old': '', 'new': '',
+                 'raw': None, 'status': 'error', 'review': False, 'sheet': '연결정산표', 'expr': '',
+                 'message': f'DSD 에서 “{anchor}” 표를 찾지 못함'}]
+    unit = _unit_of(t)
+    heads = t.col_headers()
+    out = []
+    for r in t.body_rows():
+        first = next((c for c in r if c.col == 0), None)
+        lab = first.text.strip() if first is not None else ''
+        if not lab:
+            continue
+        co = names.get(_co_key(lab))
+        vals = by_co.get(_co_key(co)) if co else None
+        for ci, h in heads.items():
+            if ci == 0 or h not in cols:
+                continue
+            cell = t.cell_at(r, ci)
+            item = {'table_id': '주석1', 'table_name': tname, 'row': lab, 'col': h,
+                    'old': cell.text if cell is not None else '', 'new': '', 'raw': None,
+                    'status': 'error', 'review': False, 'sheet': '연결정산표', 'dsd_table': t.index,
+                    'expr': f'{co or "?"} · {h}({cols[h]})', 'message': ''}
+            out.append(item)
+            if cell is None:
+                item['message'] = '병합된 칸이라 쓸 수 없음'
+                continue
+            if co is None:
+                item['message'] = 'dsd_fs_mapping.json subsidiaries.companies 에 이 회사가 없음'
+                continue
+            if vals is None:
+                item['message'] = f'연결정산표에 “{co}” 열이 없음'
+                continue
+            raw = float(vals.get(cols[h]) or 0)
+            item['raw'] = raw
+            item['new'] = fmt_amount(raw / unit, 0)
+            item['_cell'] = cell
+            o, n = parse_amount(item['old']), parse_amount(item['new'])
+            item['status'] = 'ok' if (o is not None and n is not None and o == n) else 'changed'
     return out
 
 

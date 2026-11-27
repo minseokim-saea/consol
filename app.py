@@ -9064,6 +9064,20 @@ def dsd_report_page():
                            groups=groups, default_gid=default_gid, username=uname)
 
 
+def _dsd_sub_values(ctx):
+    """주석 '주요 종속기업의 요약재무현황' 용 — 연결정산표 회사 열별 자산·부채·매출·당기순이익 (원).
+    연결 종속기업(상역(연결) 등)은 그 회사 열 = 하위 연결 값이다."""
+    import dsd_fs
+    codes = set(((dsd_fs.load_fs_mapping().get('subsidiaries') or {}).get('cols') or {}).values())
+    out = {}
+    for r in (ctx.get('result') or {}).get('rows') or []:
+        c = str(r.get('code') or '')
+        if c in codes:
+            for nm, v in (r.get('companies') or {}).items():
+                out.setdefault(nm, {})[c] = float(v or 0)
+    return out
+
+
 def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
     """틀 DSD 에 이월·기수변경을 적용하고 칸별 결과(주석 + 재무제표)를 만든다.
     미리보기와 생성이 같은 순서로 불러 결과 순번이 같아야 한다."""
@@ -9137,6 +9151,7 @@ def dsd_report_preview():
                 fs_rows = {st: _compute_report_fs(gid, period, st, ctx=ctx, prior_period=pp,
                                                   prior_ctx=pctx, prior_mode=pm)['rows']
                            for st in ('BS', 'PL', 'CF')}
+                fs_rows['SUBS'] = _dsd_sub_values(ctx)
                 fs_path.write_text(json.dumps(fs_rows, ensure_ascii=False, default=str),
                                    encoding='utf-8')
         roll, pinfo, results = _dsd_prepare(doc, period, notes_path, fs_rows,
