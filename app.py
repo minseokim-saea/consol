@@ -9105,12 +9105,15 @@ def _dsd_prepare(doc, period, notes_path, fs_rows, do_roll):
 def _dsd_blank_plan(doc, fs_rows, roll):
     """빈칸으로 둘 칸 — 회사가 DART 편집기에서 직접 쓴다. 미리보기·생성이 같은 순서로 부른다.
       · 자본변동표 당기 블록 (재무제표 채우기 또는 이월 때)
-      · dsd_mapping.json 의 blank 표 열 (예: 사용이 제한된 금융상품 당기말)"""
+      · dsd_mapping.json 의 blank 표 열 (예: 사용이 제한된 금융상품 당기말)
+      · dsd_mapping.json 의 pct_format 표 열 — % 표기 자리수 (예: 매도가능증권 지분율 3% → 3.00%)"""
     import dsd_sce, dsd_builder
     out = []
     if fs_rows or roll is not None:
         out += dsd_sce.plan_sce_blank(doc)
-    out += dsd_sce.plan_blank_cols(doc, dsd_builder.load_mapping().get('blank') or [])
+    mp = dsd_builder.load_mapping()
+    out += dsd_sce.plan_blank_cols(doc, mp.get('blank') or [])
+    out += dsd_sce.plan_pct_format(doc, mp.get('pct_format') or [])
     return out
 
 

@@ -296,7 +296,8 @@ def apply(doc: DSDDocument, results: list[dict], selected=None) -> int:
         cell = it.get('_cell')
         # 값이 같은 칸(ok)은 원문(정렬용 공백 등)을 그대로 둔다
         if cell is not None and it['status'] == 'changed':
-            if parse_amount(cell.text) != parse_amount(it['new']):
+            # _text: 표기만 바꾸는 칸(3% → 3.00%)은 숫자가 같아도 글자를 바꾼다
+            if (it.get('_text') and cell.text.strip() != it['new']) or                     parse_amount(cell.text) != parse_amount(it['new']):
                 doc.set_cell(cell, it['new'])
             if it.get('_rename'):
                 lab_cell, new_label = it['_rename']

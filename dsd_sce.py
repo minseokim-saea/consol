@@ -129,6 +129,34 @@ def plan_blank_cols(doc: DSDDocument, conf: list) -> list[dict]:
     return out
 
 
+def plan_pct_format(doc: DSDDocument, conf: list) -> list[dict]:
+    """주석 표의 % 열을 소수점 자리수에 맞춰 다시 쓴다 (예: 3% → 3.00%). 값은 틀 그대로, 표기만.
+    conf: dsd_mapping.json 의 pct_format = [{id, name, anchor, col, decimals}]."""
+    out = []
+    for b in conf or []:
+        key = norm(b.get('anchor', '')).replace(' ', '')
+        dec = int(b.get('decimals', 2))
+        base = {'table_id': b.get('id', ''), 'table_name': b.get('name', ''), 'raw': None, 'review': False,
+                'sheet': '', 'message': '', 'expr': f"{b.get('col', '')} — 소수점 {dec}자리"}
+        t = next((x for x in doc.tables if key and key in norm(x.anchor).replace(' ', '')
+                  and len(x.rows) > 1 and x.find_col(b.get('col', '')) is not None), None)
+        if t is None:
+            out.append(dict(base, row='', col=b.get('col', ''), old='', new='', status='error',
+                            message='DSD 에서 표를 찾지 못함'))
+            continue
+        ci = t.find_col(b['col'])
+        for r in t.body_rows():
+            cell = t.cell_at(r, ci)
+            m = re.fullmatch(r'\s*(-?\d+(?:\.\d+)?)\s*%\s*', cell.text if cell is not None else '')
+            if not m:
+                continue
+            new = f'{float(m.group(1)):.{dec}f}%'
+            lab = next((x.text for x in r if x.col == 0), '')
+            out.append(dict(base, row=lab, col=b['col'], old=cell.text, new=new, dsd_table=t.index,
+                            status='ok' if cell.text.strip() == new else 'changed', _cell=cell, _text=True))
+    return out
+
+
 def plan_sce(doc: DSDDocument, fs_rows: dict) -> list[dict]:
     t, c0, c1 = find_sce(doc)
     bs, pl = (fs_rows or {}).get('BS') or [], (fs_rows or {}).get('PL') or []
